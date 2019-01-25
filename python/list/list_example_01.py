@@ -1,5 +1,18 @@
+# -*- coding:utf-8 -*-
+
+"""
+@Author:        hogan.chen@ymail.com
+@Create Date:   2019-01-12
+"""
+
+import os
+import re
+import time
 import copy
+import string
+import random
 import logging
+import datetime
 
 
 # log level
@@ -256,6 +269,137 @@ def list_find_same_item_01():
     logging.debug('same_lists: {}'.format(same_lists))
 
 
+# 列表转字符串
+def str_to_list_example_01():
+    """
+    >>> random.choices(string.ascii_letters)
+    ['Q']
+    >>> random.choice(string.ascii_letters)
+    'n'
+
+    >>> 'NT gV IJ Km Wx vs mk Yn dH 4r'.split()
+    ['NT', 'gV', 'IJ', 'Km', 'Wx', 'vs', 'mk', 'Yn', 'dH', '4r']
+
+    >>> 'www.google.com'.split('.')
+    ['www', 'google', 'com']
+
+    >>> ''.join(['NT', 'gV', 'IJ', 'Km', 'Wx', 'vs', 'mk', 'Yn', 'dH', '4r'])
+    'NTgVIJKmWxvsmkYndH4r'
+
+    >>> ' '.join(['NT', 'gV', 'IJ', 'Km', 'Wx', 'vs', 'mk', 'Yn', 'dH', '4r'])
+    'NT gV IJ Km Wx vs mk Yn dH 4r'
+    """
+
+    def id_generator(size=10, chars=string.ascii_letters + string.digits + string.punctuation):
+        return ''.join(random.choice(chars) for _ in range(size))
+
+    logging.debug('id_generator(20): {}'.format(id_generator(20)))
+    logging.debug('id_generator(20): {}'.format(id_generator(20, string.ascii_letters + string.digits)))
+
+    hex_str_len = 20
+
+    # 当随机值小于0x10，导致去除0x后，值变为一位数，导致长度不固定
+    hex_str_01 = ''.join(hex(random.randint(0, 0xff)).replace('0x', '').upper() for _ in range(hex_str_len))
+    logging.debug('len(hex_str): {}, hex_str: {}'.format(len(hex_str_01), hex_str_01))
+
+    hex_str_02 = ''.join('{:02x}'.format(int(random.randint(0, 0xff))).upper() for _ in range(hex_str_len))
+    logging.debug('len(hex_str): {}, hex_str: {}'.format(len(hex_str_02), hex_str_02))
+
+    '''
+    Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "/home/chenlianghong/anaconda3/lib/python3.6/random.py", line 318, in sample
+    raise ValueError("Sample larger than population or is negative")
+ValueError: Sample larger than population or is negative
+    '''
+    # 当随机个数过多会出现以上错误
+    # https://blog.csdn.net/heybob/article/details/45341241
+    # hex_str_03 = ''.join(random.sample(string.hexdigits, hex_str_len * 2)).upper()
+    # logging.debug('len(hex_str): {}, hex_str: {}'.format(len(hex_str_03), hex_str_03))
+
+    # https://blog.csdn.net/qq_15037231/article/details/77983468
+    hex_str_04 = ''.join(random.choice(string.hexdigits) for _ in range(hex_str_len * 2)).upper()
+    logging.debug('len(hex_str): {}, hex_str: {}'.format(len(hex_str_04), hex_str_04))
+
+    '''
+    python 2
+    rand_str_01 = ''.join(map(lambda xx:(hex(ord(xx))[2:]),os.urandom(16)))
+    '''
+    # python 3，缺点，长度不确定
+    #
+    # http://www.runoob.com/python/python-func-ord.html
+    # rand_str_01 = ''.join(map(lambda xx: (hex(ord(chr(xx)))[2:]), os.urandom(16)))
+    rand_str_01 = ''.join(map(lambda xx: (hex(xx)[2:]), os.urandom(hex_str_len)))
+    logging.debug('len(rand_str): {}, rand_str: {}'.format(len(rand_str_01), rand_str_01))
+
+    # https://www.v2ex.com/t/394944
+    rand_str_02 = ''.join(random.choices(string.ascii_letters + string.digits, k=hex_str_len))
+    logging.debug('len(rand_str): {}, rand_str: {}'.format(len(rand_str_02), rand_str_02))
+
+    rand_str_03 = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(hex_str_len))
+    logging.debug('len(rand_str): {}, rand_str: {}'.format(len(rand_str_03), rand_str_03))
+
+    # logging.debug('string.digits: {}, string.hexdigits: {}, string.ascii_uppercase: {}, string.ascii_lowercase: {}, '
+    #               'string.octdigits: {}, string.ascii_letters: {}, string.printable: {}, string.punctuation: {}, '
+    #               'string.whitespace: {}'.format(string.digits, string.hexdigits, string.ascii_uppercase,
+    #                                              string.ascii_lowercase, string.octdigits, string.ascii_letters,
+    #                                              string.printable, string.punctuation, string.whitespace))
+    logging.debug('string.digits: {}, string.hexdigits: {}, string.ascii_uppercase: {}, string.ascii_lowercase: {}, '
+                  'string.octdigits: {}, string.ascii_letters: {}, string.punctuation: {}'.
+                  format(string.digits, string.hexdigits, string.ascii_uppercase,
+                         string.ascii_lowercase, string.octdigits, string.ascii_letters, string.punctuation))
+
+    rand_str = ''.join(random.choices(string.ascii_letters + string.digits, k=hex_str_len))
+    logging.debug('len(rand_str): {}, rand_str: {}'.format(len(rand_str), rand_str))
+
+    # .匹配除'\n'外的任意字符，{m,n}表示匹配前一个字符m到n次，m和n可以省略：若省略m，则匹配0到n次；若省略n，则匹配m到无限次
+    # http://www.cnblogs.com/huxi/archive/2010/07/04/1771073.html
+    split_rand_str_list = re.findall('.{1,2}', rand_str)
+    logging.debug('split_rand_str_list: {}'.format(split_rand_str_list))
+
+    comb_rand_str = ' '.join(split_rand_str_list)
+    logging.debug('comb_rand_str: {}'.format(comb_rand_str))
+
+    # # .匹配除'\n'外的任意字符，{m,n}表示匹配前一个字符m到n次，m和n相等时，则可简化为{m}
+    split_rand_str_list = re.findall('.{2,2}', rand_str)
+    logging.debug('split_rand_str_list: {}'.format(split_rand_str_list))
+
+    comb_rand_str = ' '.join(split_rand_str_list)
+    logging.debug('comb_rand_str: {}'.format(comb_rand_str))
+
+    # .匹配除'\n'外的任意字符，{m}示匹配前一个字符m次
+    split_rand_str_list = re.findall('.{2}', rand_str)
+    logging.debug('split_rand_str_list: {}'.format(split_rand_str_list))
+
+    comb_rand_str = ' '.join(split_rand_str_list)
+    logging.debug('comb_rand_str: {}'.format(comb_rand_str))
+
+    rand_str = ''.join(random.choices(string.ascii_letters + string.digits, k=hex_str_len - 1))
+    logging.debug('len(rand_str): {}, rand_str: {}'.format(len(rand_str), rand_str))
+
+    # .匹配除'\n'外的任意字符，{m,n}表示匹配前一个字符m到n次，m和n可以省略：若省略m，则匹配0到n次；若省略n，则匹配m到无限次
+    # http://www.cnblogs.com/huxi/archive/2010/07/04/1771073.html
+    split_rand_str_list = re.findall('.{1,2}', rand_str)
+    logging.debug('split_rand_str_list: {}'.format(split_rand_str_list))
+
+    comb_rand_str = ' '.join(split_rand_str_list)
+    logging.debug('comb_rand_str: {}'.format(comb_rand_str))
+
+    # # .匹配除'\n'外的任意字符，{m,n}表示匹配前一个字符m到n次，m和n相等时，则可简化为{m}
+    split_rand_str_list = re.findall('.{2,2}', rand_str)
+    logging.debug('split_rand_str_list: {}'.format(split_rand_str_list))
+
+    comb_rand_str = ' '.join(split_rand_str_list)
+    logging.debug('comb_rand_str: {}'.format(comb_rand_str))
+
+    # .匹配除'\n'外的任意字符，{m}示匹配前一个字符m次
+    split_rand_str_list = re.findall('.{2}', rand_str)
+    logging.debug('split_rand_str_list: {}'.format(split_rand_str_list))
+
+    comb_rand_str = ' '.join(split_rand_str_list)
+    logging.debug('comb_rand_str: {}'.format(comb_rand_str))
+
+
 def main():
     list_slice_01()
 
@@ -280,8 +424,22 @@ def main():
     print('*' * 120)
     list_find_same_item_01()
 
+    print('*' * 120)
+    str_to_list_example_01()
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     logging_config(LOGGING_LEVEL)
 
+    logging.info('Script start execution at {}'.format(str(datetime.datetime.now())))
+
+    print('-' * 120)
+
+    time_start = time.time()
+
     main()
+
+    print('-' * 120)
+
+    logging.info('Total elapsed time: {} seconds'.format(time.time() - time_start))
+    logging.info('Script end execution at {}'.format(datetime.datetime.now()))
