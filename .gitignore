@@ -111,3 +111,5 @@ venv.bak/
 
 #swf
 *.swf
+python/xml_convert/tc/*
+python/xml_convert/tc/*
