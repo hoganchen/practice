@@ -11,7 +11,7 @@ import datetime
 
 
 # log level
-LOGGING_LEVEL = logging.DEBUG
+LOGGING_LEVEL = logging.INFO
 
 
 def logging_config(logging_level):
@@ -50,7 +50,7 @@ def get_all_files_with_suffix(dir_path, suffix=None):
 def tc_xml_convert(folder_path, suffix=None):
     file_path_list = get_all_files_with_suffix(folder_path, suffix=suffix)
 
-    xml_template='''<?xml version="1.0" encoding="UTF-8"?>
+    xml_template = '''<?xml version="1.0" encoding="UTF-8"?>
 <testcases>
 <testcase name="GAP_ADV_BV-01-C">
     <summary></summary>
@@ -72,7 +72,7 @@ def tc_xml_convert(folder_path, suffix=None):
 </testcases>
 '''
 
-    xml_template='''<?xml version="1.0" encoding="UTF-8"?>
+    xml_template = '''<?xml version="1.0" encoding="UTF-8"?>
 <testcases>
 <testcase name="GAP_ADV_BV-01-C">
     <summary></summary>
