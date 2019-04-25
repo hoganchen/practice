@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<testcases>
+<testcase internalid="3187" name="con_adv_bv_01">
+	<node_order><![CDATA[1]]></node_order>
+	<externalid><![CDATA[1341]]></externalid>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[<p>Accepting Connections</p>
+]]></summary>
+	<preconditions><![CDATA[<p>1)Two devices that support BLE5.0 Controller features.</p>
+
+<p>2)Abbreviation description: DUT: The device used for testing. RTD: The remote tester device used to test the DUT.</p>
+]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[con_adv_bv_01]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+</testcases>

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<testcases>
+<testcase internalid="265" name="Long Time Data Transmission Stress Test">
+	<node_order><![CDATA[1001]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[<p>test long time data transmission stability of balboa platform</p>
+]]></summary>
+	<preconditions><![CDATA[<p>install auto test app on android mobile&nbsp;phone</p>
+]]></preconditions>
+	<execution_type><![CDATA[1]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>download ble_app_throughput project bin in balboa platform</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>download successfully</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[2]]></step_number>
+	<actions><![CDATA[<p>open auto test app at mobile phone, set test params as:&nbsp; &nbsp;</p>
+
+<p>&nbsp;&nbsp;1.test time: 43200</p>
+
+<p>&nbsp;&nbsp;2.test count: 1</p>
+
+<p>&nbsp;&nbsp;3.scan time: 30</p>
+
+<p>&nbsp;&nbsp;4.test case: goodix_throughput</p>
+
+<p>&nbsp;&nbsp;5.test device: choice balboa name and address</p>
+
+<p>&nbsp;&nbsp;6.press down start test button</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>auto test app switch to&nbsp;throughput test page successfully</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[3]]></step_number>
+	<actions><![CDATA[<p>waiting app test finish, record test result and compare with pass standard</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>app test finish successfullly</p>
+
+<p>pass standard:</p>
+
+<p>1.&nbsp;app test result is pass</p>
+
+<p>2. data throughput rate should larger than 500</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+</testcases>

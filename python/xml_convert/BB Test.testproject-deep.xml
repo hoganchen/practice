@@ -1,0 +1,650 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite id="" name="" >
+<node_order><![CDATA[]]></node_order>
+<details><![CDATA[]]></details> 
+<testsuite id="16" name="PTS Test Example Suite" >
+<node_order><![CDATA[1]]></node_order>
+<details><![CDATA[<p>PTS Test Example Suite</p>
+]]></details> 
+
+<testcase internalid="55" name="GATT_CL_GAR_BI-20-C">
+	<node_order><![CDATA[1000]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>1. send &quot;aa0003&quot; data to serial port</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>1. the serial port output as expected</p>
+]]></expectedresults>
+	<execution_type><![CDATA[2]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[GATT_CL_GAR_BI-20-C]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="59" name="GATT_SR_GAC_BV-01-C">
+	<node_order><![CDATA[1001]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>1. send &quot;aa0000&quot; data to serial port</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>1. the serial port output as expected</p>
+]]></expectedresults>
+	<execution_type><![CDATA[2]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[GATT_SR_GAC_BV-01-C]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="61" name="L2CAP_COS_CFC_BV-01-C">
+	<node_order><![CDATA[1002]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>1. send &quot;aa0000&quot; data to serial port</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>1. the serial port output as expected</p>
+]]></expectedresults>
+	<execution_type><![CDATA[2]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[L2CAP_COS_CFC_BV-01-C]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="63" name="SM_MAS_PROT_BV-01-C">
+	<node_order><![CDATA[1003]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>send &quot;aa0000&quot; data to serial port</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>the serial port output as expected</p>
+]]></expectedresults>
+	<execution_type><![CDATA[2]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[SM_MAS_PROT_BV-01-C]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="65" name="GAP_BROB_BCST_BV-01-C">
+	<node_order><![CDATA[1004]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>send &quot;aa0000&quot; data to serial port</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>the serial port output as expected</p>
+]]></expectedresults>
+	<execution_type><![CDATA[2]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[GAP_BROB_BCST_BV-01-C]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+</testsuite><testsuite id="239" name="BLE Examples Suite" >
+<node_order><![CDATA[2]]></node_order>
+<details><![CDATA[<p>The test cases for All of BLE examples, inlcuding BLE peripheral, BLE central and BLE multi-role.</p>
+]]></details> 
+<testsuite id="240" name="BLE Peripheral Suite" >
+<node_order><![CDATA[1]]></node_order>
+<details><![CDATA[<p>The test cases for All of BLE peripherals application.</p>
+]]></details> 
+<testsuite id="241" name="Proximity Reporter Suite" >
+<node_order><![CDATA[1]]></node_order>
+<details><![CDATA[<p>The test cases for proximity reporter application.</p>
+]]></details> 
+
+<testcase internalid="242" name="[ble-app-pxp-reporter-tc-001]Discover local name">
+	<node_order><![CDATA[1000]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[<p>Phone discovers the device with the correct local name.</p>
+]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[1]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>Download ble_app_pxp_reporter_fw.bin</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>Downlaod successfully.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[2]]></step_number>
+	<actions><![CDATA[<p>Press &#39;Reset&#39; Key on Board to start BLE application.</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>UART terminal receives logs as below:</p>
+
+<p>[APP]Local BD_ADDR-EA:CB:3E:CF:00:D0<br />
+[APP]Proximity Reporter running</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[3]]></step_number>
+	<actions><![CDATA[<p>Open GRToolbox and Scan</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>Find a device named &#39;GDX_PXP_Reporter&#39;.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="254" name="[ble-app-pxp-reporter-tc-002]Display Device Appearance">
+	<node_order><![CDATA[1001]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[<p>GRToolbox displays the device appearance.</p>
+]]></summary>
+	<preconditions><![CDATA[<p>GRToolbox discovered the device named &#39;GDX_PXP_Reporter&#39;.</p>
+]]></preconditions>
+	<execution_type><![CDATA[1]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>Check the icon before device name and bd addr in device list of GRToolbox.</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>The icon for Proximity Reporter is shown.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="267" name="[ble-app-pxp-reporter-tc-003]Connect with BLE App">
+	<node_order><![CDATA[1002]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[Test connecting and pairing
+]]></summary>
+	<preconditions><![CDATA[<p>The IUT is in the device list of BLE App, like nRF Connect or GRToolbox.</p>
+]]></preconditions>
+	<execution_type><![CDATA[1]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>Click &#39;Connect&#39; button of the IUT in BLE App</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>BLE App is connected with IUT.</p>
+
+<p>IUT&nbsp; outputs log &#39;[APP]Proximity Reporter: connected&#39; in UART terminal.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[2]]></step_number>
+	<actions><![CDATA[<p>Expand Link Loss Service in the Connected device view of BLE App</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>There is &#39;Alert Level&#39; characteristic in Link Loss Service.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[3]]></step_number>
+	<actions><![CDATA[<p>Click &#39;Read&#39; button of &#39;Alert Level&#39; characteristic.</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>Phone popups an input dialog for pin code.</p>
+
+<p>IUT outputs log &#39;Please Input pin code: 123456&#39; in UART terminal.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[4]]></step_number>
+	<actions><![CDATA[<p>Input pin code in Phone</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>Pairing successfully and The value &#39;No Alert&#39; of Alert Level is shown in BLE App.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="273" name="[ble-app-pxp-reporter-tc-004]Reconnect with BLE App">
+	<node_order><![CDATA[1003]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[<p>Test reconnection.</p>
+]]></summary>
+	<preconditions><![CDATA[<p>IUT had been paired with the phone.<br />
+IUT is not conneced.<br />
+IUT is advertising.</p>
+]]></preconditions>
+	<execution_type><![CDATA[1]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>Click &#39;Connect&#39; button of the IUT in BLE App.</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>Phone is connected with the IUT.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[2]]></step_number>
+	<actions><![CDATA[<p>Expand Link Loss Service in Connected device view in BLE App.</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>There is &#39;Alert Level&#39; characteristic in BLE App.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[3]]></step_number>
+	<actions><![CDATA[<p>Click &#39;Read&#39; button of &#39;Alert Level&#39; characteristic.</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>The value &#39;No Alert&#39; of &#39;Alert Level&#39; is shown without pairing procedure.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="313" name="[ble-app-pxp-reporter-tc-005]Immediate Alert">
+	<node_order><![CDATA[1004]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[There are three alert levels: No Alert, Mild Alert and High Alert. Repeat the steps to test the three alert levels.]]></summary>
+	<preconditions><![CDATA[<p>Phone has been paired with IUT.<br />
+Phone is connected with IUT.</p>
+]]></preconditions>
+	<execution_type><![CDATA[1]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>Expand&nbsp; &#39;Immediate Alert&#39; Service in Connected view of BLE App.</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>&#39;Alert Level&#39; characteristic is shown.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[2]]></step_number>
+	<actions><![CDATA[<p>Click &#39;Write&#39; button of &#39;Alert Level&#39; characteristic,&nbsp; then select the alert level to send in BLE App.</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>IUT outputs the alert level which is sent from BLE App.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="317" name="[ble-app-pxp-reporter-tc-006]Link Loss Alert">
+	<node_order><![CDATA[1005]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[There are three alert levels: No Alert, Mild Alert and High Alert. Repeat the steps to test the three levels.]]></summary>
+	<preconditions><![CDATA[Phone has been paired with IUT.<br />
+Phone is connected with IUT.]]></preconditions>
+	<execution_type><![CDATA[1]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>Set Link Loss Alert level in BLE App.</p>
+]]></actions>
+	<expectedresults><![CDATA[]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[2]]></step_number>
+	<actions><![CDATA[<p>Take the phone away from IUT until phone disconnects with IUT.</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>IUT outputs the alert level which was set in Step 1, and IUT starts the advertising.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="321" name="[ble-app-pxp-reporter-tc-007]Tx Power Level">
+	<node_order><![CDATA[1006]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[BLE App gets the correct value of Tx Power Level.]]></summary>
+	<preconditions><![CDATA[Phone has been paired with IUT.<br />
+Phone is connected with IUT.]]></preconditions>
+	<execution_type><![CDATA[1]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+<steps>
+<step>
+	<step_number><![CDATA[1]]></step_number>
+	<actions><![CDATA[<p>Click &#39;Read&#39; button to get the value of Tx Power Level in BLE App.</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>The value of Tx Power Level is shown.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+
+<step>
+	<step_number><![CDATA[2]]></step_number>
+	<actions><![CDATA[<p>Compare the value in BLE App with the the value that is gotten from TX pwoer testing equipment.</p>
+]]></actions>
+	<expectedresults><![CDATA[<p>The two values are same.</p>
+]]></expectedresults>
+	<execution_type><![CDATA[1]]></execution_type>
+</step>
+</steps>
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+</testsuite></testsuite><testsuite id="335" name="BLE Multi role Suite" >
+<node_order><![CDATA[2]]></node_order>
+<details><![CDATA[]]></details> 
+<testsuite id="336" name="HRS RSCS Relay" >
+<node_order><![CDATA[1]]></node_order>
+<details><![CDATA[]]></details> 
+</testsuite></testsuite></testsuite><testsuite id="262" name="Stress Test Example Suite" >
+<node_order><![CDATA[3]]></node_order>
+<details><![CDATA[]]></details> 
+
+<testcase internalid="263" name="Frequently Reconnect Test">
+	<node_order><![CDATA[1000]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[1]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="265" name="Long Time Data Transmit Test">
+	<node_order><![CDATA[1001]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[1]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+</testsuite><testsuite id="341" name="System Compatibility Test Suite" >
+<node_order><![CDATA[4]]></node_order>
+<details><![CDATA[]]></details> 
+
+<testcase internalid="342" name="BLE_APP_BPS">
+	<node_order><![CDATA[1000]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[BLE_APP_BPS]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="344" name="BLE_APP_HRS">
+	<node_order><![CDATA[1001]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[BLE_APP_HRS]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="346" name="BLE_APP_HTS">
+	<node_order><![CDATA[1002]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[BLE_APP_HTS]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="348" name="BLE_APP_UART">
+	<node_order><![CDATA[1003]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[BLE_APP_UART]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="350" name="BLE_APP_BEACON">
+	<node_order><![CDATA[1004]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[BLE_APP_BEACON]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+
+<testcase internalid="352" name="BLE_APP_THROUGHPUT">
+	<node_order><![CDATA[1005]]></node_order>
+	<version><![CDATA[1]]></version>
+	<summary><![CDATA[]]></summary>
+	<preconditions><![CDATA[]]></preconditions>
+	<execution_type><![CDATA[2]]></execution_type>
+	<importance><![CDATA[2]]></importance>
+	<estimated_exec_duration></estimated_exec_duration>
+	<status>1</status>
+	<is_open>1</is_open>
+	<active>1</active>
+
+<custom_fields>
+			<custom_field>
+			<name><![CDATA[BLE_AUTO]]></name>
+			<value><![CDATA[BLE_APP_THROUGHPUT]]></value>
+			</custom_field>
+		</custom_fields>
+</testcase>
+</testsuite></testsuite>
