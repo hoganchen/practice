@@ -16,7 +16,8 @@ import datetime
 import urllib.request
 from bs4 import BeautifulSoup
 
-flash_url_link_list = ('http://www.7k7k.com/tag/2661/hot.htm', 'http://www.7k7k.com/tag/2661/hot_2.htm')
+flash_url_link_list = ('http://www.7k7k.com/tag/1819/hot.htm', 'http://www.7k7k.com/tag/1819/hot_2.htm',
+                       'http://www.7k7k.com/tag/1819/hot_3.htm', 'http://www.7k7k.com/tag/1819/hot_4.htm')
 # flash_url_link_list = ('http://www.7k7k.com/tag/2661/hot.htm', )
 
 UserAgentList = [
@@ -98,30 +99,43 @@ def get_swf_link(swf_url_link):
 
     logging.debug(header)
 
-    url_request = urllib.request.Request(swf_url_link, headers=header)
-    url_open = urllib.request.urlopen(url_request, timeout=5)
+    try:
+        url_request = urllib.request.Request(swf_url_link, headers=header)
+        url_open = urllib.request.urlopen(url_request, timeout=5)
 
-    html_doc = url_open.read()
-    html_doc = gzip.decompress(html_doc).decode('utf-8')
+        html_doc = url_open.read()
+        html_doc = gzip.decompress(html_doc).decode('utf-8')
+    except Exception as err:
+        logging.warning('Warning: Can not open link {}, the error information: {}'.format(swf_url_link, err))
+    else:
+        logging.debug(html_doc)
+        file_name = None
+        swf_download_link = None
+        swf_back2back_link = None
 
-    logging.debug(html_doc)
-    file_name = None
-    swf_download_link = None
+        file_match_obj = re.search('_gamename\s*=\s*\"(.*?)\"', html_doc)
+        if file_match_obj:
+            file_name = file_match_obj.group(1)
 
-    file_match_obj = re.search('_gamename\s*=\s*\"(.*?)\"', html_doc)
-    if file_match_obj:
-        file_name = file_match_obj.group(1)
+        url_match_obj = re.search('_gamepath\s*=\s*\"([^\"]+)\"', html_doc)
+        if url_match_obj:
+            swf_download_link = url_match_obj.group(1)
 
-    url_match_obj = re.search('_gamepath\s*=\s*\"([^\"]+)\"', html_doc)
-    if url_match_obj:
-        swf_download_link = url_match_obj.group(1)
+        b2b_url_match_obj = re.search('_gamespecialpath\s*=\s*\"([^\"]+)\"', html_doc)
+        if b2b_url_match_obj:
+            swf_back2back_link = url_match_obj.group(1)
 
-    if file_name is not None and swf_download_link is not None:
-        if not re.search(r'.swf$', swf_download_link):
-            swf_download_link = swf_download_link.replace('html', 'swf')
+        if file_name is not None and swf_download_link is not None:
+            if not re.search(r'.swf$', swf_download_link):
+                if swf_back2back_link is not None and re.search(r'.swf$', swf_back2back_link):
+                    swf_download_link = swf_back2back_link
+                else:
+                    # swf_download_link = swf_download_link.replace('html', 'swf')
+                    swf_download_link = re.sub(r'_\d+(.\w+)$', r'\g<1>', swf_download_link)
+                    swf_download_link = re.sub(r'.\w+$', '.swf', swf_download_link)
 
-        logging.info('file_name: {}, swf_download_link: {}'.format(file_name, swf_download_link))
-        download_swf('{}.swf'.format(file_name), swf_download_link)
+            logging.info('file_name: {}, swf_download_link: {}'.format(file_name, swf_download_link))
+            download_swf('{}.swf'.format(file_name), swf_download_link)
 
 
 def get_flash_link(url_link_list):
@@ -206,6 +220,7 @@ def main():
 
     get_flash_link(flash_url_link_list)
     # show_url_content('http://flash.7k7k.com/cms/cms10/20120217/1648567588/T85703/back2back.html')
+    # show_url_content('http://www.7k7k.com/swf/189028.htm')
 
 
 if __name__ == "__main__":

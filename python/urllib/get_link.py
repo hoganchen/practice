@@ -16,8 +16,11 @@ import datetime
 import urllib.request
 from bs4 import BeautifulSoup
 
-flash_url_link_list = ('http://www.7k7k.com/tag/2661/hot.htm', 'http://www.7k7k.com/tag/2661/hot_2.htm')
+flash_url_link_list = ('http://www.7k7k.com/tag/1819/hot.htm', 'http://www.7k7k.com/tag/1819/hot_2.htm',
+                       'http://www.7k7k.com/tag/1819/hot_3.htm', 'http://www.7k7k.com/tag/1819/hot_4.htm')
 # flash_url_link_list = ('http://www.7k7k.com/tag/2661/hot.htm', )
+
+flash_swf_link_list = ('http://flash.7k7k.com/fl_9/20101216/duolaT/SnowWhite.swf', )
 
 UserAgentList = [
     'Mozilla/5.0 (Windows NT 6.1; rv:28.0) Gecko/20100101 Firefox/28.0',
@@ -77,6 +80,22 @@ def download_swf(file_name, swf_link):
                         format(file_name, swf_link, err))
 
 
+def download_swf_list(swf_link_list):
+    index = 0
+
+    for swf_link in swf_link_list:
+        index += 1
+
+        try:
+            file_name = re.search(r'(\w+).swf', swf_link).group(1)
+        except Exception as err:
+            logging.warning('Warning: re search error, the error information: {}'.format(err))
+            file_name = 'swf_{}'.format(index)
+
+        logging.info('file_name: {}, swf_download_link: {}'.format(file_name, swf_link))
+        download_swf(file_name, swf_link)
+
+
 def get_swf_link(swf_url_link):
     host = ''
     match_obj = re.match(r'^http[s]*://([^/]*)', swf_url_link)
@@ -107,6 +126,7 @@ def get_swf_link(swf_url_link):
     logging.debug(html_doc)
     file_name = None
     swf_download_link = None
+    swf_back2back_link = None
 
     file_match_obj = re.search('_gamename\s*=\s*\"(.*?)\"', html_doc)
     if file_match_obj:
@@ -116,9 +136,16 @@ def get_swf_link(swf_url_link):
     if url_match_obj:
         swf_download_link = url_match_obj.group(1)
 
+    b2b_url_match_obj = re.search('_gamespecialpath\s*=\s*\"([^\"]+)\"', html_doc)
+    if b2b_url_match_obj:
+        swf_back2back_link = url_match_obj.group(1)
+
     if file_name is not None and swf_download_link is not None:
         if not re.search(r'.swf$', swf_download_link):
-            swf_download_link = swf_download_link.replace('html', 'swf')
+            if swf_back2back_link is not None and re.search(r'.swf$', swf_back2back_link):
+                swf_download_link = swf_back2back_link
+            else:
+                swf_download_link = swf_download_link.replace('html', 'swf')
 
         logging.info('file_name: {}, swf_download_link: {}'.format(file_name, swf_download_link))
         download_swf('{}.swf'.format(file_name), swf_download_link)
@@ -204,8 +231,11 @@ def show_url_content(url_link):
 def main():
     logging_config(LOGGING_LEVEL)
 
-    get_flash_link(flash_url_link_list)
+    # get_flash_link(flash_url_link_list)
     # show_url_content('http://flash.7k7k.com/cms/cms10/20120217/1648567588/T85703/back2back.html')
+    show_url_content('http://www.7k7k.com//swf/50450.htm')
+
+    download_swf_list(flash_swf_link_list)
 
 
 if __name__ == "__main__":
