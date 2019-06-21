@@ -25,5 +25,5 @@ func main() {
 	fmt.Println(v)
 
 	fmt.Println(v1, p, v2, v3)
-	fmt.Printf("v1 = %v, p address: %p, p point address = %p, p = %v, v2 = %v, v3 = %v\n", v1, p, p, v2, v3)
+	fmt.Printf("v1 = %v, p address = %p, p point address = %p, p = %v, v2 = %v, v3 = %v\n", v1, p, p, p, v2, v3)
 }
