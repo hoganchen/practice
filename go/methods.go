@@ -20,6 +20,15 @@ func (v Vertex) Abs() float64 {
 	return math.Sqrt(v.X*v.X + v.Y*v.Y)
 }
 
+/*
+方法即函数
+记住：方法只是个带接收者参数的函数。
+现在这个 Abs 的写法就是个正常的函数，功能并没有什么变化。
+*/
+func Abs(v Vertex) float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y)
+}
+
 type Integer struct {
 	X int
 }
@@ -28,10 +37,29 @@ func (x Integer) Double() int {
 	return x.X + x.X
 }
 
+/*
+你也可以为非结构体类型声明方法。
+在此例中，我们看到了一个带 Abs 方法的数值类型 MyFloat。
+你只能为在同一包内定义的类型的接收者声明方法，而不能为其它包内定义的类型（包括 int 之类的内建类型）的接收者声明方法。
+（译注：就是接收者的类型定义和方法声明必须在同一包内；不能为内建类型声明方法。）
+*/
+type MyFloat float64
+
+func (f MyFloat) Abs() float64 {
+	if f < 0 {
+		return float64(-f)
+	}
+	return float64(f)
+}
+
 func main() {
 	v := Vertex{3, 4}
-	fmt.Println(v.Abs())
+	fmt.Println("v.Abs() =", v.Abs())
+	fmt.Println("Abs(v) =", Abs(v))
 
 	x := Integer{3}
-	fmt.Println(x.Double())
+	fmt.Println("x.Double() =", x.Double())
+
+	f := MyFloat(-math.Sqrt2)
+	fmt.Println("f.Abs() =", f.Abs())
 }
