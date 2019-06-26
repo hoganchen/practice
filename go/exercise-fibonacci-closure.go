@@ -22,11 +22,29 @@ func fibonacci() func() int {
 	}
 }
 
+func fibonacci_new() func() int {
+	x, y := 0, 1
+
+	return func() int {
+		x, y = y, x + y
+
+		return x
+	}
+}
+
 func main() {
 	f := fibonacci()
 	for i := 0; i < 30; i++ {
 		// fmt.Println(f())
 		fmt.Printf("%v, ", f())
+	}
+
+	fmt.Printf("\n")
+
+	ff := fibonacci_new()
+	for i := 0; i < 30; i++ {
+		// fmt.Println(ff())
+		fmt.Printf("%v, ", ff())
 	}
 
 	fmt.Printf("\n")
