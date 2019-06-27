@@ -44,6 +44,7 @@ func main() {
 
 	cc := make(chan uint64, 50)
 	go fibonacci_new(uint64(cap(cc)), cc)
+	fmt.Println("cap(cc) =", cap(cc))
 	for i := range cc {
 		fmt.Println(i)
 	}
