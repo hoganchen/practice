@@ -23,6 +23,13 @@ long long fibonacci(int n) {
 }
 
 int main() {
+    int i = 0;
+    int *p = (int *)(0x7ffec30f4d1c);
+
+    // Segmentation fault (core dumped)
+    // printf("p = %p, *p = %x\n", p, *p);
+    printf("p = %p\n", p);
+    printf("i address: %p\n", &i);
     printf("fibonacci(%d) = %lld\n", 100, fibonacci(100));
 
     return 0;
