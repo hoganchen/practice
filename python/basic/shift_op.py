@@ -46,6 +46,23 @@ def shift_calc():
     xo_offset = (rf_reg_9 & 0x0007fc00) >> 10
     logging.info('rf_reg_9: 0x{:08x}, xo_offset: 0x{:04x}, bin(xo_offset): {}'.format(rf_reg_9, xo_offset, bin(xo_offset)))
 
+    rf_reg_9 = 0x25b510c6
+    xo_offset = (rf_reg_9 & 0x0007fc00) >> 10
+    logging.info('rf_reg_9: 0x{:08x}, xo_offset: 0x{:04x}, bin(xo_offset): {}'.format(rf_reg_9, xo_offset, bin(xo_offset)))
+
+    rf_reg_9 = 0x25b520c6
+    xo_offset = (rf_reg_9 & 0x0007fc00) >> 10
+    logging.info('rf_reg_9: 0x{:08x}, xo_offset: 0x{:04x}, bin(xo_offset): {}'.format(rf_reg_9, xo_offset, bin(xo_offset)))
+
+    rf_reg_9 = 0x25b4A0C6
+    xo_offset = (rf_reg_9 & 0x0007fc00) >> 10
+    logging.info('rf_reg_9: 0x{:08x}, xo_offset: 0x{:04x}, bin(xo_offset): {}'.format(rf_reg_9, xo_offset, bin(xo_offset)))
+
+    rf_reg_9 = 0x25b490C6
+    xo_offset = (rf_reg_9 & 0x0007fc00) >> 10
+    logging.info('rf_reg_9: 0x{:08x}, xo_offset: 0x{:04x}, bin(xo_offset): {}'.format(rf_reg_9, xo_offset, bin(xo_offset)))
+
+
 
 def main():
     shift_calc()
