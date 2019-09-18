@@ -14,6 +14,7 @@ import json
 import socket
 import serial
 import logging
+import platform
 import binascii
 import datetime
 import threading
@@ -353,6 +354,17 @@ def start_log_server():
         # the SO_REUSEADDR flag tells the kernel to reuse a local socket in TIME_WAIT state,
         # without waiting for its natural timeout to expire.
         socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        # set the tcp keepalive feature
+        if 'Linux' == platform.system():
+            socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            socket_server.setsockopt(socket.SOL_TCP, socket.TCP_KEEPIDLE, 60)
+            socket_server.setsockopt(socket.SOL_TCP, socket.TCP_KEEPCNT, 4)
+            socket_server.setsockopt(socket.SOL_TCP, socket.TCP_KEEPINTVL, 15)
+        elif 'Windows' == platform.system():
+            socket_server.ioctl(socket.SIO_KEEPALIVE_VALS, (1, 10000, 3000))
+        else:
+            pass
 
         # Bind the socket to address. The socket must not already be bound.
         socket_server.bind(server_address)
