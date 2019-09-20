@@ -5,9 +5,10 @@ import "fmt"
 func a() {
 	i := 0
 	// 压栈的数据为当前的数据，而不是之后的新数据
-    defer fmt.Println(i)
-    i++
-    return
+	defer fmt.Println("i =", i)
+	i++
+	fmt.Println("i =", i)
+	return
 }
 
 /*
@@ -20,11 +21,18 @@ func main() {
 	fmt.Println("counting")
 
 	for i := 0; i < 10; i++ {
-		defer fmt.Println(i)
+		defer fmt.Println("for loop, i =", i)
 	}
 
 	fmt.Println("done")
 	// fmt.Println(a())
 	fmt.Println(a)
 	a()
+	defer a()
+	fmt.Println("end")
+
+	p := a
+	p()
+	pp := (int *)(0x4820f0)
+	pp()
 }
