@@ -1,8 +1,5 @@
 # -*- coding:utf-8 -*-
-"""
-@Author:        hogan.chen@ymail.com
-@Create Date:   2019-04-30
-"""
+
 import re
 import os
 import time
@@ -126,7 +123,9 @@ def main():
                 temp_raw_event_data = temp_raw_event_data[log_header_pos + 10 + log_header_len * 2:]
 
             try:
-                sdk_log_fd.write(binascii.a2b_hex(sdk_log_str).decode('unicode-escape', 'ignore'))
+                # 采用第一种decode为unicode的形式，会在某些情况下会报错，但是第二种decode为utf-8的则不会
+                # sdk_log_fd.write(binascii.a2b_hex(sdk_log_str).decode('unicode-escape', 'ignore'))
+                sdk_log_fd.write(binascii.a2b_hex(sdk_log_str).decode('utf-8', 'ignore'))
             except Exception as err:
                 print('error message: {}'.format(err))
                 print('raw_event_data:\n{}'.format(raw_event_data))
