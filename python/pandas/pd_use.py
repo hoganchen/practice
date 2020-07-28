@@ -26,6 +26,7 @@ def db_print(*args):
 
 # 创建对象
 def basic_use_01():
+    print('\n\n{0}\n{0}\n{1}{2}\n{0}\n{0}\n\n'.format('*' * 80, ' ' * 30, 'BASIC USE 01'))
     # lower_columns_list = [chr(i) for i in range(97, 123)]
     upper_columns_list = [chr(i) for i in range(65, 91)]
 
@@ -54,6 +55,7 @@ def basic_use_01():
 
 # 查看数据
 def basic_use_02():
+    print('\n\n{0}\n{0}\n{1}{2}\n{0}\n{0}\n\n'.format('*' * 80, ' ' * 30, 'BASIC USE 02'))
     # lower_columns_list = [chr(i) for i in range(97, 123)]
     upper_columns_list = [chr(i) for i in range(65, 91)]
 
@@ -90,6 +92,7 @@ def basic_use_02():
 
 # 选择
 def basic_use_03():
+    print('\n\n{0}\n{0}\n{1}{2}\n{0}\n{0}\n\n'.format('*' * 80, ' ' * 30, 'BASIC USE 03'))
     # lower_columns_list = [chr(i) for i in range(97, 123)]
     upper_columns_list = [chr(i) for i in range(65, 91)]
 
@@ -186,6 +189,7 @@ def basic_use_03():
 
 # 缺失值处理
 def basic_use_04():
+    print('\n\n{0}\n{0}\n{1}{2}\n{0}\n{0}\n\n'.format('*' * 80, ' ' * 30, 'BASIC USE 04'))
     # lower_columns_list = [chr(i) for i in range(97, 123)]
     upper_columns_list = [chr(i) for i in range(65, 91)]
 
@@ -230,6 +234,7 @@ def basic_use_04():
 
 # 相关操作
 def basic_use_05():
+    print('\n\n{0}\n{0}\n{1}{2}\n{0}\n{0}\n\n'.format('*' * 80, ' ' * 30, 'BASIC USE 05'))
     # lower_columns_list = [chr(i) for i in range(97, 123)]
     upper_columns_list = [chr(i) for i in range(65, 91)]
 
@@ -255,8 +260,53 @@ def basic_use_05():
     s1 = s.shift(2)
     db_print(s1)
     # df上的每列都减去s1，而得到一个新的df
-    df = df.sub(s1, axis='index')
+    df1 = df.sub(s1, axis='index')
+    db_print(df1)
+
+    # 对数据应用函数
+    # 对每一列上的每一行执行累加，即n = 1时，new[n] = old[n], n > 1时，new[n] = new[n - 1] + old[n]
+    df1 = df.apply(np.cumsum)
     db_print(df)
+    db_print(df1)
+
+    # 每列上的最大值减去最小值，生成了一个新的列(Series)
+    df1 = df.apply(lambda x: x.max() - x.min())
+    db_print(df)
+    db_print(df1)
+
+    s = pd.Series(np.random.randint(0, 7, size=10))
+    # 统计Series中，各个数值及其对应的个数
+    s1 = s.value_counts()
+    db_print(s)
+    db_print(s1)
+
+    # 字符串方法
+    s = pd.Series(['A', 'B',    'C',    'Aaba', 'Baca', np.nan, 'CABA',  'dog',  'cat'])
+    s1 = s.str.lower()
+    db_print(s1)
+
+
+# 相关操作
+def basic_use_06():
+    print('\n\n{0}\n{0}\n{1}{2}\n{0}\n{0}\n\n'.format('*' * 80, ' ' * 30, 'BASIC USE 06'))
+    # lower_columns_list = [chr(i) for i in range(97, 123)]
+    upper_columns_list = [chr(i) for i in range(65, 91)]
+
+    # dates = pd.date_range(START_DATE, periods=6)
+    dates = pd.date_range(START_DATE, periods=ROW_NUM)
+    db_print(dates)
+
+    # df = pd.DataFrame(np.random.randn(6, 4), index=pd.date_range(START_DATE, periods=6), columns=list('ABCD'))
+    df = pd.DataFrame(np.random.randn(ROW_NUM, COLUMNS_NUM), index=pd.date_range(START_DATE, periods=ROW_NUM),
+                      columns=upper_columns_list[:COLUMNS_NUM])
+    db_print(df)
+
+    pieces = [df[:3], df[3:7], df[7:]]
+    df1 = pd.concat(pieces)
+    db_print(pieces[0])
+    db_print(pieces[1])
+    db_print(pieces[2])
+    db_print(df1)
 
 
 def main():
@@ -265,6 +315,7 @@ def main():
     basic_use_03()
     basic_use_04()
     basic_use_05()
+    basic_use_06()
 
 
 if __name__ == "__main__":
