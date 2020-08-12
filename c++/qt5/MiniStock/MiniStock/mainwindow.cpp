@@ -3,6 +3,7 @@
 #include <QTimer>
 #include <QDateTime>
 #include <QMouseEvent>
+#include <QDebug>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -30,6 +31,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::timerEvent(QTimerEvent *timerEvt)
 {
+    Q_UNUSED(timerEvt);
     label1->setText(QString::fromLocal8Bit("%1").arg(qrand() % 10));
 }
 
@@ -37,11 +39,13 @@ void MainWindow::timerUpdate()
 {
     QDateTime datetime = QDateTime::currentDateTime();
     QString	str	= datetime.toString("yyyy-MM-dd hh:mm:ss dddd");
+    qDebug() << str;
     label1->setText(str);
 }
 
 void MainWindow::mouseDoubleClickEvent(QMouseEvent *mouseEvt)
 {
+    Q_UNUSED(mouseEvt);
     exit(0);
 }
 
@@ -51,10 +55,12 @@ void MainWindow::mousePressEvent(QMouseEvent *mouseEvt)
     {
         m_WindowPos = this->pos();
         m_MousePos = mouseEvt->globalPos();
+        qDebug() << "m_WindowPos: " << m_WindowPos << ", m_MousePos: " << m_MousePos << endl;
     }
 }
 
 void MainWindow::mouseMoveEvent(QMouseEvent *mouseEvt)
 {
     move(m_WindowPos + mouseEvt->globalPos() - m_MousePos);
+    qDebug() << "mouseEvt->globalPos(): " << mouseEvt->globalPos();
 }
