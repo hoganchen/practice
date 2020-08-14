@@ -4,6 +4,22 @@
 #include <QMainWindow>
 #include <QLabel>
 #include <QPoint>
+#include <QThread>
+#include <QNetworkReply>
+
+class workThread : public QThread
+{
+    Q_OBJECT
+
+public:
+    workThread();
+    void run();
+private:
+    QNetworkAccessManager networkManager;
+    QNetworkReply *netReply;
+private slots:
+    void getStockInfo();
+};
 
 class MainWindow : public QMainWindow
 {
@@ -19,10 +35,11 @@ protected:
     void mousePressEvent(QMouseEvent *);
 private:
     QLabel *label1;
-    int id1;
     QPoint m_WindowPos, m_MousePos;
+    workThread threadWork;
 private slots:
     void timerUpdate();
+    void threadRun();
 };
 
 #endif // MAINWINDOW_H
