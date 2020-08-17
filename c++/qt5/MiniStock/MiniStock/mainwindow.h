@@ -40,6 +40,7 @@ private:
 private slots:
     void timerUpdate();
     void threadRun();
+    void infoUpdate(QString msg);
 };
 
 #endif // MAINWINDOW_H

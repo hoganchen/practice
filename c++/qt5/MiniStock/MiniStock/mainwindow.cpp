@@ -9,6 +9,10 @@
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QIODevice>
+#include <QTextCodec>
+#include <QRegExp>
+#include <cmath>
+#include <QMetaObject>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -50,6 +54,11 @@ void MainWindow::timerUpdate()
     label1->setText(QStringLiteral("%1").arg(str));
 }
 
+void MainWindow::infoUpdate(QString msg)
+{
+    label1->setText(msg);
+}
+
 void MainWindow::threadRun()
 {
     threadWork.run();
@@ -84,7 +93,9 @@ workThread::workThread()
 
 void workThread::run()
 {
-    netReply = networkManager.get(QNetworkRequest(QUrl("https://hq.sinajs.cn/list=sh603160")));
+//    netReply = networkManager.get(QNetworkRequest(QUrl("https://hq.sinajs.cn/list=sh603160")));
+//    netReply = networkManager.get(QNetworkRequest(QUrl("https://hq.sinajs.cn/list=sh688055")));
+    netReply = networkManager.get(QNetworkRequest(QUrl("https://hq.sinajs.cn/list=sh603393")));
 //    netReply = networkManager.get(QNetworkRequest(QUrl("https://httpbin.org/get")));
     connect(netReply, SIGNAL(readyRead()), this, SLOT(getStockInfo()));
 //    connect(netReply, &QIODevice::readyRead, this, &workThread::getStockInfo);
@@ -93,6 +104,43 @@ void workThread::run()
 void workThread::getStockInfo()
 {
     qDebug() << netReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    QByteArray jsonData = netReply->readAll();
-    qDebug() << "netReply: " << jsonData;
+    QByteArray replyData = netReply->readAll();
+    QTextCodec *tc = QTextCodec::codecForName("GB2312");
+    QString unicodeStr = tc->toUnicode(replyData);
+    qDebug() << "netReply: " << replyData;
+//    qDebug() << "netReply: " << tc->toUnicode(jsonData);
+    qDebug() << "netReply: " << unicodeStr;
+//    qDebug() << "netReply: " << QString::fromLocal8Bit("%1").arg(QString(jsonData));
+
+    QRegExp rx("^var\\s+[a-z_]+(\\d+)=\"(.*)\"");
+    int pos = QString(unicodeStr).indexOf(rx);
+
+    if(pos >= 0)
+    {
+        qDebug() << rx.matchedLength();
+        qDebug() << rx.capturedTexts();
+        qDebug() << rx.cap(0);
+        qDebug() << rx.cap(1);
+        qDebug() << rx.cap(2);
+
+        QStringList strList = rx.cap(2).split(",");
+        qDebug() << strList;
+        qDebug() << strList[3].toFloat();
+        float pChange = (strList[3].toFloat() - strList[2].toFloat()) / strList[2].toFloat() * 100;
+
+        QString strChange = QString::number(fabs(pChange), 'f', 2);
+        float fmtChange = strChange.toFloat();
+        qDebug() << fabs(pChange) << fmtChange;
+        QString updateInfo;
+
+        if(pChange >= 0) {
+            updateInfo = QStringLiteral("%1 %2 %3 +%%4").arg(strList[0]).arg(rx.cap(1)).arg(strList[3].toFloat()).arg(fmtChange);
+            qDebug() << QStringLiteral("%1 %2 %3 +%%4").arg(strList[0]).arg(rx.cap(1)).arg(strList[3].toFloat()).arg(fmtChange);
+        } else {
+            updateInfo = QStringLiteral("%1 %2 %3 -%%4").arg(strList[0]).arg(rx.cap(1)).arg(strList[3].toFloat()).arg(fmtChange);
+            qDebug() << QStringLiteral("%1 %2 %3 -%%4").arg(strList[0]).arg(rx.cap(1)).arg(strList[3].toFloat()).arg(fmtChange);
+        }
+
+//        QMetaObject::invokeMethod(this->parent(), "infoUpdate", Q_ARG(QString, updateInfo));
+    }
 }
