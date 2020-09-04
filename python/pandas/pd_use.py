@@ -85,9 +85,9 @@ def basic_use_02():
     db_print(df.sort_index(axis=0, ascending=True))     # 按索引index排序，升序
 
     # 按值排序，ascending值默认为True，即默认为升序
-    db_print(df.sort_values(by='A'))  # 以A列的数据，升序排列
-    db_print(df.sort_values(by='A', ascending=True))  # 以A列的数据，升序排列
-    db_print(df.sort_values(by='A', ascending=False))  # 以A列的数据，降序排列
+    db_print(df.sort_values(by='A'))    # 以A列的数据，升序排列
+    db_print(df.sort_values(by='A', ascending=True))    # 以A列的数据，升序排列
+    db_print(df.sort_values(by='A', ascending=False))   # 以A列的数据，降序排列
 
 
 # 选择
