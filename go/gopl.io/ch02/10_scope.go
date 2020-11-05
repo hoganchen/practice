@@ -58,6 +58,18 @@ func to_upper(s string) string {
 
 	range循环只使用了索引,省略了没有用到的值部分。循环也可以这样写
 	for i, _ := range pc {
+
+	我们可以使用一个简单的循环来统计字符串中字符的数目
+	n := 0
+	for _, _ = range s {
+		n++
+	}
+
+	像其它形式的循环那样,我们也可以忽略不需要的变量
+	n := 0
+	for range s {
+		n++
+	}
 	*/
 	for _, x := range s {
 		if x >='a' && x <= 'z' {
