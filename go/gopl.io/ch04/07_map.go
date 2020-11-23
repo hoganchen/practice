@@ -9,6 +9,22 @@ import (
 	"fmt"
 )
 
+// 函数可以定义不使用，但是变量不可以
+/*
+和slice一样,map之间也不能进行相等比较;唯一的例外是和nil进行比较。要判断两个map是否包含相同的key和value,我们必须通过一个循环实现
+*/
+func equal(x, y map[string]int) bool {
+	if len(x) != len(y) {
+		return false
+	}
+	for k, xv := range x {
+		if yv, ok := y[k]; !ok || yv != xv {
+			return false
+		}
+	}
+	return true
+}
+
 /*
 在Go语言中,一个map就是一个哈希表的引用,map类型可以写为map[K]V,其中K和V分别对应key和value。map中所有的key都有相同的类型,
 所有的value也有着相同的类型,但是key和value之间可以是不同的数据类型。
@@ -47,9 +63,22 @@ func main() {
 
 	// 即使map中不存在“bob”下面的代码也可以正常工作,因为ages["bob"]失败时将返回0。
 	ages["bob"] = ages["bob"] + 1 // happy birthday!
-	ages["john"] += 1 // happy birthday!
-	ages["lily"]++
-	ages["lily"] += 35
+
+	// 判断john key对应的value是否存在
+	_, ok := ages["john"]
+	if ok {
+		ages["john"] += 1 // happy birthday!
+	} else {
+		ages["john"] = 0
+	}
+
+	// map的下标语法将产生两个值;第二个是一个布尔值,用于报告元素是否真的存在。布尔变量一般命名为ok,特别适合马上用于if条件判断部分
+	if _, ok := ages["lily"]; ok {
+		ages["lily"]++
+	} else {
+		ages["lily"] += 35
+	}
+
 	fmt.Printf("len(ages): %d, %v\n", len(ages), ages)
 
 	for name, age := range ages {
@@ -67,4 +96,6 @@ func main() {
 	fmt.Printf("len(person): %d, %v\n", len(person), person)
 	delete(person, "charlie") // 使用内置的delete函数可以删除元素
 	fmt.Printf("len(person): %d, %v\n", len(person), person)
+
+	fmt.Printf("ages == person ? %v\n", equal(ages, person))
 }
