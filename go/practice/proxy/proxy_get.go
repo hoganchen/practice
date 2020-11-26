@@ -8,6 +8,7 @@ package main
 import (
 	"fmt"
 	"time"
+	"sync"
 	"regexp"
 	"net/url"
 	"net/http"
@@ -15,6 +16,9 @@ import (
 
 	// "golang.org/x/net/html"
 )
+
+var sg sync.WaitGroup //定义一个同步等待的组
+var sm sync.Mutex
 
 type s_Proxy struct {
 	IP string
@@ -109,56 +113,124 @@ func get_proxy(url_list []string, proxy_list *[]s_Proxy) {
 	}
 }
 
-func verify_proxy_address(proxy_list []s_Proxy, verify_proxy_list *[]s_Proxy) {
-	for _, proxy := range proxy_list {
-		// fmt.Printf("proxy: %v\n", proxy)
-		proxy_address := string(proxy.Type + "://" + proxy.IP + ":" + proxy.Port)
-		fmt.Printf("proxy_address: %v\n", proxy_address)
+func verify_one_proxy_address(proxy_addr s_Proxy, verify_proxy_list *[]s_Proxy) {
+	// fmt.Printf("proxy_addr: %v\n", proxy_addr)
+	proxy_address := string(proxy_addr.Type + "://" + proxy_addr.IP + ":" + proxy_addr.Port)
+	fmt.Printf("proxy_address: %v\n", proxy_address)
 
-		// proxy_url, err := url.Parse(proxy_address)
-		// if err != nil {
-		// 	continue
-		// }
+	// proxy_url, err := url.Parse(proxy_address)
+	// if err != nil {
+	// 	continue
+	// }
 
-		proxy_url := func(_ *http.Request) (*url.URL, error) {
-			return url.Parse(proxy_address)
-		}
-
-		httpTransport := &http.Transport{
-			Proxy: proxy_url,
-		}
-
-		httpClient := &http.Client{
-			Transport: httpTransport,
-			// Timeout: 5 * time.Second,
-		}
-
-		req, err := http.NewRequest("GET", "https://httpbin.org/get", nil)
-		fmt.Printf("req: %v, err: %v\n", req, err)
-		if err != nil {
-			// handle error
-			continue
-		}
-
-
-		resp, err := httpClient.Do(req)
-		fmt.Printf("resp: %v, err: %v\n", resp, err)
-		if err != nil {
-			continue
-		}
-
-		body, err := ioutil.ReadAll(resp.Body)
-		fmt.Printf("body: %v, err: %v\n", body, err)
-		if err != nil {
-			// handle error
-			continue
-		}
-
-		resp.Body.Close()
-		*verify_proxy_list = append(*verify_proxy_list, proxy)
-
-		fmt.Println(string(body))
+	proxy_url := func(_ *http.Request) (*url.URL, error) {
+		return url.Parse(proxy_address)
 	}
+
+	httpTransport := &http.Transport{
+		Proxy: proxy_url,
+	}
+
+	httpClient := &http.Client{
+		Transport: httpTransport,
+		// Timeout: 5 * time.Second,
+	}
+
+	req, err := http.NewRequest("GET", "https://httpbin.org/get", nil)
+	fmt.Printf("req: %v, err: %v\n", req, err)
+	if err != nil {
+		// handle error
+		return
+	}
+
+	resp, err := httpClient.Do(req)
+	fmt.Printf("resp: %v, err: %v\n", resp, err)
+	if err != nil {
+		return
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	fmt.Printf("body: %v, err: %v\n", body, err)
+	if err != nil {
+		// handle error
+		return
+	}
+
+	resp.Body.Close()
+	*verify_proxy_list = append(*verify_proxy_list, proxy_addr)
+
+	fmt.Println(string(body))
+}
+
+func verify_proxy_address(proxy_list []s_Proxy, verify_proxy_list *[]s_Proxy, sg sync.WaitGroup) {
+	for _, proxy := range proxy_list {
+		verify_one_proxy_address(proxy, verify_proxy_list)
+	}
+}
+
+func verify_one_proxy_address_by_goroutines(proxy_addr s_Proxy, verify_proxy_list *[]s_Proxy) {
+	// fmt.Printf("proxy_addr: %v\n", proxy_addr)
+	proxy_address := string(proxy_addr.Type + "://" + proxy_addr.IP + ":" + proxy_addr.Port)
+	fmt.Printf("proxy_address: %v\n", proxy_address)
+
+	// proxy_url, err := url.Parse(proxy_address)
+	// if err != nil {
+	// 	continue
+	// }
+
+	proxy_url := func(_ *http.Request) (*url.URL, error) {
+		return url.Parse(proxy_address)
+	}
+
+	httpTransport := &http.Transport{
+		Proxy: proxy_url,
+	}
+
+	httpClient := &http.Client{
+		Transport: httpTransport,
+		Timeout: 20 * time.Second,
+	}
+
+	// sg作为参数传递貌似有问题，所以作为全局变量
+	defer sg.Done() //减去一个计数
+
+	req, err := http.NewRequest("GET", "https://httpbin.org/get", nil)
+	fmt.Printf("req: %v, err: %v\n", req, err)
+	if err != nil {
+		// handle error
+		return
+	}
+
+	resp, err := httpClient.Do(req)
+	fmt.Printf("resp: %v, err: %v\n", resp, err)
+	if err != nil {
+		return
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	fmt.Printf("body: %v, err: %v\n", body, err)
+	if err != nil {
+		// handle error
+		return
+	}
+
+	resp.Body.Close()
+
+	// slice的append不是协程安全，所以用锁来解决
+	sm.Lock()
+	*verify_proxy_list = append(*verify_proxy_list, proxy_addr)
+	sm.Unlock()
+
+	fmt.Println(string(body))
+}
+
+func verify_proxy_address_by_goroutines(proxy_list []s_Proxy, verify_proxy_list *[]s_Proxy) {
+	for _, proxy := range proxy_list {
+		sg.Add(1) //添加一个计数
+		go verify_one_proxy_address_by_goroutines(proxy, verify_proxy_list)
+	}
+
+	sg.Wait() //阻塞直到所有任务完成
 }
 
 func main() {
@@ -178,7 +250,9 @@ func main() {
 	fmt.Printf("len(proxy_list): %v, proxy_list:\n%v\n", len(proxy_list), proxy_list)
 
 	valid_proxy_list := make([]s_Proxy, 0)
-	verify_proxy_address(proxy_list, &valid_proxy_list)
+	// verify_proxy_address(proxy_list, &valid_proxy_list)
+	verify_proxy_address_by_goroutines(proxy_list, &valid_proxy_list)
+
 	fmt.Printf("len(valid_proxy_list): %v, valid_proxy_list:\n%v\n", len(valid_proxy_list), valid_proxy_list)
 
 	elapsed := time.Since(start)
