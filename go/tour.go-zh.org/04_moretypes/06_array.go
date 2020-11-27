@@ -29,13 +29,13 @@ func main() {
 	fmt.Println(a)
 
 	primes := [6]int{2, 3, 5, 7, 11, 13}
-	fmt.Println(primes)
+	fmt.Println(primes, len(primes))
 
 	arr1 := [6]int{1, 3, 5, 7, 9}
-	fmt.Println(arr1)
+	fmt.Println(arr1, len(arr1))
 
 	arr2 := [4]int{}
-	fmt.Println(arr2)
+	fmt.Println(arr2, len(arr2))
 
 	arr3 := []int{1,2,3,4,5}
 	fmt.Println(arr3, len(arr3))
