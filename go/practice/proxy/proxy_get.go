@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"net/http"
 	"io/ioutil"
+	"strconv"
 
 	// "golang.org/x/net/html"
 )
@@ -77,7 +78,22 @@ func get_proxy(url_list []string, proxy_list *[]s_Proxy) {
 			如果存在 Submatch ，则返回值是连续字匹配的切片。字匹配是正则表达式中带括号的子表达式的匹配。示例详见 FindSubmatch 。
 			如果存在 Index ，则通过字节索引对来识别匹配项和子匹配项。
 		*/
-		re, _ := regexp.Compile(`<tr>\s+<td>(\d+\.\d+\.\d+\.\d+):(\d+)</td>\s+<td>(.*?)</td>`)
+		// site_match, err := regexp.MatchString("xiladaili\\.com", url)
+		var re *regexp.Regexp
+		fmt.Printf("类型: %v\n", strconv.QuoteToASCII("类型"))
+
+		if matched, _ := regexp.MatchString("xiladaili\\.com", url); matched {
+			re, _ = regexp.Compile(`<tr>\s+<td>(\d+\.\d+\.\d+\.\d+):(\d+)</td>\s+<td>(.*?)</td>`)
+		} else if matched, _ := regexp.MatchString(`kuaidaili\.com`, url); matched {
+			// re, _ = regexp.Compile(`<tr>\s+<td\s+data-title=\"IP\">(\d+\.\d+\.\d+\.\d+)</td>\s+<td\s+data-title=\"PORT\">(\d+)</td>.*?<td\s+data-title=\"类型\">(\w+)</td>`)
+			// \p{Unicode脚本类名}  Unicode类 (脚本类)
+			// unicode类，参考https://www.cnblogs.com/sunsky303/p/11051468.html
+			re, _ = regexp.Compile(`<tr>\s+<td\s+data-title="IP">(\d+\.\d+\.\d+\.\d+)</td>\s+<td\s+data-title="PORT">(\d+)</td>\s+.*?</td>\s+<td\s+data-title="\p{Han}+">(\w+)</td>`)
+			// re, _ = regexp.Compile(`<tr>\s+<td\s+data-title="IP">(\d+\.\d+\.\d+\.\d+)</td>\s+<td\s+data-title="PORT">(\d+)</td>\s+<td\s+data-title=.*?</td>\s+<td\s+data-title="\p{Han}+">(\w+)</td>`)
+			// re, _ = regexp.Compile(`<tr>\s+<td\s+data-title="IP">(\d+\.\d+\.\d+\.\d+)</td>\s+<td\s+data-title="PORT">(\d+)</td>\s+<td\s+data-title=.*?</td>\s+<td\s+data-title=".*?">(\w+)</td>`)
+			// re, _ = regexp.Compile(`<tr>\s+<td\s+data-title="IP">(\d+\.\d+\.\d+\.\d+)</td>\s+<td\s+data-title="PORT">(\d+)</td>\s+<td\s+data-title=.*?</td>`)
+		}
+
 		match := re.FindAllStringSubmatch(string(content), -1)
 		// match := re.FindAllString(string(content), -1)
 		// fmt.Printf("match:\n%v\n", match)
@@ -108,7 +124,7 @@ func get_proxy(url_list []string, proxy_list *[]s_Proxy) {
 			// fmt.Printf("IP: %s, Port: %v, Type: %v, Type String: %v\n", param[1], param[2], proxy_type, param[3])
 
 			*proxy_list = append(*proxy_list, s_Proxy{IP:param[1], Port:param[2], Type:proxy_type})
-			fmt.Printf("In get_proxy function, proxy_list address: %p\n", proxy_list)
+			// fmt.Printf("In get_proxy function, proxy_list address: %p\n", proxy_list)
 		}
 	}
 }
@@ -243,7 +259,8 @@ func main() {
 	fmt.Printf("Start execution at %s\n", start.Format("2006-01-02 15:04:05"))
 
 	proxy_list := make([]s_Proxy, 0)
-	url_list := []string{"http://www.xiladaili.com/putong/", "http://www.xiladaili.com/gaoni/"}
+	url_list := []string{"http://www.xiladaili.com/putong/", "http://www.xiladaili.com/gaoni/", "https://www.kuaidaili.com/free/intr/", "https://www.kuaidaili.com/free/inha/"}
+	// url_list := []string{"https://www.kuaidaili.com/free/intr/", "https://www.kuaidaili.com/free/inha/"}
 
 	fmt.Printf("In main function, proxy_list address: %p\n", &proxy_list)
 	get_proxy(url_list, &proxy_list)
