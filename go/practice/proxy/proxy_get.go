@@ -207,7 +207,7 @@ func verify_one_proxy_address_by_goroutines(proxy_addr s_Proxy, verify_proxy_lis
 		Timeout: 20 * time.Second,
 	}
 
-	// sg作为参数传递貌似有问题，所以作为全局变量
+	// sg作为参数传递貌似有问题，所以作为全局变量，原因是go的函数是值传递，用指针方式即可
 	defer sg.Done() //减去一个计数
 
 	req, err := http.NewRequest("GET", "https://httpbin.org/get", nil)
