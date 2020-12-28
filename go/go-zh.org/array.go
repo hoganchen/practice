@@ -20,7 +20,7 @@ func main() {
 	fmt.Println(a[0], a[1])
 	fmt.Println(a)
 
-    //创建数组声明changdu
+    //创建数组声明长度
     var aaa1 = [5]int{1,2,3,4}
     fmt.Println(aaa1)
 
