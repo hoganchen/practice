@@ -9,11 +9,18 @@ import (
 	"fmt"
 	"time"
 	"sync"
+	"math/rand"
 )
 
-func gorouteine(id int, ch chan int) {
+type s_routines struct {
+	id int
+	wt int
+}
+
+func gorouteine(id int, ch *chan int) {
 	fmt.Printf("id: %v, msg: hello world\n", id)
-	ch <- id
+	time.Sleep(time.Duration(rand.Intn(5) + 5) * time.Second)
+	*ch <- id
 }
 
 func main() {
@@ -43,11 +50,26 @@ func main() {
 
 	ch := make(chan int, 10)
 	for i := 0; i < cap(ch); i++ {
-		go gorouteine(i, ch)
+		go gorouteine(i, &ch)
 	}
 
 	for i := 0; i < cap(ch); i++ {
 		fmt.Printf("<- ch: %v\n", <- ch)
+	}
+
+	new_ch := make(chan s_routines, 10)
+	for i := 0; i < cap(new_ch); i++ {
+		go func(id int) {
+			fmt.Printf("id: %v, msg: hello world\n", id)
+			wait_time := rand.Intn(5) + 5
+			time.Sleep(time.Duration(wait_time) * time.Second)
+			sr := s_routines{id: id, wt: wait_time}
+			new_ch <- sr
+		}(i)
+	}
+
+	for i := 0; i < cap(new_ch); i++ {
+		fmt.Printf("<- new_ch: %v\n", <- new_ch)
 	}
 
 	elapsed := time.Since(start)
