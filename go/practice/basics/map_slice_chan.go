@@ -10,6 +10,17 @@ import (
 	"time"
 )
 
+/*
+main function: &m: 0xc820030028, m: 0x0, m: map[], m is nil? true
+main function: &s: 0xc82000e520, s: 0x0, s: [], s is nil? true
+main function: &ch: 0xc820030030, ch: 0x0, ch: <nil>, ch is nil? true
+main function: &i: 0xc82000a2e8, i: 0xc82000a2e8, i: 0
+main function: &m: 0xc820030028, m: 0xc820012330, m: map[], m is nil? false
+main function: &s: 0xc82000e520, s: 0xc82000a310, s: [], s is nil? false
+main function: &ch: 0xc820030030, ch: 0xc82001a1e0, ch: 0xc82001a1e0, ch is nil? false
+
+从如上打印即可看出，通过var声明的引用类型变量，是没有初始化的，指向都是0地址，有点类似于指针，map,slice和chan都可以通过make初始化
+*/
 func main() {
 	start := time.Now()
 	fmt.Printf("Program start execution at %s\n\n", start.Format("2006-01-02 15:04:05"))
@@ -42,7 +53,14 @@ func main() {
 	fmt.Printf("main function: &ch: %p, ch: %p, ch: %v, ch is nil? %v\n", &ch, ch, ch, ch == nil)
 	// cannot convert nil to type int
 	// fmt.Printf("main function: &i: %p, i: %p, i: %v, i is nil? %v\n", &i, i, i, i == nil)
-	fmt.Printf("main function: &i: %p, i: %p, i: %v\n", &i, i, i)
+	fmt.Printf("main function: &i: %p, i: %p, i: %v\n", &i, &i, i)
+
+	m = make(map[int]int)
+	s = make([]string, 1)
+	ch = make(chan int)
+	fmt.Printf("main function: &m: %p, m: %p, m: %v, m is nil? %v\n", &m, m, m, m == nil)
+	fmt.Printf("main function: &s: %p, s: %p, s: %v, s is nil? %v\n", &s, s, s, s == nil)
+	fmt.Printf("main function: &ch: %p, ch: %p, ch: %v, ch is nil? %v\n", &ch, ch, ch, ch == nil)
 
 	elapsed := time.Since(start)
 	fmt.Printf("\nProgram end execution at %s\n", time.Now().Format("2006-01-02 15:04:05"))
