@@ -5,6 +5,10 @@ import (
 )
 
 // http://c.biancheng.net/view/124.html
+// http://c.biancheng.net/view/5409.html
+// https://maiyang.me/post/2018-11-14-go-test/
+// https://www.cnblogs.com/sunsky303/p/11818480.html
+
 // go test 命令，会自动读取源码目录下面名为 *_test.go 的文件
 // go test -v -bench=. -benchtime=3s -benchmem
 
