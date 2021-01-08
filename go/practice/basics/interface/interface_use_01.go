@@ -34,6 +34,8 @@ func main() {
 	fmt.Printf("Start execution at %s\n", start.Format("2006-01-02 15:04:05"))
 
 	humans := []Human{Man{}, &Woman{}}
+	fmt.Printf("type(humans): %T, humans: %v\n", humans, humans)
+
     for _, human := range humans {
         human.Say()
     }
