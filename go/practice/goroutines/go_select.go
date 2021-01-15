@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+/*
+两个case都是同时满足执行条件的,如果我们按照顺序依次判断,那么后面的条件永远都会得不到执行,而随机的引入就是为了避免饥饿问题的发生。
+*/
 func fibonacci(c, quit chan int) {
 	x, y := 0, 1
 	for {
