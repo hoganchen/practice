@@ -63,6 +63,19 @@ const (
 	VIOLET
 )
 
+type ByteSize float64
+const (
+	_ = iota // 通过赋值给空白标识符来忽略值
+	KB ByteSize = 1 << (10 * iota)
+	MB
+	GB
+	TB
+	PB
+	EB
+	ZB
+	YB
+)
+
 /*
 变量的命名规则遵循骆驼命名法,即首个单词小写,每个新单词的首字母大写,例如: startDate和numShips。
 但如果你的全局变量希望能够被外部包所使用,则需要将首个单词的首字母也大写(第4.2节:可见性规则)。
@@ -76,6 +89,7 @@ func main() {
 
 	fmt.Println(Sunday, Monday, Tuesday, Wednesday, Thrusday, Friday, Saturday)
 	fmt.Println(RED, ORANGE, YELLOW, GREEN, BLUE, INDIGO, VIOLET)
+	fmt.Printf("%v, %v, %v, %v, %v, %v, %v, %v\n", KB, MB, GB, TB, PB, EB, ZB, YB)
 
 	elapsed := time.Since(start)
 	fmt.Printf("\nProgram end execution at %s\n", time.Now().Format("2006-01-02 15:04:05"))

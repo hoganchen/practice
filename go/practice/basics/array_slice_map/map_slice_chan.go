@@ -20,6 +20,8 @@ main function: &s: 0xc82000e520, s: 0xc82000a310, s: [], s is nil? false
 main function: &ch: 0xc820030030, ch: 0xc82001a1e0, ch: 0xc82001a1e0, ch is nil? false
 
 从如上打印即可看出，通过var声明的引用类型变量，是没有初始化的，指向都是0地址，有点类似于指针，map,slice和chan都可以通过make初始化
+
+在Go语言中,指针(第4.9节)属于引用类型,其它的引用类型还包括slices(第7章),maps(第8章)和channel(第13章)。被引用的变量会存储在堆中,以便进行垃圾回收,且比栈拥有更大的内存空间。
 */
 func main() {
 	start := time.Now()
