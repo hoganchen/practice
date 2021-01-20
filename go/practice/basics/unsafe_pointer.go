@@ -33,6 +33,11 @@ func myFunction(ms *MyStruct) {
 	}
 }
 
+/*
+https://longrm.com/2019/09/30/2019-09-30-golang-unsafe_pointer/
+https://tyloafer.github.io/posts/2647/
+https://www.flysnow.org/2017/07/06/go-in-action-unsafe-pointer.html
+*/
 func main() {
 	start := time.Now()
 	fmt.Printf("Program start execution at %s\n\n", start.Format("2006-01-02 15:04:05"))
