@@ -30,6 +30,10 @@ func main() {
 	// fmt.Printf("s1 data address: %p, s1 value: %v, len(s1): %v, cap(s1): %v\n", s1, s1, len(s1), cap(s1))
 	// fmt.Printf("s2 data address: %p, s2 value: %v, len(s2): %v, cap(s2): %v\n", s2, s2, len(s2), cap(s2))
 
+	/*
+	我们用go tool compile测试一下
+	go tool compile -m pro_2.go
+	*/
 	// 打开或者关闭如下注释，得到的结果不一致，并且跟go的版本也有关系
 	// fmt.Println(s1, "==========", s2)
 	fmt.Println(string(s1), "==========", string(s2))
