@@ -51,7 +51,10 @@ int main(void)
 
     d_buf = z_buf;
 
-    printf("%08x\n", *(int *)&(p_buf->data[0]));
+    printf("*(int *)&(p_buf->data[0]): 0x%08x\n", *(int *)&(p_buf->data[0]));
+    printf("sizeof(z_buf): %ld, sizeof(d_buf): %ld\n", sizeof(z_buf), sizeof(d_buf));
+    printf("*(int *)0x00400530 = 0x%08x\n", *(int *)0x00400530);
+    printf("&z_buf: %p, &d_buf: %p, p_buf: %p\n", &z_buf, &d_buf, p_buf);
 
     mem_print((int *)(&z_buf), sizeof(z_buf));
     mem_print((int *)(&d_buf), sizeof(d_buf));
