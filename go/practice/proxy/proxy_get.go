@@ -14,9 +14,23 @@ import (
 	"net/http"
 	"io/ioutil"
 	"strconv"
+	"io"
+	"bufio"
+
+	// "golang.org/x/text/transform"
+	"golang.org/x/text/encoding"
+	"golang.org/x/net/html/charset"
 
 	// "golang.org/x/net/html"
 )
+
+/*
+安装x库，参考链接: http://tyrodw.cn/contents/go-tool/get-x.html
+
+cd $GOPATH/src/golang.org/x
+git clone https://github.com/golang/net.git
+git clone https://github.com/golang/text.git
+*/
 
 var sg sync.WaitGroup //定义一个同步等待的组
 var sm sync.Mutex
@@ -50,6 +64,23 @@ func fetch (url string) string {
 	return string(body)
 }
 
+
+func determinEncoding(r io.Reader) encoding.Encoding {
+
+	// 这里的r读取完得保证resp.Body还可读
+	body, err := bufio.NewReader(r).Peek(1024)
+
+	if err != nil {
+	  fmt.Println("Error: peek 1024 byte of body err is ", err)
+	}
+
+	// 这里简化,不取是否确认
+	e, _, _ := charset.DetermineEncoding(body, "")
+	fmt.Printf("determinEncoding func, e: %v\n", e)
+
+	return e
+}
+
 func get_proxy(url_list []string, proxy_list *[]s_Proxy) {
 	for _, url := range url_list {
 		fmt.Printf("url: %v\n", url)
@@ -61,7 +92,28 @@ func get_proxy(url_list []string, proxy_list *[]s_Proxy) {
 
 		defer resp.Body.Close()
 
-		content, err:= ioutil.ReadAll(resp.Body)
+		// 判断http的返回值
+		if resp.StatusCode != http.StatusOK {
+			fmt.Println("Error: statuscode is ", resp.StatusCode)
+			continue
+		}
+		/*
+		方法1：处理乱码，参考如下链接：
+		使用方法1处理乱码，需要把import "golang.org/x/text/transform"的注释去掉
+		https://aijishu.com/a/1060000000018343
+		https://stackoverflow.com/questions/27297328/convert-any-encoding-to-utf-8-in-go
+		*/
+		// utf8Reader := transform.NewReader(resp.Body, determinEncoding(resp.Body).NewDecoder())
+
+		/*
+		方法2：处理乱码，参考如下链接：
+		golang.org/x/html包下面有个charset.NewReader(r io.Reader, contentType string)方法，它可以将reader的内容转换成指定的编码。
+		https://www.jianshu.com/p/91bb5bae837a
+		*/
+		utf8Reader, _ := charset.NewReader(resp.Body, "UTF-8")
+
+		// content, err:= ioutil.ReadAll(resp.Body)
+		content, err:= ioutil.ReadAll(utf8Reader)
 		if err != nil {
 			continue
 		}
@@ -87,11 +139,18 @@ func get_proxy(url_list []string, proxy_list *[]s_Proxy) {
 		} else if matched, _ := regexp.MatchString(`kuaidaili\.com`, url); matched {
 			// re, _ = regexp.Compile(`<tr>\s+<td\s+data-title=\"IP\">(\d+\.\d+\.\d+\.\d+)</td>\s+<td\s+data-title=\"PORT\">(\d+)</td>.*?<td\s+data-title=\"类型\">(\w+)</td>`)
 			// \p{Unicode脚本类名}  Unicode类 (脚本类)
+			// Han表示汉文
 			// unicode类，参考https://www.cnblogs.com/sunsky303/p/11051468.html
 			re, _ = regexp.Compile(`<tr>\s+<td\s+data-title="IP">(\d+\.\d+\.\d+\.\d+)</td>\s+<td\s+data-title="PORT">(\d+)</td>\s+.*?</td>\s+<td\s+data-title="\p{Han}+">(\w+)</td>`)
 			// re, _ = regexp.Compile(`<tr>\s+<td\s+data-title="IP">(\d+\.\d+\.\d+\.\d+)</td>\s+<td\s+data-title="PORT">(\d+)</td>\s+<td\s+data-title=.*?</td>\s+<td\s+data-title="\p{Han}+">(\w+)</td>`)
 			// re, _ = regexp.Compile(`<tr>\s+<td\s+data-title="IP">(\d+\.\d+\.\d+\.\d+)</td>\s+<td\s+data-title="PORT">(\d+)</td>\s+<td\s+data-title=.*?</td>\s+<td\s+data-title=".*?">(\w+)</td>`)
 			// re, _ = regexp.Compile(`<tr>\s+<td\s+data-title="IP">(\d+\.\d+\.\d+\.\d+)</td>\s+<td\s+data-title="PORT">(\d+)</td>\s+<td\s+data-title=.*?</td>`)
+		} else if matched, _ := regexp.MatchString(`nimadaili\.com`, url); matched {
+			re, _ = regexp.Compile(`<tr>\s+<td>(\d+\.\d+\.\d+\.\d+):(\d+)</td>\s+<td>(.*?)</td>`)
+		} else if matched, _ := regexp.MatchString(`kxdaili\.com`, url); matched {
+			re, _ = regexp.Compile(`<tr.*?>\s+<td>(\d+\.\d+\.\d+\.\d+)</td>\s+<td>(\d+)</td>\s+<td>\p{Han}+</td>\s+<td>(.*?)</td>`)
+		} else if matched, _ := regexp.MatchString(`ip3366\.net`, url); matched {
+			re, _ = regexp.Compile(`<tr>\s+<td>(\d+\.\d+\.\d+\.\d+)</td>\s+<td>(\d+)</td>\s+<td>.*?</td>\s+<td>(.*?)</td>`)
 		}
 
 		match := re.FindAllStringSubmatch(string(content), -1)
@@ -259,8 +318,14 @@ func main() {
 	fmt.Printf("Start execution at %s\n", start.Format("2006-01-02 15:04:05"))
 
 	proxy_list := make([]s_Proxy, 0)
-	url_list := []string{"http://www.xiladaili.com/putong/", "http://www.xiladaili.com/gaoni/", "https://www.kuaidaili.com/free/intr/", "https://www.kuaidaili.com/free/inha/"}
-	// url_list := []string{"https://www.kuaidaili.com/free/intr/", "https://www.kuaidaili.com/free/inha/"}
+	// url_list := []string{"http://www.xiladaili.com/putong/", "http://www.xiladaili.com/gaoni/", "https://www.kuaidaili.com/free/intr/", "https://www.kuaidaili.com/free/inha/"}
+	url_list := []string{"https://www.kuaidaili.com/free/intr/", "https://www.kuaidaili.com/free/inha/",
+						 "http://www.nimadaili.com/http/", "http://www.nimadaili.com/https/",
+						 "http://www.nimadaili.com/gaoni/", "http://www.nimadaili.com/putong/",
+						 "http://www.kxdaili.com/dailiip.html", "http://www.kxdaili.com/dailiip/2/1.html",
+						 "http://www.ip3366.net/free/",
+						}
+	// url_list := []string{"https://www.kuaidaili.com/free/intr/", "http://www.nimadaili.com/https/"}
 
 	fmt.Printf("In main function, proxy_list address: %p\n", &proxy_list)
 	get_proxy(url_list, &proxy_list)
