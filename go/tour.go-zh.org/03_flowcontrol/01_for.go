@@ -3,7 +3,7 @@ package main
 import "fmt"
 
 /*
-or
+for
 
 Go 只有一种循环结构：for 循环。
 
