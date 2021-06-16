@@ -97,6 +97,9 @@ func get_proxy(url_list []string, proxy_list *[]s_Proxy) {
 			fmt.Println("Error: statuscode is ", resp.StatusCode)
 			continue
 		}
+
+		time.Sleep(1 * time.Second)
+
 		/*
 		方法1：处理乱码，参考如下链接：
 		使用方法1处理乱码，需要把import "golang.org/x/text/transform"的注释去掉
