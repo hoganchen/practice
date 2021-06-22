@@ -34,6 +34,18 @@ func (p *Pool) Submit(task func()) {
 	}()
 }
 
+// 提交任务
+func (p *Pool) SubmitWithParameter(task func(url string), url string) {
+	p.ch <- struct{}{}
+	go func(url string) {
+		defer func() {
+			p.wg.Done()
+			<-p.ch
+		}()
+		task(url)
+	}(url)
+}
+
 // 等待WaitGroup执行完毕
 func (p *Pool) Wait() {
 	p.wg.Wait()

@@ -27,6 +27,13 @@ func worker(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for i := 0; i < 1000; i++ {
+		/*
+		通过嵌入匿名的成员,我们不仅可以继承匿名成员的内部成员,而且可以继承匿名成员类型所对应的方法。
+		我们一般会将Point看作基类,把ColoredPoint看作是它的继承类或子类。
+
+		因为sync.Mutex字段也被嵌入到了这个struct里,其Lock和Unlock方法也就都被引入到了这个匿名结构中了,
+		这让我们能够以一个简单明了的语法来对其进行加锁解锁操作。
+		*/
 		total.Lock()
 		total.value += 1
 		total.Unlock()
