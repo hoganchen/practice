@@ -53,7 +53,7 @@ func fetch (url string) string {
 	return string(content)
 }
 
-// 因此从runtime.Stack获取的字符串中就可以很容易解析出goid信息
+// Golang 获取 goroutine id，因此从runtime.Stack获取的字符串中就可以很容易解析出goid信息
 // https://chai2010.cn/advanced-go-programming-book/ch3-asm/ch3-08-goroutine-id.html
 // https://liudanking.com/performance/golang-%E8%8E%B7%E5%8F%96-goroutine-id-%E5%AE%8C%E5%85%A8%E6%8C%87%E5%8D%97/
 func getGoID() uint64 {
