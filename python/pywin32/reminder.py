@@ -17,7 +17,7 @@ import pyautogui
 import threading
 import subprocess
 
-CHECK_PERIOD = 10
+SHUTDOWN_TIME = 5
 FILE_BUFFER_SIZE = 50
 LOG_FILE_NAME = 'history.log'
 CONFIG_FILE_NAME = 'config.ini'
@@ -56,7 +56,12 @@ def check_period(period):
 
 
 def get_config(config_file):
-    config_dict = {'name': '哼', 'count': 3, 'keyword': ('漫画', '小说', '第.*?章', '第.*?回')}
+    config_dict = {
+        'name': '哼', time: 10, 'count': 3,
+        'keyword': ('漫画', '小说', '第.*?章', '第.*?回'),
+        'remind_msg': '你又在看小说、漫画，玩游戏，没事干了啊？？？\n\n点击确认按钮后，关闭当前页面...',
+        'warn_msg': '已达到最大警告次数，电脑关机中...'
+    }
 
     if os.path.exists(config_file):
         with open(config_file, encoding='utf-8') as conf_fd:
@@ -65,14 +70,23 @@ def get_config(config_file):
             if json_dict.get('name') is not None:
                 config_dict['name'] = json_dict.get('name')
 
+            if json_dict.get('time') is not None:
+                config_dict['time'] = json_dict.get('time')
+
             if json_dict.get('count') is not None:
                 config_dict['count'] = json_dict.get('count')
+
+            if json_dict.get('period') is not None:
+                config_dict['period'] = json_dict.get('period')
 
             if json_dict.get('keyword') is not None:
                 config_dict['keyword'] = json_dict.get('keyword')
 
-            if json_dict.get('period') is not None:
-                config_dict['period'] = json_dict.get('period')
+            if json_dict.get('remind_msg') is not None:
+                config_dict['remind_msg'] = json_dict.get('remind_msg')
+
+            if json_dict.get('warn_msg') is not None:
+                config_dict['warn_msg'] = json_dict.get('warn_msg')
 
     logging.debug('config_dict: {}'.format(config_dict))
     return config_dict
@@ -105,20 +119,22 @@ def main():
 
             for keyword in config_dict['keyword']:
                 if re.search(r'{}'.format(keyword), title):
-                    warning_count += 1
                     pyautogui.screenshot('{}.png'.format(datetime.datetime.now().strftime('%Y%m%d_%H%M%S')))
 
                     if warning_count < config_dict['count']:
-                        msg = "{}，你又在看小说、漫画，玩游戏，没事干了啊？？？".format(config_dict['name'])
+                        msg = '{}，{}'.format(config_dict['name'], '\n\n'.join(config_dict['remind_msg']))
                         t = threading.Thread(target=show_message_box, args=(hwnd, msg))
                         t.start()
                     else:
-                        msg = "已达到最大警告次数，电脑关机中..."
+                        msg = config_dict['warn_msg']
                         t = threading.Thread(target=show_message_box, args=(hwnd, msg))
                         t.start()
+                        time.sleep(SHUTDOWN_TIME)
                         subprocess.run('shutdown -s -f -t 2')
 
-            time.sleep(CHECK_PERIOD)
+                    warning_count += 1
+
+            time.sleep(config_dict['time'])
 
 
 def debug():

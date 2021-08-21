@@ -14,7 +14,7 @@ for /L %%i in (1,1,5) do (
     REM echo !datestr!
     REM ping 127.0.0.1 -n 2 > nul
 
-    pyinstaller --clean -F -w reminder.py
+    .\venv\Scripts\pyinstaller --clean -F -w reminder.py
     copy /y dist\reminder.exe .\reminder_!datestr!.exe
 )
 
