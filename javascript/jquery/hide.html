@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>菜鸟教程(runoob.com)</title>
+<script src="https://cdn.staticfile.org/jquery/1.10.2/jquery.min.js">
+</script>
+<script>
+var x = 0
+$(document).ready(function(){
+  /*
+  while(1)
+  {
+    $("h1").delay(2000).text("price: ", x);
+  }
+  */
+  $("p").click(function(){
+    // https://cloud.tencent.com/developer/article/1537805
+    /*
+HTML：
+
+<div id='test' style="display:none">test</div>
+
+jQuery :
+
+$("#test").delay(5000).show();  //延迟5秒来现在id为test的div
+
+上边的代码无效，必须得在 show() 中传参数：
+
+$("#test").delay(5000).show(function(){}); //传回调函数
+或
+$("#test").delay(5000).show(1); //动画的速度 或 fast 或 slow 或 随便写如 xxx
+
+疑惑是为什么必须传参数才能正确执行？同样的 hide() 也如此。
+
+看一下 jQuery文档对 delay() 的解释：
+
+设置一个延时来推迟执行队列中的项目，它既可以推迟动画队列中函数的执行，也可以用于自定义队列。只有在队列中的连续事件可以被延时，因此不带参数的 .show() 和 .hide() 就不会有延时，因为他们没有使用动画队列。也就是说只有 show() 或 hide() 带有参数的时候才能被插入执行队列中。
+
+简单的说，其实 show() 和 hide() 在不加参数的情况下是直接对元素的 display 样式设置。
+    */
+    x += 1
+    $(this).hide();
+    $(this).delay(1000);
+	$(this).show("slow");
+    $(this).append(", x = ", x)
+  });
+});
+</script>
+</head>
+<body>
+<h1> price: </h1>
+<p>如果你点我，我就会消失。</p>
+<p>继续点我!</p>
+<p>接着点我!</p>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>菜鸟教程(runoob.com)</title>
+<script src="https://cdn.staticfile.org/jquery/1.10.2/jquery.min.js">
+</script>
+<script>
+var x = 0
+$(document).ready(function(){
+    x += 1
+    for(var i = 0; i < 10; i++)
+    {
+        $("h1").delay(1000).text("price: ", x)
+    }
+});
+</script>
+</head>
+<body>
+<h1> price: </h1>
+<p>如果你点我，我就会消失。</p>
+<p>继续点我!</p>
+<p>接着点我!</p>
+</body>
+</html>
