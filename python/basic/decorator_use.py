@@ -93,7 +93,9 @@ def foo_param(name='foo'):
 
 # 简单装饰器
 def dec_foo(func):
+    """This is dec_foo docstring"""
     def inner():
+        """This is inner docstring"""
         print('Begin to call {} func...'.format(func.__name__))
         func()
         print('End to call {} func...'.format(func.__name__))
@@ -102,6 +104,7 @@ def dec_foo(func):
 
 @dec_foo
 def foo():
+    """This is foo docstring"""
     print('This is foo function...')
 
 
@@ -127,6 +130,8 @@ def func(*args, **kwargs):
 
 def main():
     foo()
+    print('foo.__name__: {}, foo.__doc__: {}'.format(foo.__name__, foo.__doc__))
+
     sum_val = func(*[1,2,3,4,5], **{'age':10, 'city':'beijing'})
     print('in main, sum_val: {}'.format(sum_val))
 
