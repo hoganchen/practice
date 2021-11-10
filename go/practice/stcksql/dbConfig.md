@@ -18,6 +18,14 @@ create table code_data
 ) engine=innodb default charset=utf8;
 
 
+create table em_code_data
+(
+  code char(6) not null,
+  name varchar(8) not null,
+  primary key (code)
+) engine=innodb default charset=utf8;
+
+
 create table basics_data
 (
   date date not null,

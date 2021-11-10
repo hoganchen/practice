@@ -13,6 +13,8 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	//"os"
@@ -32,6 +34,8 @@ const (
 	mysqlDb   = "gostock"
 
 	codeTable = "code_data"
+	emCodeTable = "em_code_data"
+	basicAllTable = "basics_all_data"
 	updateStatusTable = "update_status_data"
 
 	maxStockNumPerPage = 1000
@@ -128,7 +132,7 @@ func openDB() *sql.DB {
 	dataSource := fmt.Sprintf("%s:%s@tcp(127.0.0.1:3306)/%s", mysqlUser, mysqlPwd, mysqlDb)
 	db, err := sql.Open("mysql", dataSource)
 
-	// if there is an error opening the connection, handle it
+	//if there is an error opening the connection, handle it
 	if err != nil {
 		panic(err.Error())
 	}
@@ -141,36 +145,36 @@ func closeDB(db *sql.DB) {
 }
 
 func dbQueryExample() {
-	// Open up our database connection.
-	// I've set up a database on my local machine using phpmyadmin.
-	// The database is called testDb
+	//Open up our database connection.
+	//I've set up a database on my local machine using phpmyadmin.
+	//The database is called testDb
 	//db, err := sql.Open("mysql", "stck:stck&sql@tcp(127.0.0.1:3306)/stock")
 	dataSource := fmt.Sprintf("%s:%s@tcp(127.0.0.1:3306)/%s", mysqlUser, mysqlPwd, mysqlDb)
 	db, err := sql.Open("mysql", dataSource)
 
-	// if there is an error opening the connection, handle it
+	//if there is an error opening the connection, handle it
 	if err != nil {
 		panic(err.Error())
 	}
 
-	// defer the close till after the main function has finished
-	// executing
+	//defer the close till after the main function has finished
+	//executing
 	defer db.Close()
 
-	// Execute the query
+	//Execute the query
 	results, err := db.Query("SELECT * FROM update_status_data")
 	if err != nil {
-		panic(err.Error()) // proper error handling instead of panic in your app
+		panic(err.Error()) //proper error handling instead of panic in your app
 	}
 
 	for results.Next() {
 		var tag Tag
-		// for each row, scan the result into our tag composite object
+		//for each row, scan the result into our tag composite object
 		err = results.Scan(&tag.Name, &tag.Date)
 		if err != nil {
-			panic(err.Error()) // proper error handling instead of panic in your app
+			panic(err.Error()) //proper error handling instead of panic in your app
 		}
-		// and then print out the tag's Name attribute
+		//and then print out the tag's Name attribute
 		logrus.Debugf("Name: %v, Date: %v\n", tag.Name, tag.Date)
 	}
 }
@@ -179,19 +183,19 @@ func dbExec(sentence string) {
 	dataSource := fmt.Sprintf("%s:%s@tcp(127.0.0.1:3306)/%s", mysqlUser, mysqlPwd, mysqlDb)
 	db, err := sql.Open("mysql", dataSource)
 
-	// if there is an error opening the connection, handle it
+	//if there is an error opening the connection, handle it
 	if err != nil {
 		panic(err.Error())
 	}
 
-	// defer the close till after the main function has finished
-	// executing
+	//defer the close till after the main function has finished
+	//executing
 	defer db.Close()
 
-	// Execute the query
+	//Execute the query
 	_, err = db.Exec(sentence)
 	if err != nil {
-		panic(err.Error()) // proper error handling instead of panic in your app
+		panic(err.Error()) //proper error handling instead of panic in your app
 	}
 }
 
@@ -200,16 +204,16 @@ func getUpdateDate(tableName string, db *sql.DB) string {
 	selectStr := fmt.Sprintf("SELECT * FROM %v where name = \"%v\"", updateStatusTable, tableName)
 	results, err := db.Query(selectStr)
 	if err != nil {
-		panic(err.Error()) // proper error handling instead of panic in your app
+		panic(err.Error()) //proper error handling instead of panic in your app
 	}
 	for results.Next() {
 		var tag Tag
-		// for each row, scan the result into our tag composite object
+		//for each row, scan the result into our tag composite object
 		err = results.Scan(&tag.Name, &tag.Date)
 		if err != nil {
-			panic(err.Error()) // proper error handling instead of panic in your app
+			panic(err.Error()) //proper error handling instead of panic in your app
 		}
-		// and then print out the tag's Name attribute
+		//and then print out the tag's Name attribute
 		logrus.Debugf("Name: %v, Date: %v\n", tag.Name, tag.Date)
 		dateStr = tag.Date
 	}
@@ -225,21 +229,16 @@ http://quote.eastmoney.com/center/gridlist.html#hs_a_board
 获取所有沪深A股的股票列表，沪深A股，pn为page number，pz为page size，po为1表示降序，为0表示升序，fid为f3表示以涨幅排序，为f12表示以股票代码排序
 http://29.push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=0&np=1&fltt=2&invt=2&fid=f12&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152
 */
-func getTodayStockData(db *sql.DB) {
-	dateStr := getUpdateDate(codeTable, db)
-	updateDateStr := ""
-	if time.Now().Day() >= 1 && time.Now().Day() < 15 {
-		updateDateStr = fmt.Sprintf("%v-%02d-%02d", time.Now().Year(), time.Now().Month(), 1)
-	} else {
-		updateDateStr = fmt.Sprintf("%v-%02d-%02d", time.Now().Year(), time.Now().Month(), 15)
-	}
+func updateEmTodayData(db *sql.DB) {
+	dateStr := getUpdateDate(emCodeTable, db)
+	updateDateStr := fmt.Sprintf("%v-%02d-%02d", time.Now().Year(), time.Now().Month(), time.Now().Day())
 
 	logrus.Debugf("dateStr: %v, updateDateStr: %v", dateStr, updateDateStr)
 	if updateDateStr == dateStr {
-		logrus.Infof("The %s table is updated to latest date...", codeTable)
+		logrus.Infof("The %s table is updated to latest date...", emCodeTable)
 		return
 	} else {
-		logrus.Infof("start to update %v table...", codeTable)
+		logrus.Infof("start to update %v table...", emCodeTable)
 	}
 
 	firstUrl := "http://29.push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=0&np=1&fltt=2&invt=2&fid=f12" +
@@ -252,8 +251,8 @@ func getTodayStockData(db *sql.DB) {
 	pageNum := (stockNum - 1) / maxStockNumPerPage + 1
 	logrus.Tracef("stockNum: %v, pageNum: %v\n", stockNum, pageNum)
 
-	// truncate table
-	truncStr := fmt.Sprintf("truncate table %s", codeTable)
+	//truncate table
+	truncStr := fmt.Sprintf("truncate table %s", emCodeTable)
 	db.Exec(truncStr)
 
 	var wg sync.WaitGroup
@@ -262,7 +261,7 @@ func getTodayStockData(db *sql.DB) {
 		go func(num int) {
 			defer wg.Done()
 
-			// rand.Intn(n) -> [0, n)
+			//rand.Intn(n) -> [0, n)
 			rand.Seed(time.Now().UnixNano())
 			serverID := rand.Intn(99) + 1
 
@@ -273,7 +272,7 @@ func getTodayStockData(db *sql.DB) {
 
 			itemNum := int(gjson.Get(dataUrlContent, "data.diff.#").Int())
 			logrus.Debugf("pageNum: %v, itemNum: %v\n", num, itemNum)
-			execStr := fmt.Sprintf("insert into %s (code, name) values", codeTable)
+			execStr := fmt.Sprintf("insert into %s (code, name) values", emCodeTable)
 			data := " "
 
 			for j := 0; j < itemNum; j++ {
@@ -299,25 +298,223 @@ func getTodayStockData(db *sql.DB) {
 			logrus.Tracef("execStr: %v, data: %v\n", execStr, data)
 			logrus.Debugf("execString: %v\n", execStr + data)
 
-			// Execute the query
+			//Execute the query
 			_, err := db.Exec(execStr + data)
 			if err != nil {
-				panic(err.Error()) // proper error handling instead of panic in your app
+				panic(err.Error()) //proper error handling instead of panic in your app
 			}
 		}(i)
 	}
 
 	wg.Wait()
 
+	updateStr := fmt.Sprintf("insert into %s (name, date) values (\"%s\", \"%s\") on duplicate key update date = values(date)", updateStatusTable, emCodeTable, updateDateStr)
+	logrus.Debugf("dateStr: %v, updateStr: %v\n", dateStr, updateStr)
+	_, err := db.Exec(updateStr)
+	if err != nil {
+		panic(err.Error()) //proper error handling instead of panic in your app
+	}
+}
+
+/*
+获取沪深A股股票数量
+http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeStockCount?node=hs_a
+获取沪深A股股票列表，num为page size，sort=symbol表示按照代码排序，asc为1表示升序，为0表示降序
+http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page=1&num=80&sort=symbol&asc=1&node=hs_a&symbol=&_s_r_a=sort
+
+获取风险警示板股票数量
+http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeStockCount?node=shfxjs
+获取风险警示板股票列表，num为page size，sort=symbol表示按照代码排序，asc为1表示升序，为0表示降序
+http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page=1&num=80&sort=symbol&asc=1&node=shfxjs&symbol=&_s_r_a=sort
+*/
+func updateSinaTodayData(db *sql.DB) {
+	dateStr := getUpdateDate(codeTable, db)
+	updateDateStr := fmt.Sprintf("%v-%02d-%02d", time.Now().Year(), time.Now().Month(), time.Now().Day())
+
+	logrus.Debugf("dateStr: %v, updateDateStr: %v", dateStr, updateDateStr)
+	if updateDateStr == dateStr {
+		logrus.Infof("The %s table is updated to latest date...", codeTable)
+		return
+	} else {
+		logrus.Infof("start to update %v table...", codeTable)
+	}
+
+	//truncate table
+	truncStr := fmt.Sprintf("truncate table %s", codeTable)
+	db.Exec(truncStr)
+
+	//服务器接受的参数值为20, 40, 80, 100，参数值超过100，也最多返回100条数据
+	pageSize := 80
+	nodeSlice := []string{"hs_a", "shfxjs"}
+
+	for _, node := range nodeSlice {
+		pageUrl := fmt.Sprintf("http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/"+
+			"Market_Center.getHQNodeStockCount?node=%s", node)
+
+		pageUrlContent := httpFetch(pageUrl)
+		logrus.Tracef("url: %v, content:\n%v\n", pageUrl, pageUrlContent)
+		//去除"字符，然后再转为整数
+		stockNum, _ := strconv.Atoi(strings.ReplaceAll(pageUrlContent, "\"", ""))
+		pageNum := (stockNum - 1) / pageSize + 1
+		logrus.Tracef("stockNum: %v, pageNum: %v\n", stockNum, pageNum)
+
+		for num := 1; num <= pageNum; num++ {
+			dataUrl := fmt.Sprintf("http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/" +
+				"Market_Center.getHQNodeData?page=%d&num=%d&sort=symbol&asc=1&node=%s&symbol=&_s_r_a=sort", num, pageSize, node)
+			dataUrlContent := httpFetch(dataUrl)
+
+			itemNum := int(gjson.Get(dataUrlContent, "#").Int())
+			logrus.Debugf("pageNum: %v, itemNum: %v\n", num, itemNum)
+			execStr := fmt.Sprintf("insert ignore into %s (code, name) values", codeTable)
+			data := " "
+
+			for j := 0; j < itemNum; j++ {
+				dataPath := fmt.Sprintf("%d", j)
+				logrus.Tracef("diff: %v\n", gjson.Get(dataUrlContent, dataPath))
+
+				codePath := fmt.Sprintf("%d.code", j)
+				namePath := fmt.Sprintf("%d.name", j)
+				code := gjson.Get(dataUrlContent, codePath).String()
+				name := gjson.Get(dataUrlContent, namePath).String()
+
+				//如果希望按习惯上的字符个数来计算，就需要使用 Go 语言中 UTF-8 包提供的 RuneCountInString() 函数，统计 Uncode 字符数量。
+				//import "unicode/utf8"
+				logrus.Debugf("code: %v(%T), name: %v(%T), len(name): %v, RuneCountInString(name): %v\n", code, code, name, name, len(name), utf8.RuneCountInString(name))
+				//最后一行数据后，不能有逗号
+				if j < itemNum-1 {
+					data = data + "(\"" + code + "\", \"" + name + "\"), "
+				} else {
+					data = data + "(\"" + code + "\", \"" + name + "\")"
+				}
+			}
+
+			logrus.Tracef("execStr: %v, data: %v\n", execStr, data)
+			logrus.Debugf("execString: %v\n", execStr + data)
+
+			//Execute the query
+			_, err := db.Exec(execStr + data)
+			if err != nil {
+				panic(err.Error()) //proper error handling instead of panic in your app
+			}
+		}
+	}
+
 	updateStr := fmt.Sprintf("insert into %s (name, date) values (\"%s\", \"%s\") on duplicate key update date = values(date)", updateStatusTable, codeTable, updateDateStr)
 	logrus.Debugf("dateStr: %v, updateStr: %v\n", dateStr, updateStr)
 	_, err := db.Exec(updateStr)
 	if err != nil {
-		panic(err.Error()) // proper error handling instead of panic in your app
+		panic(err.Error()) //proper error handling instead of panic in your app
 	}
 }
 
-func getBasicInfoData(db sql.DB) {
+func updateBasicInfoData(db *sql.DB) {
+	dateStr := getUpdateDate(basicAllTable, db)
+	updateDateStr := ""
+	if time.Now().Day() >= 1 && time.Now().Day() < 15 {
+		updateDateStr = fmt.Sprintf("%v-%02d-%02d", time.Now().Year(), time.Now().Month(), 1)
+	} else {
+		updateDateStr = fmt.Sprintf("%v-%02d-%02d", time.Now().Year(), time.Now().Month(), 15)
+	}
+
+	logrus.Debugf("dateStr: %v, updateDateStr: %v", dateStr, updateDateStr)
+	if updateDateStr == dateStr {
+		logrus.Infof("The %s table is updated to latest date...", basicAllTable)
+		return
+	} else {
+		logrus.Infof("start to update %v table...", basicAllTable)
+	}
+
+	firstUrl := "http://29.push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=0&np=1&fltt=2&invt=2&fid=f12" +
+		"&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23" +
+		"&fields=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152"
+
+	firstUrlContent := httpFetch(firstUrl)
+	logrus.Tracef("url: %v, content:\n%v\n", firstUrl, firstUrlContent)
+	stockNum := int(gjson.Get(firstUrlContent, "data.total").Int())
+	pageNum := (stockNum - 1) / maxStockNumPerPage + 1
+	logrus.Tracef("stockNum: %v, pageNum: %v\n", stockNum, pageNum)
+
+	//truncate table
+	truncStr := fmt.Sprintf("truncate table %s", basicAllTable)
+	db.Exec(truncStr)
+
+	var wg sync.WaitGroup
+	for i := 1; i <= pageNum; i++ {
+		wg.Add(1)
+		go func(num int) {
+			defer wg.Done()
+
+			//rand.Intn(n) -> [0, n)
+			rand.Seed(time.Now().UnixNano())
+			serverID := rand.Intn(99) + 1
+
+			fieldMap := map[string]string{
+				"f2": "price", "f3": "p_change", "f5": "volume", "f6": "amount", "f9": "dynamic_pe",
+				"f12": "code", "f14": "name", "f20": "totalMarketCap", "f21": "marketCap", "f23": "pb",
+				"f24": "60days_p_change", "f25": "year_p_change", "f26": "timeToMarket", "f36": "per_holdings",
+				"f37": "roe", "f38": "totals", "f39": "outstanding", "f40": "revenue", "f41": "revenueRatio",
+				"f45": "profit", "f46": "profitRatio", "f47": "undp", "f48": "perundp", "f49": "gpr",
+				"f50": "totalAssets", "f51": "liquidAssets", "f52": "fixedAssets", "f53": "intangibleAssets",
+				"f54": "totalLiability", "f55": "currentLiability", "f56": "noncurrentLiability",
+				"f57": "debtAssetRatio", "f58": "shareholdersEquity", "f59": "equityRatio", "f60": "reserved",
+				"f61": "reservedPerShare", "f100": "industry", "f102": "area", "f109": "5days_p_change",
+				"f110": "20days_p_change", "f112": "esp", "f113": "bvps", "f114": "static_pe",
+				"f115": "rolling_pe", "f129": "npr", "f160": "10days_p_change",
+				"f377": "52weeks_low", "f378": "52weeks_high"}
+
+			fieldStr := ""
+			for key := range fieldMap {
+				fieldStr = strings.Join([]string{fieldStr, key}, ",")
+			}
+
+			dataUrl := fmt.Sprintf("http://%d.push2.eastmoney.com/api/qt/clist/get?pn=%d&pz=%d&po=0&np=1&fltt=2&invt=2&fid=f12" +
+				"&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=%s", serverID, num, maxStockNumPerPage, fieldStr)
+			dataUrlContent := httpFetch(dataUrl)
+
+			itemNum := int(gjson.Get(dataUrlContent, "data.diff.#").Int())
+			logrus.Debugf("pageNum: %v, itemNum: %v\n", num, itemNum)
+			execStr := fmt.Sprintf("insert into %s (date, code, name) values", basicAllTable)
+			data := " "
+
+			for j := 0; j < itemNum; j++ {
+				dataPath := fmt.Sprintf("data.diff.%d", j)
+				logrus.Tracef("diff: %v\n", gjson.Get(dataUrlContent, dataPath))
+
+				codePath := fmt.Sprintf("data.diff.%d.f12", j)
+				namePath := fmt.Sprintf("data.diff.%d.f14", j)
+				code := gjson.Get(dataUrlContent, codePath).String()
+				name := gjson.Get(dataUrlContent, namePath).String()
+
+				//如果希望按习惯上的字符个数来计算，就需要使用 Go 语言中 UTF-8 包提供的 RuneCountInString() 函数，统计 Uncode 字符数量。
+				//import "unicode/utf8"
+				logrus.Debugf("code: %v(%T), name: %v(%T), len(name): %v, RuneCountInString(name): %v\n", code, code, name, name, len(name), utf8.RuneCountInString(name))
+				//最后一行数据后，不能有逗号
+				if j < itemNum - 1 {
+					data = data + "(\"" + updateDateStr + "\", \"" + code + "\", \"" + name + "\"), "
+				} else {
+					data = data + "(\"" + updateDateStr + "\", \"" + code + "\", \"" + name + "\")"
+				}
+			}
+
+			logrus.Tracef("execStr: %v, data: %v\n", execStr, data)
+			logrus.Debugf("execString: %v\n", execStr + data)
+
+			//Execute the query
+			_, err := db.Exec(execStr + data)
+			if err != nil {
+				panic(err.Error()) //proper error handling instead of panic in your app
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	updateStr := fmt.Sprintf("insert into %s (name, date) values (\"%s\", \"%s\") on duplicate key update date = values(date)", updateStatusTable, basicAllTable, updateDateStr)
+	logrus.Debugf("dateStr: %v, updateStr: %v\n", dateStr, updateStr)
+	_, err := db.Exec(updateStr)
+	if err != nil {
+		panic(err.Error()) //proper error handling instead of panic in your app
+	}
 }
 
 func debugFunc() {
@@ -335,7 +532,8 @@ func debugFunc() {
 
 func mainFunc() {
 	db := openDB()
-	getTodayStockData(db)
+	updateEmTodayData(db)
+	updateSinaTodayData(db)
 	closeDB(db)
 }
 

@@ -29,7 +29,12 @@ func jsonRead() {
 
 	value, _ := jsonparser.GetString([]byte(jsonString), "data", "diff", "[0]")
 	fmt.Printf("value: %v\n", value)
+}
 
+func gjsonRead() {
+	jsonString := `[{"symbol":"sh600069","code":"600069","name":"退市银鸽","trade":"0.280","pricechange":0,"changepercent":0,"buy":"0.000","sell":"0.000","settlement":"0.280","open":"0.000","high":"0.000","low":"0.000","volume":0,"amount":0,"ticktime":"09:00:00","per":-0.712,"pb":0.377,"mktcap":45467.347632,"nmc":45467.347632,"turnoverratio":0},{"symbol":"sh600071","code":"600071","name":"凤凰光学","trade":"54.760","pricechange":-0.44,"changepercent":-0.797,"buy":"54.760","sell":"54.770","settlement":"55.200","open":"54.350","high":"55.770","low":"53.700","volume":4014136,"amount":218692734,"ticktime":"10:45:20","per":1095.2,"pb":29.651,"mktcap":1541898.616164,"nmc":1300399.169056,"turnoverratio":1.69036},{"symbol":"sh600078","code":"600078","name":"*ST澄星","trade":"8.050","pricechange":0.38,"changepercent":4.954,"buy":"8.050","sell":"0.000","settlement":"7.670","open":"8.040","high":"8.050","low":"7.810","volume":23735656,"amount":190759284,"ticktime":"10:45:21","per":-2.41,"pb":-13.932,"mktcap":533371.153105,"nmc":533371.153105,"turnoverratio":3.58235}]`
+	fmt.Printf("len: %v\n", gjson.Get(jsonString, "#"))
+	fmt.Printf("item: %v\n", gjson.Get(jsonString, "0"))
 }
 
 func main() {
@@ -37,6 +42,7 @@ func main() {
 	fmt.Printf("Program start execution at %s\n\n", start.Format("2006-01-02 15:04:05"))
 
 	jsonRead()
+	gjsonRead()
 
 	elapsed := time.Since(start)
 	fmt.Printf("\nProgram end execution at %s\n", time.Now().Format("2006-01-02 15:04:05"))
