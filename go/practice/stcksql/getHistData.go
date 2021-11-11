@@ -26,6 +26,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
+	"github.com/valyala/fastjson"
 )
 
 const (
@@ -47,7 +48,8 @@ type Tag struct {
 }
 
 func init() {
-	//你可以在Logger上设置日志记录级别,然后它只会记录具有该级别或以上级别任何内容的条目，日志级别大小说明:Panic>Fatal>Error>Warn>Info>Debug>Trace
+	//你可以在Logger上设置日志记录级别,然后它只会记录具有该级别或以上级别任何内容的条目，
+	//日志级别大小说明:Panic>Fatal>Error>Warn>Info>Debug>Trace
 	logrus.SetLevel(logrus.InfoLevel)
 
 	//默认情况下，日志输出到io.Stderr
@@ -129,13 +131,17 @@ func httpFetch(url string) string {
 }
 
 func openDB() *sql.DB {
-	dataSource := fmt.Sprintf("%s:%s@tcp(127.0.0.1:3306)/%s", mysqlUser, mysqlPwd, mysqlDb)
+	//设置sql的连接参数maxAllowedPacket为128M，同时也需要修改/etc/my.cnf，修改max_allowed_packet=128M
+	dataSource := fmt.Sprintf("%s:%s@tcp(127.0.0.1:3306)/%s?maxAllowedPacket=%d",
+		mysqlUser, mysqlPwd, mysqlDb, 1 << 27)
 	db, err := sql.Open("mysql", dataSource)
 
 	//if there is an error opening the connection, handle it
 	if err != nil {
 		panic(err.Error())
 	}
+
+	db.Exec("set global max_allowed_packet=134217728")
 
 	return db
 }
@@ -241,9 +247,9 @@ func updateEmTodayData(db *sql.DB) {
 		logrus.Infof("start to update %v table...", emCodeTable)
 	}
 
-	firstUrl := "http://29.push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=0&np=1&fltt=2&invt=2&fid=f12" +
-		"&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23" +
-		"&fields=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152"
+	firstUrl := fmt.Sprintf("http://%d.push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=0&np=1&fltt=2" +
+		"&invt=2&fid=f12&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13," +
+		"f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152", rand.Intn(99) + 1)
 
 	firstUrlContent := httpFetch(firstUrl)
 	logrus.Tracef("url: %v, content:\n%v\n", firstUrl, firstUrlContent)
@@ -265,9 +271,10 @@ func updateEmTodayData(db *sql.DB) {
 			rand.Seed(time.Now().UnixNano())
 			serverID := rand.Intn(99) + 1
 
-			dataUrl := fmt.Sprintf("http://%d.push2.eastmoney.com/api/qt/clist/get?pn=%d&pz=%d&po=0&np=1&fltt=2&invt=2&fid=f12" +
-				"&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23" +
-				"&fields=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152", serverID, num, maxStockNumPerPage)
+			dataUrl := fmt.Sprintf("http://%d.push2.eastmoney.com/api/qt/clist/get?pn=%d&pz=%d&po=0&np=1" +
+				"&fltt=2&invt=2&fid=f12&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f1,f2,f3,f4,f5,f6,f7,f8,f9," +
+				"f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152",
+				serverID, num, maxStockNumPerPage)
 			dataUrlContent := httpFetch(dataUrl)
 
 			itemNum := int(gjson.Get(dataUrlContent, "data.diff.#").Int())
@@ -284,9 +291,10 @@ func updateEmTodayData(db *sql.DB) {
 				code := gjson.Get(dataUrlContent, codePath).String()
 				name := gjson.Get(dataUrlContent, namePath).String()
 
-				//如果希望按习惯上的字符个数来计算，就需要使用 Go 语言中 UTF-8 包提供的 RuneCountInString() 函数，统计 Uncode 字符数量。
+				//如果希望按习惯上的字符个数来计算，就需要使用 Go 语言中 UTF-8 包提供的 RuneCountInString() 函数，统计 Uncode 字符数量
 				//import "unicode/utf8"
-				logrus.Debugf("code: %v(%T), name: %v(%T), len(name): %v, RuneCountInString(name): %v\n", code, code, name, name, len(name), utf8.RuneCountInString(name))
+				logrus.Debugf("code: %v(%T), name: %v(%T), len(name): %v, RuneCountInString(name): %v\n",
+					code, code, name, name, len(name), utf8.RuneCountInString(name))
 				//最后一行数据后，不能有逗号
 				if j < itemNum - 1 {
 					data = data + "(\"" + code + "\", \"" + name + "\"), "
@@ -308,7 +316,8 @@ func updateEmTodayData(db *sql.DB) {
 
 	wg.Wait()
 
-	updateStr := fmt.Sprintf("insert into %s (name, date) values (\"%s\", \"%s\") on duplicate key update date = values(date)", updateStatusTable, emCodeTable, updateDateStr)
+	updateStr := fmt.Sprintf("insert into %s (name, date) values (\"%s\", \"%s\") on duplicate key " +
+		"update date = values(date)", updateStatusTable, emCodeTable, updateDateStr)
 	logrus.Debugf("dateStr: %v, updateStr: %v\n", dateStr, updateStr)
 	_, err := db.Exec(updateStr)
 	if err != nil {
@@ -360,7 +369,8 @@ func updateSinaTodayData(db *sql.DB) {
 
 		for num := 1; num <= pageNum; num++ {
 			dataUrl := fmt.Sprintf("http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/" +
-				"Market_Center.getHQNodeData?page=%d&num=%d&sort=symbol&asc=1&node=%s&symbol=&_s_r_a=sort", num, pageSize, node)
+				"Market_Center.getHQNodeData?page=%d&num=%d&sort=symbol&asc=1&node=%s&symbol=&_s_r_a=sort",
+				num, pageSize, node)
 			dataUrlContent := httpFetch(dataUrl)
 
 			itemNum := int(gjson.Get(dataUrlContent, "#").Int())
@@ -377,9 +387,10 @@ func updateSinaTodayData(db *sql.DB) {
 				code := gjson.Get(dataUrlContent, codePath).String()
 				name := gjson.Get(dataUrlContent, namePath).String()
 
-				//如果希望按习惯上的字符个数来计算，就需要使用 Go 语言中 UTF-8 包提供的 RuneCountInString() 函数，统计 Uncode 字符数量。
+				//如果希望按习惯上的字符个数来计算，就需要使用 Go 语言中 UTF-8 包提供的 RuneCountInString() 函数，统计 Uncode 字符数量
 				//import "unicode/utf8"
-				logrus.Debugf("code: %v(%T), name: %v(%T), len(name): %v, RuneCountInString(name): %v\n", code, code, name, name, len(name), utf8.RuneCountInString(name))
+				logrus.Debugf("code: %v(%T), name: %v(%T), len(name): %v, RuneCountInString(name): %v\n",
+					code, code, name, name, len(name), utf8.RuneCountInString(name))
 				//最后一行数据后，不能有逗号
 				if j < itemNum-1 {
 					data = data + "(\"" + code + "\", \"" + name + "\"), "
@@ -399,7 +410,8 @@ func updateSinaTodayData(db *sql.DB) {
 		}
 	}
 
-	updateStr := fmt.Sprintf("insert into %s (name, date) values (\"%s\", \"%s\") on duplicate key update date = values(date)", updateStatusTable, codeTable, updateDateStr)
+	updateStr := fmt.Sprintf("insert into %s (name, date) values (\"%s\", \"%s\") on duplicate key " +
+		"update date = values(date)", updateStatusTable, codeTable, updateDateStr)
 	logrus.Debugf("dateStr: %v, updateStr: %v\n", dateStr, updateStr)
 	_, err := db.Exec(updateStr)
 	if err != nil {
@@ -424,9 +436,9 @@ func updateBasicInfoData(db *sql.DB) {
 		logrus.Infof("start to update %v table...", basicAllTable)
 	}
 
-	firstUrl := "http://29.push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=0&np=1&fltt=2&invt=2&fid=f12" +
-		"&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23" +
-		"&fields=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152"
+	firstUrl := fmt.Sprintf("http://%d.push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=0&np=1&fltt=2" +
+		"&invt=2&fid=f12&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13," +
+		"f14,f15,f16,f17,f18,f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f115,f152", rand.Intn(99) + 1)
 
 	firstUrlContent := httpFetch(firstUrl)
 	logrus.Tracef("url: %v, content:\n%v\n", firstUrl, firstUrlContent)
@@ -462,45 +474,104 @@ func updateBasicInfoData(db *sql.DB) {
 				"f115": "rolling_pe", "f129": "npr", "f160": "10days_p_change",
 				"f377": "52weeks_low", "f378": "52weeks_high"}
 
-			fieldStr := ""
-			for key := range fieldMap {
-				fieldStr = strings.Join([]string{fieldStr, key}, ",")
+			var fieldKeySlice []string
+			var fieldValueSlice []string
+			fieldMapLen := len(fieldMap)
+
+			for key, value := range fieldMap {
+				fieldKeySlice = append(fieldKeySlice, key)
+				fieldValueSlice = append(fieldValueSlice, value)
 			}
 
-			dataUrl := fmt.Sprintf("http://%d.push2.eastmoney.com/api/qt/clist/get?pn=%d&pz=%d&po=0&np=1&fltt=2&invt=2&fid=f12" +
-				"&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=%s", serverID, num, maxStockNumPerPage, fieldStr)
+			fieldKeyStr := strings.Join(fieldKeySlice, ",")
+			fieldValueStr := strings.Join(fieldValueSlice, ",")
+
+			dataUrl := fmt.Sprintf("http://%d.push2.eastmoney.com/api/qt/clist/get?pn=%d&pz=%d&po=0&np=1" +
+				"&fltt=2&invt=2&fid=f12&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=%s",
+				serverID, num, maxStockNumPerPage, fieldKeyStr)
 			dataUrlContent := httpFetch(dataUrl)
+			logrus.Tracef("url: %v, content:\n%v\n", dataUrl, dataUrlContent)
 
 			itemNum := int(gjson.Get(dataUrlContent, "data.diff.#").Int())
 			logrus.Debugf("pageNum: %v, itemNum: %v\n", num, itemNum)
-			execStr := fmt.Sprintf("insert into %s (date, code, name) values", basicAllTable)
-			data := " "
+
+			var p fastjson.Parser
+			v, _ := p.Parse(dataUrlContent)
+
+			/*
+				https://geektutu.com/post/hpg-string-concat.html
+				https://www.flysnow.org/2018/11/05/golang-concat-strings-performance-analysis.html
+
+				整体和100个字符串的时候差不多，表现好的还是Join和Builder。这两个方法的使用侧重点有些不一样，
+				如果有现成的数组、切片那么可以直接使用Join,但是如果没有，并且追求灵活性拼接，还是选择Builder。
+				Join还是定位于有现成切片、数组的（毕竟拼接成数组也要时间），并且使用固定方式进行分解的，比如逗号、空格等，局限比较大。
+
+				从最近的这两篇文章的分析来看，我们大概可以总结出。
+
+				+ 连接适用于短小的、常量字符串（明确的，非变量），因为编译器会给我们优化。
+				Join是比较统一的拼接，不太灵活
+				fmt和buffer基本上不推荐
+				builder从性能和灵活性上，都是上佳的选择。
+			*/
+			var builder strings.Builder
+			builder.WriteString(fmt.Sprintf("insert into %s (date, %s) values", basicAllTable, fieldValueStr))
+			//execStr := fmt.Sprintf("insert into %s (date, %s) values", basicAllTable, fieldValueStr)
+			//data := " "
 
 			for j := 0; j < itemNum; j++ {
-				dataPath := fmt.Sprintf("data.diff.%d", j)
-				logrus.Tracef("diff: %v\n", gjson.Get(dataUrlContent, dataPath))
+				//dataPath := fmt.Sprintf("data.diff.%d", j)
+				//logrus.Tracef("diff: %v\n", gjson.Get(dataUrlContent, dataPath))
 
-				codePath := fmt.Sprintf("data.diff.%d.f12", j)
-				namePath := fmt.Sprintf("data.diff.%d.f14", j)
-				code := gjson.Get(dataUrlContent, codePath).String()
-				name := gjson.Get(dataUrlContent, namePath).String()
+				//data = data + "(\"" + updateDateStr + "\", "
+				//data = strings.Join([]string{data, "(\"", updateDateStr, "\", "}, "")
+				builder.WriteString("(\"" + updateDateStr + "\", ")
+				mapIndex := 0
 
-				//如果希望按习惯上的字符个数来计算，就需要使用 Go 语言中 UTF-8 包提供的 RuneCountInString() 函数，统计 Uncode 字符数量。
-				//import "unicode/utf8"
-				logrus.Debugf("code: %v(%T), name: %v(%T), len(name): %v, RuneCountInString(name): %v\n", code, code, name, name, len(name), utf8.RuneCountInString(name))
-				//最后一行数据后，不能有逗号
+				for _, key := range fieldKeySlice {
+					//fieldPath := fmt.Sprintf("data.diff.%d.%s", j, key)
+					//fieldStr := gjson.Get(dataUrlContent, fieldPath).String()
+					fieldStr := string(v.GetStringBytes("data", "diff", fmt.Sprintf("%d", j), key))
+					if "-" == fieldStr {
+						fieldStr = "0"
+					}
+
+					if "" == fieldStr {
+						fieldStr = strconv.FormatFloat(
+							v.GetFloat64("data", "diff", fmt.Sprintf("%d", j), key), 'f', 2, 32)
+					}
+
+					if "-" == fieldStr {
+						fieldStr = "0"
+					}
+
+					mapIndex += 1
+					if mapIndex < fieldMapLen {
+						//data += "\"" + fieldStr + "\", "
+						//data = strings.Join([]string{data, "\"", fieldStr, "\", "}, "")
+						builder.WriteString("\"" + fieldStr + "\", ")
+					} else {
+						//data += "\"" + fieldStr + "\""
+						//data = strings.Join([]string{data, "\"", fieldStr, "\""}, "")
+						builder.WriteString("\"" + fieldStr + "\"")
+					}
+				}
+
 				if j < itemNum - 1 {
-					data = data + "(\"" + updateDateStr + "\", \"" + code + "\", \"" + name + "\"), "
+					//data = data + "), "
+					//data = strings.Join([]string{data, "), "}, "")
+					builder.WriteString("), ")
 				} else {
-					data = data + "(\"" + updateDateStr + "\", \"" + code + "\", \"" + name + "\")"
+					//data = data + ")"
+					//data = strings.Join([]string{data, ")"}, "")
+					builder.WriteString(")")
 				}
 			}
 
-			logrus.Tracef("execStr: %v, data: %v\n", execStr, data)
-			logrus.Debugf("execString: %v\n", execStr + data)
+			//logrus.Tracef("execStr: %v, data: %v\n", execStr, data)
+			//logrus.Debugf("execString: %v\n", execStr + data)
 
 			//Execute the query
-			_, err := db.Exec(execStr + data)
+			_, err := db.Exec(builder.String())
 			if err != nil {
 				panic(err.Error()) //proper error handling instead of panic in your app
 			}
@@ -509,7 +580,8 @@ func updateBasicInfoData(db *sql.DB) {
 
 	wg.Wait()
 
-	updateStr := fmt.Sprintf("insert into %s (name, date) values (\"%s\", \"%s\") on duplicate key update date = values(date)", updateStatusTable, basicAllTable, updateDateStr)
+	updateStr := fmt.Sprintf("insert into %s (name, date) values (\"%s\", \"%s\") on duplicate key " +
+		"update date = values(date)", updateStatusTable, basicAllTable, updateDateStr)
 	logrus.Debugf("dateStr: %v, updateStr: %v\n", dateStr, updateStr)
 	_, err := db.Exec(updateStr)
 	if err != nil {
@@ -532,8 +604,9 @@ func debugFunc() {
 
 func mainFunc() {
 	db := openDB()
-	updateEmTodayData(db)
-	updateSinaTodayData(db)
+	//updateEmTodayData(db)
+	//updateSinaTodayData(db)
+	updateBasicInfoData(db)
 	closeDB(db)
 }
 
