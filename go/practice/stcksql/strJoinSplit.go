@@ -11,10 +11,7 @@ import (
 	"time"
 )
 
-func main() {
-	start := time.Now()
-	fmt.Printf("Program start execution at %s\n\n", start.Format("2006-01-02 15:04:05"))
-
+func stringJoin() {
 	fieldMap := map[string]string{
 		"f2": "price", "f3": "p_change", "f5": "volume", "f6": "amount", "f9": "dynamic_pe",
 		"f12": "code", "f14": "name", "f20": "totalMarketCap", "f21": "marketCap", "f23": "pb",
@@ -38,12 +35,32 @@ func main() {
 		fieldValueSlice = append(fieldValueSlice, value)
 	}
 
+	//join是将字符串切片转换为字符串
 	fieldKeyStr := strings.Join(fieldKeySlice, ",")
 	fieldValueStr := strings.Join(fieldValueSlice, ",")
 
 	fmt.Printf("fieldMapLen: %d\n", fieldMapLen)
 	fmt.Printf("fieldKeyStr: %s\n", fieldKeyStr)
 	fmt.Printf("fieldValueStr: %s\n", fieldValueStr)
+}
+
+func stringSplit() {
+	itemStr := "2021-11-12,110.00,108.37,110.48,107.90,20073,218595091.00,2.33,-2.03,-2.24,0.44"
+	itemSlice := strings.Split(itemStr, ",") //split是将字符串转换为字符串切片
+	columnNameSlice := []string{"date", "open", "close", "high", "low", "volume", "amount"}
+
+	fmt.Printf("itemSlice: %v\n", itemSlice)
+	fmt.Printf("itemSlice[:7]: %v\n", itemSlice[:7])
+	fmt.Printf("itemStr: %v\n", strings.Join(itemSlice[:len(columnNameSlice)], ","))
+}
+
+func main() {
+	start := time.Now()
+	fmt.Printf("Program start execution at %s\n\n", start.Format("2006-01-02 15:04:05"))
+
+	stringJoin()
+	fmt.Printf("\n\n################################################################################\n\n")
+	stringSplit()
 
 	elapsed := time.Since(start)
 	fmt.Printf("\nProgram end execution at %s\n", time.Now().Format("2006-01-02 15:04:05"))
