@@ -54,6 +54,15 @@ func stringSplit() {
 	fmt.Printf("itemStr: %v\n", strings.Join(itemSlice[:len(columnNameSlice)], ","))
 }
 
+func stringAddQuote() {
+	fieldStr := "2021-07-23,0.977,0.961,0.978,0.956,303394,29199789.000"
+	fieldSlice := strings.Split(fieldStr, ",")
+	fieldNewStr := strings.Join(fieldSlice, ", ")
+	commaSep := "\"" + strings.Join(fieldSlice, "\", \"") + "\""
+
+	fmt.Printf("fieldNewStr: %v\ncommaSep: %v\n", fieldNewStr, commaSep)
+}
+
 func main() {
 	start := time.Now()
 	fmt.Printf("Program start execution at %s\n\n", start.Format("2006-01-02 15:04:05"))
@@ -61,6 +70,8 @@ func main() {
 	stringJoin()
 	fmt.Printf("\n\n################################################################################\n\n")
 	stringSplit()
+	fmt.Printf("\n\n################################################################################\n\n")
+	stringAddQuote()
 
 	elapsed := time.Since(start)
 	fmt.Printf("\nProgram end execution at %s\n", time.Now().Format("2006-01-02 15:04:05"))

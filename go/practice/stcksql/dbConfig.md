@@ -28,7 +28,6 @@ create table em_code_data
 
 create table basics_data
 (
-  date date not null,
   code char(6) not null,
   name varchar(8) not null,
   industry varchar(6) default "",
@@ -66,7 +65,6 @@ create table basics_data
 
 create table basics_all_data
 (
-  date date not null,
   code char(6) not null,
   name varchar(8) not null,
   price float not null,
@@ -297,9 +295,7 @@ create table em_annual_data
 
 create table etf_data
 (
-  date date not null,
   code char(6) not null,
-  market char(1) not null,
   name varchar(16) not null,
   primary key (code)
 ) engine=innodb default charset=utf8;
