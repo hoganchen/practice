@@ -49,7 +49,7 @@ func fetch (url string) string {
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Http get err:", err)
-        return ""
+		return ""
 	}
 	if resp.StatusCode != 200 {
 		fmt.Println("Http status code:", resp.StatusCode)
@@ -85,8 +85,16 @@ func get_proxy(url_list []string, proxy_list *[]s_Proxy) {
 	for _, url := range url_list {
 		fmt.Printf("url: %v\n", url)
 
-		resp, err := http.Get(url)
+		// resp, err := http.Get(url)
+		// if err != nil {
+		// 	continue
+		// }
+		client := &http.Client{}
+		req, _ := http.NewRequest("GET", url, nil)
+		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")
+		resp, err := client.Do(req)
 		if err != nil {
+			fmt.Println("Http get err:", err)
 			continue
 		}
 
