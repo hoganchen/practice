@@ -71,7 +71,7 @@ func determinEncoding(r io.Reader) encoding.Encoding {
 	body, err := bufio.NewReader(r).Peek(1024)
 
 	if err != nil {
-	  fmt.Println("Error: peek 1024 byte of body err is ", err)
+		fmt.Println("Error: peek 1024 byte of body err is ", err)
 	}
 
 	// 这里简化,不取是否确认
