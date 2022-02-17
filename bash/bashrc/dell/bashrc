@@ -125,7 +125,7 @@ alias totest='cd ~/share/projects/BLE_Develop/code/test'
 alias towork='cd ~/share/projects/BALBOA_SW/00_SW/00_SW_DEV/misc/'
 alias toproject='cd ~/share/projects/BALBOA_SW/'
 alias todoc='cd ~/Documents/Docs/'
-alias tojenkins='ssh goodix@172.16.163.39'
+alias tojenkins='ssh public@172.16.163.39'
 alias pyshare='python -m SimpleHTTPServer'
 
 # added by Anaconda3 4.4.0 installer
