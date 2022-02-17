@@ -385,7 +385,7 @@ Phone is connected with IUT.]]></preconditions>
 	<step_number><![CDATA[3]]></step_number>
 	<actions><![CDATA[<p>Open iphone-&gt;Settings-&gt;Bluetooth to scan devices</p>
 ]]></actions>
-	<expectedresults><![CDATA[<p>Find the device named &#39;Goodix_ANCS_C&#39;</p>
+	<expectedresults><![CDATA[<p>Find the device named &#39;Test_ANCS_C&#39;</p>
 ]]></expectedresults>
 	<execution_type><![CDATA[1]]></execution_type>
 </step>
@@ -506,7 +506,7 @@ Phone is connected with IUT.]]></preconditions>
 	<step_number><![CDATA[3]]></step_number>
 	<actions><![CDATA[<p>Open GRToolbox and Scan</p>
 ]]></actions>
-	<expectedresults><![CDATA[<p>Find two devices both with name &#39;Goodix_BPS&#39;.<br />
+	<expectedresults><![CDATA[<p>Find two devices both with name &#39;Test_BPS&#39;.<br />
 One device with &#39;Local BD_ADDR&#39;, and anothe one with &#39;Ext Adv Addr&#39;.</p>
 ]]></expectedresults>
 	<execution_type><![CDATA[1]]></execution_type>
@@ -564,7 +564,7 @@ One device with &#39;Local BD_ADDR&#39;, and anothe one with &#39;Ext Adv Addr&#
 	<step_number><![CDATA[3]]></step_number>
 	<actions><![CDATA[<p>Open Android phone Settings-&gt;Bluetooth and scan</p>
 ]]></actions>
-	<expectedresults><![CDATA[<p>Find a device named &#39;GDX_HIDS_Mouse&#39; or &#39;Goodix_Mouse&#39;<br />
+	<expectedresults><![CDATA[<p>Find a device named &#39;GDX_HIDS_Mouse&#39; or &#39;Test_Mouse&#39;<br />
 The type icon of the device is a &#39;mouse&#39;.</p>
 ]]></expectedresults>
 	<execution_type><![CDATA[1]]></execution_type>
@@ -621,7 +621,7 @@ The type icon of the device is a &#39;mouse&#39;.</p>
 	<step_number><![CDATA[3]]></step_number>
 	<actions><![CDATA[<p>Open GRToolbox and Scan</p>
 ]]></actions>
-	<expectedresults><![CDATA[<p>Find a device named &#39;Goodix_HRM&#39;.</p>
+	<expectedresults><![CDATA[<p>Find a device named &#39;Test_HRM&#39;.</p>
 ]]></expectedresults>
 	<execution_type><![CDATA[1]]></execution_type>
 </step>
@@ -678,7 +678,7 @@ The type icon of the device is a &#39;mouse&#39;.</p>
 	<step_number><![CDATA[3]]></step_number>
 	<actions><![CDATA[<p>Open GRToolbox and Scan</p>
 ]]></actions>
-	<expectedresults><![CDATA[<p>Find a device named &#39;Goodix_HTS&#39;.</p>
+	<expectedresults><![CDATA[<p>Find a device named &#39;Test_HTS&#39;.</p>
 ]]></expectedresults>
 	<execution_type><![CDATA[1]]></execution_type>
 </step>
@@ -733,7 +733,7 @@ The type icon of the device is a &#39;mouse&#39;.</p>
 	<step_number><![CDATA[3]]></step_number>
 	<actions><![CDATA[<p>Open GRToolbox and scan.</p>
 ]]></actions>
-	<expectedresults><![CDATA[<p>Find a device named &#39;Goodix_Tem&#39;.</p>
+	<expectedresults><![CDATA[<p>Find a device named &#39;Test_Tem&#39;.</p>
 ]]></expectedresults>
 	<execution_type><![CDATA[1]]></execution_type>
 </step>
@@ -800,7 +800,7 @@ SIG Company ID: 0x04F7</p>
 
 <p>&nbsp; 3.scan time: 30</p>
 
-<p>&nbsp; 4.test case: goodix_xxx</p>
+<p>&nbsp; 4.test case: Test_xxx</p>
 
 <p>&nbsp; 5.test device: choice balboa name and address</p>
 
@@ -867,7 +867,7 @@ SIG Company ID: 0x04F7</p>
 
 <p>&nbsp;&nbsp;3.scan time: 30</p>
 
-<p>&nbsp;&nbsp;4.test case: goodix_throughput</p>
+<p>&nbsp;&nbsp;4.test case: Test_throughput</p>
 
 <p>&nbsp;&nbsp;5.test device: choice balboa name and address</p>
 
@@ -936,7 +936,7 @@ SIG Company ID: 0x04F7</p>
 
 <p>&nbsp;&nbsp;3.scan time: 30</p>
 
-<p>&nbsp;&nbsp;4.test case: goodix_xxx</p>
+<p>&nbsp;&nbsp;4.test case: Test_xxx</p>
 
 <p>&nbsp;&nbsp;5.test device: choice balboa name and address</p>
 
