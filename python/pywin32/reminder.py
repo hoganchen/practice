@@ -8,6 +8,7 @@ import os
 import re
 import time
 import yaml
+import socket
 import logging
 import datetime
 import win32gui
@@ -18,8 +19,7 @@ import threading
 import subprocess
 
 SHUTDOWN_TIME = 5
-FILE_BUFFER_SIZE = 50
-LOG_FILE_NAME = 'history.log'
+CHECK_PERIOD_TIME = 60
 CONFIG_FILE_NAME = 'config.ini'
 
 # log level
@@ -32,10 +32,11 @@ def logging_config(logging_level):
     # log_format = "[File: %(filename)s line: %(lineno)d] - %(levelname)s - %(message)s"
     # log_format = "[%(asctime)s - [File: %(filename)s line: %(lineno)d] - %(levelname)s]: %(message)s"
 
+    # log_format = "[Func: %(funcName)s - Line: %(lineno)d - Level: %(levelname)s]: %(message)s"
     # log_format = "[Datetime: %(asctime)s -- Line: %(lineno)d -- Level: %(levelname)s]: %(message)s"
-    # log_format = "[Time: %(asctime)s -- Func: %(funcName)s -- Line: %(lineno)d -- Level: %(levelname)s]: %(message)s"
-    log_format = "[Func: %(funcName)s - Line: %(lineno)d - Level: %(levelname)s]: %(message)s"
-    logging.basicConfig(level=logging_level, format=log_format)
+    log_format = "[Time: %(asctime)s -- Func: %(funcName)s -- Line: %(lineno)d -- Level: %(levelname)s]: %(message)s"
+    logging.basicConfig(filename='{}.log'.format(datetime.datetime.now().strftime('%Y%m%d_%H%M%S')),
+                        level=logging_level, format=log_format)
 
 
 def get_config_file_mtime(config_file):
@@ -57,8 +58,9 @@ def check_period(period):
 
 def get_config(config_file):
     config_dict = {
-        'name': '哼', time: 10, 'count': 3,
-        'keyword': ('漫画', '小说', '第.*?章', '第.*?回'),
+        'name': '哼', 'time': 10, 'count': 3, 'interval': 60,
+        'keyword': ('游戏', 'game', '漫画', '小说', '书架', '第\S*章', '第\S*节', '第\S*回', '第\S*番',
+                    '知乎', '视频', '爱奇艺', 'bilibili'),
         'remind_msg': '你又在看小说、漫画，玩游戏，没事干了啊？？？\n\n点击确认按钮后，关闭当前页面...',
         'warn_msg': '已达到最大警告次数，电脑关机中...'
     }
@@ -70,14 +72,21 @@ def get_config(config_file):
             if json_dict.get('name') is not None:
                 config_dict['name'] = json_dict.get('name')
 
+            # 检查间隔
             if json_dict.get('time') is not None:
                 config_dict['time'] = json_dict.get('time')
 
+            # 最大警告次数
             if json_dict.get('count') is not None:
                 config_dict['count'] = json_dict.get('count')
 
+            # 检查的时间周期
             if json_dict.get('period') is not None:
                 config_dict['period'] = json_dict.get('period')
+
+            # 强制截屏间隔时间
+            if json_dict.get('interval') is not None:
+                config_dict['interval'] = json_dict.get('interval')
 
             if json_dict.get('keyword') is not None:
                 config_dict['keyword'] = json_dict.get('keyword')
@@ -99,19 +108,38 @@ def show_message_box(hwnd, msg):
 # http://timgolden.me.uk/pywin32-docs/
 # https://www.cnblogs.com/liming19680104/p/11988565.html
 def main():
+    # 只允许运行一个实例
+    # https://www.jianshu.com/p/06134ca966de
+    try:
+        s = socket.socket()
+        host = socket.gethostname()
+        port = 60123
+        s.bind((host, port))
+    except Exception as err:
+        print('err: {}'.format(err))
+        return
+
+    logging_config(LOGGING_LEVEL)
+
     warning_count = 0
+    screen_flag = True
+    screen_time = time.time()
 
     config_dict = get_config(CONFIG_FILE_NAME)
     latest_config_mtime = get_config_file_mtime(CONFIG_FILE_NAME)
 
     while True:
+        if screen_flag:
+            screen_time = time.time()
+            screen_flag = False
+
         config_mtime = get_config_file_mtime(CONFIG_FILE_NAME)
         if config_mtime > latest_config_mtime:
             config_dict = get_config(CONFIG_FILE_NAME)
             latest_config_mtime = config_mtime
 
         if not check_period(config_dict['period']):
-            time.sleep(60)
+            time.sleep(CHECK_PERIOD_TIME)
         else:
             hwnd = win32gui.GetForegroundWindow()
             title = win32gui.GetWindowText(hwnd)
@@ -136,14 +164,18 @@ def main():
 
             time.sleep(config_dict['time'])
 
+        if time.time() - screen_time > config_dict['interval']:
+            pyautogui.screenshot('screen_{}.png'.format(datetime.datetime.now().strftime('%Y%m%d_%H%M%S')))
+            screen_flag = True
+
 
 def debug():
     config_dict = get_config(CONFIG_FILE_NAME)
     print('period check result: {}'.format(check_period(config_dict['period'])))
+    print(os.path.basename(__file__))
 
 
 if __name__ == '__main__':
-    logging_config(LOGGING_LEVEL)
     print('Script start execution at {}\n'.format(str(datetime.datetime.now())))
 
     time_start = time.time()
