@@ -9,6 +9,7 @@ import re
 import time
 import yaml
 import socket
+import psutil
 import logging
 import datetime
 import win32gui
@@ -17,6 +18,7 @@ import win32con
 import pyautogui
 import threading
 import subprocess
+import win32process
 
 SHUTDOWN_TIME = 5
 CHECK_PERIOD_TIME = 60
@@ -35,8 +37,15 @@ def logging_config(logging_level):
     # log_format = "[Func: %(funcName)s - Line: %(lineno)d - Level: %(levelname)s]: %(message)s"
     # log_format = "[Datetime: %(asctime)s -- Line: %(lineno)d -- Level: %(levelname)s]: %(message)s"
     log_format = "[Time: %(asctime)s -- Func: %(funcName)s -- Line: %(lineno)d -- Level: %(levelname)s]: %(message)s"
-    logging.basicConfig(filename='{}.log'.format(datetime.datetime.now().strftime('%Y%m%d_%H%M%S')),
-                        level=logging_level, format=log_format)
+
+    # https://docs.python.org/zh-cn/3/howto/logging.html
+    # https://blog.csdn.net/qq_41623250/article/details/107575912
+    # log文件的编码为open的默认值，会导致部分中文乱码
+    # logging.basicConfig(filename='{}.log'.format(datetime.datetime.now().strftime('%Y%m%d_%H%M%S')),
+    #                     level=logging_level, format=log_format)
+    file_handler = logging.FileHandler(filename='{}.log'.format(datetime.datetime.now().strftime('%Y%m%d_%H%M%S')),
+                                       encoding='utf-8')
+    logging.basicConfig(handlers={file_handler}, level=logging_level, format=log_format)
 
 
 def get_config_file_mtime(config_file):
@@ -143,7 +152,8 @@ def main():
         else:
             hwnd = win32gui.GetForegroundWindow()
             title = win32gui.GetWindowText(hwnd)
-            logging.info('title: {}'.format(title))
+            pid = win32process.GetWindowThreadProcessId(hwnd)
+            logging.info('process name: {}, title: {}'.format(psutil.Process(pid[-1]).name(), title))
 
             for keyword in config_dict['keyword']:
                 if re.search(r'{}'.format(keyword), title):
