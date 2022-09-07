@@ -142,8 +142,8 @@ def check_period(period):
 def get_config(config_file):
     config_dict = {
         'name': '哼', 'time': 10, 'count': 3, 'interval': 60, 'data': 200, 'history': 5,
-        'keyword': ('游戏', 'game', '视频', '漫画', '小说', '书架', '第\S*章', '第\S*节', '第\S*回', '第\S*番',
-                    'zhihu', '知乎', '视频', '爱奇艺', 'bilibili'),
+        'keyword': ('游戏', 'game', '漫画', '小说', '书架', '第\S*章', '第\S*节', '第\S*回', '第\S*番',
+                    '视频', '电影', '电视剧', '爱奇艺', '优酷', '知乎', 'bilibili'),
         'remind_msg': '你能增强你的自控力，做正确的事吗？？？\n\n点击确认按钮后，关闭当前页面...',
         'warn_msg': '已达到最大警告次数，电脑关机中...'
     }
@@ -258,6 +258,7 @@ def main():
                             subprocess.run('shutdown -s -f -t 2')
 
                         warning_count += 1
+                        break
 
                 time.sleep(config_dict['time'])
 
