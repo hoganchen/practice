@@ -72,18 +72,18 @@ def logging_config_04(logging_level):
     logger.setLevel(logging_level)
     formatter = logging.Formatter("[Time: %(asctime)s -- Line: %(lineno)d -- Level: %(levelname)s]: %(message)s")
 
-    # https://www.cnblogs.com/mghhzAnne/p/12307751.html
-    # 控制台输出
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging_level)
-    stream_handler.setFormatter(formatter)
-
     # https://blog.csdn.net/sinat_42483341/article/details/103464691
     # 滚动log文件输出，每个log的最大size为maxBytes，备份文件个数为5个，编码格式为utf-8
     rotating_handler = logging.handlers.RotatingFileHandler(filename='reminder.log', maxBytes=LOG_FILE_SIZE*1024,
                                                             backupCount=5, encoding='utf-8')
     rotating_handler.setLevel(logging_level)
     rotating_handler.setFormatter(formatter)
+
+    # https://www.cnblogs.com/mghhzAnne/p/12307751.html
+    # 控制台输出
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging_level)
+    stream_handler.setFormatter(formatter)
 
     logger.addHandler(stream_handler)
     logger.addHandler(rotating_handler)
