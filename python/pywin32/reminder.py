@@ -238,8 +238,13 @@ def main():
             else:
                 hwnd = win32gui.GetForegroundWindow()
                 title = win32gui.GetWindowText(hwnd)
-                pid = win32process.GetWindowThreadProcessId(hwnd)
-                logging.info('process name: {}, process title: {}'.format(psutil.Process(pid[-1]).name(), title))
+
+                try:
+                    pid = win32process.GetWindowThreadProcessId(hwnd)
+                    logging.info('process name: {}, process title: {}'.format(psutil.Process(pid[-1]).name(), title))
+                except Exception as err:
+                    logging.info('err: {}'.format(err))
+                    logging.info('process title: {}'.format(title))
 
                 for keyword in config_dict['keyword']:
                     if re.search(r'{}'.format(keyword), title):
