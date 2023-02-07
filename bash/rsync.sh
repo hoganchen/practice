@@ -11,5 +11,22 @@ cd /home/hogan/Private/github/Documents/
 # git add *.xmind
 git add .
 git commit -m "markdown update"
-git pull --rebase
-git push origin master
+
+while :
+do
+    git pull --rebase
+    if [ 0 == $? ]
+    then
+        break
+    fi
+done
+
+while :
+do
+    git push origin master
+    if [ 0 == $? ]
+    then
+        break
+    fi
+done
+
