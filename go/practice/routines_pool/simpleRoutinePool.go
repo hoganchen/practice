@@ -34,6 +34,12 @@ func worker(id int, jobs <-chan int, results chan<- int) {
 	}
 }
 
+/*
+https://gobyexample.com/worker-pools
+
+Go by Example: Worker Pools
+In this example we’ll look at how to implement a worker pool using goroutines and channels.
+*/
 func main() {
 	start := time.Now()
 	fmt.Printf("Program start execution at %s\n\n", start.Format("2006-01-02 15:04:05"))
