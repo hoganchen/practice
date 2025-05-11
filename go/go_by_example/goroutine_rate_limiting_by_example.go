@@ -38,6 +38,7 @@ func main() {
 		}
 	}()
 
+	// 现在，模拟另外 5 个传入请求。 受益于 burstyLimiter 的爆发（bursts）能力，前 3 个请求可以快速完成。
 	burstyRequests := make(chan int, 5)
 	for i := 1; i <= 5; i++ {
 		burstyRequests <- i
