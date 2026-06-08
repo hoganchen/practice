@@ -25,6 +25,13 @@ type Ordered interface {
 		~string
 }
 
+/*
+Go 内置约束的分级
+约束		支持的运算符		典型用途
+any			无任何约束			存储任意类型
+comparable	==、!=				map key、查找
+自定义 Ordered	<、<=、>、>=	排序、比大小
+*/
 func Min[T Ordered](a, b T) T {
 	if a < b {
 		return a
