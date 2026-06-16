@@ -1,0 +1,37 @@
+[package]
+name = "cargo_features_demo"
+version = "0.1.0"
+edition = "2021"
+
+# ========== 定义功能特性 ==========
+[features]
+default = ["std"]       # 默认启用的特性
+std = []                # 标准库支持
+serde = ["dep:serde"]   # 序列化支持（启用 serde 依赖）
+logging = []            # 日志功能
+extra = []              # 额外功能
+
+# ========== 条件依赖 ==========
+[dependencies]
+# serde 和 serde_json 仅在 "serde" 特性启用时才依赖
+serde = { version = "1", optional = true, features = ["derive"] }
+serde_json = { version = "1", optional = true }
+
+# ========== 平台特定依赖 ==========
+[target.'cfg(windows)'.dependencies]
+winapi = "0.3"
+
+# ========== 构建配置 ==========
+[profile.release]
+opt-level = 3           # 最高优化
+lto = true              # 链接时优化
+codegen-units = 1       # 单个代码生成单元（更多优化机会）
+
+[profile.dev]
+opt-level = 0           # 无优化
+debug = true            # 调试信息
+
+# ========== 构建脚本 ==========
+# 需要 build.rs 文件时启用
+# [build-dependencies]
+# cc = "1.0"
