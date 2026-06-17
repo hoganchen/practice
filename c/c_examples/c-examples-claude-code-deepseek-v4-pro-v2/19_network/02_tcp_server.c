@@ -100,7 +100,7 @@ void handle_client(SOCKET client_sock, struct sockaddr_in client_addr) {
         if (bytes_received > 0) {
             buffer[bytes_received] = '\0';  /* 字符串结束 */
 
-            printf("  收到来自 %s:%d 的消息 (%d 字节): %s",
+            printf("  收到来自 %s:%d 的消息 (%d 字节): %s\n",
                    client_ip, client_port, bytes_received, buffer);
 
             /*

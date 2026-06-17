@@ -117,7 +117,50 @@ void *compute_task(void *arg) {
 }
 
 /* ===== 主函数 ===== */
+/*
+pthread_create 的完整签名：
+int pthread_create(pthread_t *thread,            // [out] 线程ID
+                   const pthread_attr_t *attr,   // [in]  线程属性 (第二个参数)
+                   void *(*start_routine)(void*),// [in]  线程函数
+                   void *arg);                   // [in]  传给函数的参数
 
+第二个参数 attr 的作用
+设置线程的属性。传 NULL 表示使用默认属性，绝大多数情况都够用。需要自定义时，它控制以下内容：
+
+属性            说明
+──────────────  ──────────────────────────────────────────────────────────────────────────────────────────────────
+detachstate     线程是否为"分离状态" — PTHREAD_CREATE_JOINABLE（默认，可被 join）或 PTHREAD_CREATE_DETACHED（自动释放资源，不可 join）
+stacksize       线程栈大小（字节），默认通常 8MB，可调小以节省内存或调大防栈溢出
+stackaddr       自定义栈的地址（极少用）
+schedpolicy     调度策略：SCHED_OTHER（默认分时）、SCHED_FIFO（实时先入先出）、SCHED_RR（实时轮转）
+schedparam      调度优先级（配合实时策略使用）
+inheritsched    调度属性是继承自创建线程还是显式设置
+scope           竞争范围：PTHREAD_SCOPE_SYSTEM（与系统所有线程竞争）或 PTHREAD_SCOPE_PROCESS（仅与进程内线程竞争）
+
+使用流程
+需要自定义时，三步走：
+pthread_attr_t attr;
+pthread_attr_init(&attr);                              // 1. 初始化
+
+pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);  // 2. 设属性
+pthread_attr_setstacksize(&attr, 1024 * 1024);         //    设栈大小 1MB
+
+pthread_create(&thread, &attr, func, arg);             // 3. 创建线程
+pthread_attr_destroy(&attr);                           // 4. 用完销毁
+
+最常见的使用场景
+// 场景 A：默认（99% 的情况）
+pthread_create(&thread, NULL, func, arg);
+
+// 场景 B：分离线程（创建即分离，无需 join）
+pthread_attr_t attr;
+pthread_attr_init(&attr);
+pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+pthread_create(&thread, &attr, func, arg);
+pthread_attr_destroy(&attr);
+
+一句话：attr 就是线程的"配置对象"——传 NULL 用默认配置就行，想调栈大小、设分离状态、改调度策略时才需要专门设置它。
+*/
 int main() {
     printf("============================================\n");
     printf("  pthreads 线程基础演示\n");
@@ -130,6 +173,22 @@ int main() {
     int arg1 = 1;  /* 传递给线程的参数 */
 
     /* pthread_create(线程ID, 属性, 线程函数, 参数) */
+    /*
+    线程函数的固定签名
+    C 语言（POSIX threads）的线程函数必须是这样一个固定格式：
+    void *thread_function(void *arg);
+
+    参数：void *arg — 一个万能指针，可以指向任意类型的数据
+    返回值：void * — 同样万能，可以返回任意类型的数据（或 NULL）
+
+    三条铁律
+    规则            说明
+    ──────────────  ──────────────────────────────────────────────────────────────────────────────────
+    签名固定        必须是 void *func(void *arg)，名字任意
+    参数存活        传给线程的参数的内存必须在线程使用期间有效 — 不能用即将出栈的局部变量传给 detach 的线程
+    返回值存活      返回值必须用 malloc 分配或位于静态区，不能是函数内的局部变量（出栈就没了）
+    这也是 void* 被称为"万能插头"的原因 — 通过结构体可以打包任意复杂的数据传入传出。
+    */
     int ret = pthread_create(&thread1, NULL, print_task, &arg1);
     if (ret != 0) {
         fprintf(stderr, "创建线程失败！错误码: %d, 描述: %s\n",
@@ -176,7 +235,7 @@ int main() {
             printf("  1 + 2 + ... + %d = %lld\n",
                    args2.iterations, res->sum);
             /* 释放线程中分配的内存 */
-            free(res);
+            free(res);  // free(thread_ret)
         }
     }
 
@@ -185,7 +244,7 @@ int main() {
     /* ===== 3. 创建多个线程并行执行 ===== */
     printf("----- 3. 多个线程并行执行 -----\n");
 
-#define NUM_THREADS 4
+    #define NUM_THREADS 4
     pthread_t threads[NUM_THREADS];
     ThreadArgs args[NUM_THREADS];
 

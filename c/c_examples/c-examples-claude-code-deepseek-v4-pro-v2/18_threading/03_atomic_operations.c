@@ -125,6 +125,36 @@ static atomic_flag g_spinlock = ATOMIC_FLAG_INIT;
  * 如果旧值为 false (未锁定)，则当前线程获得锁
  * 如果旧值为 true (已锁定)，则循环等待
  */
+/*
+自旋锁（Spinlock）是一种忙等待锁，线程在获取不到锁时不会休眠，而是不停地循环检查（"自旋"），直到锁可用。
+
+atomic_flag_test_and_set 原子的做：设置标志为 true，返回旧值
+返回 false（旧值是 false）→ 获得锁，跳出循环
+返回 true（锁被别人持有）→ 继续循环，再次尝试
+
+现实类比
+互斥锁 = 去厕所发现有人，去大厅坐着等（让出 CPU），别人出来叫你
+自旋锁 = 去厕所发现有人，站在门口不停敲门问"好了没？好了没？..."（自旋）
+
+哪个好？取决于厕所里的人多久出来：
+几秒钟 → 站门口等（自旋）更快，省去了"走去大厅坐下"的开销
+几分钟 → 去大厅坐着等（互斥锁）更好，站着喊几分钟太浪费体力
+
+总结
+锁的持有时间极短（几十条指令以内）→ 自旋锁
+锁可能长时间持有 → 互斥锁
+
+所以内核代码（临界区通常极短）大量使用自旋锁；而应用层编程除非性能要求极高且能确定临界区很短，否则优先用互斥锁。
+
+互斥锁 vs 自旋锁
+            互斥锁 (pthread_mutex_t)       自旋锁 (atomic_flag)
+──────────  ─────────────────────────────  ─────────────────────────
+拿不到锁时  线程休眠，让出 CPU              线程忙等，一直循环
+CPU 消耗    低（休眠不占 CPU）              高（自旋占满 CPU 核心）
+切换开销    有（用户态↔内核态切换）         无（一直在用户态）
+适合场景    临界区大、可能长时间阻塞        临界区极小、很快就释放
+
+*/
 void spinlock_lock(void)
 {
     /* atomic_flag_test_and_set 返回旧值
@@ -180,6 +210,7 @@ typedef struct Node {
 } Node;
 
 /* 原子栈顶指针 */
+// 所有静态存储期的变量（static 和全局变量）在程序启动时自动初始化为 0。所以 g_stack_top 实际上就是 0，也就是 NULL。
 static atomic_intptr_t g_stack_top;  /* 用 intptr_t 存储指针 */
 
 /* 无锁栈的 push 操作 */
@@ -190,6 +221,26 @@ void lockfree_push(Node *new_node)
     /* 将新的节点的 next 指向当前栈顶 */
     Node *old_top = (Node*)atomic_load(&g_stack_top);
 
+    // atomic_compare_exchange_weak函数的作用：如果栈顶现在还是 old_top（没人动过），就把栈顶换成新节点；否则把 old_top 更新为最新值，下轮重试。
+    /*
+    图解 do...while 为什么正确
+
+    线程1 push(C):      线程2 push(D):
+    old_top = B         old_top = B
+    C->next = B
+    CAS: TOP == B?
+                        D->next = B
+                        CAS: TOP == B?
+                        成功: TOP → D
+                        (old_top 不变，还是 B)
+    CAS 失败 (B≠D)
+    old_top 被更新为 D
+    C->next = D
+    CAS: TOP == D?
+    成功: TOP → C → D → B → A
+
+    do...while 保证每次 CAS 之前，next 都是正确的，这就是它在这里不可替代的原因。
+    */
     do {
         new_node->next = old_top;                          /* 设置新节点的 next */
     } while (!atomic_compare_exchange_weak(
@@ -234,6 +285,20 @@ static atomic_int g_data_ready = ATOMIC_VAR_INIT(0);
 static int g_shared_data = 0;
 
 /* 生产者线程: 先写数据，再设置标志（release 语义）*/
+/*
+// 生产者
+g_shared_data = 42;                                     // ① 写数据
+atomic_store_explicit(&g_data_ready, 1, RELEASE);       // ② 设标志
+
+// 消费者
+while (atomic_load_explicit(&g_data_ready, ACQUIRE) == 0); // ③ 等标志
+printf("%d\n", g_shared_data);                             // ④ 读数据
+memory_order_release 保证：
+
+本行之前的所有写操作（①），必须在本次写入（②）之前对其他线程可见。
+
+如果没有这个保证，CPU 或编译器可能重排指令，导致消费者在读到标志为 1 时，g_shared_data 还是 0！
+*/
 void* producer(void *arg)
 {
     (void)arg;

@@ -64,6 +64,7 @@ static _Thread_local const char *tls_thread_name = "unnamed";
  */
 
 /* TLS: 每线程的自增 ID（自动分配）*/
+/* Thread-Local Storage（线程局部存储）， _Thread_local 所做的事情——每个线程拥有变量的独立副本，互不干扰*/
 static _Thread_local int tls_thread_id = -1;
 
 /* 全局原子变量（用于分配 ID，非原子演示——为了简化只用一个线程演示）
@@ -306,21 +307,22 @@ static _Thread_local int tls_private_counter = 0;
 void* thread_compare(void *arg)
 {
     (void)arg;
+    pthread_t tid = pthread_self();
 
-    printf("\n  [对比线程] 启动\n");
+    printf("\n  [对比线程 %lu] 启动\n", (unsigned long)tid);
 
     /* 修改全局变量 */
     g_shared_counter++;
-    printf("  [对比线程] 全局共享计数器 = %d (所有线程看到的值会叠加)\n",
-           g_shared_counter);
+    printf("  [对比线程 %lu] 全局共享计数器 = %d (所有线程看到的值会叠加)\n",
+           (unsigned long)tid, g_shared_counter);
 
     /* 修改 TLS 变量 */
     tls_private_counter++;
-    printf("  [对比线程] TLS 私有计数器 = %d (每个线程独立, 始终为 1)\n",
-           tls_private_counter);
+    printf("  [对比线程 %lu] TLS 私有计数器 = %d (每个线程独立, 始终为 1)\n",
+           (unsigned long)tid, tls_private_counter);
 
     /* TLS 变量的地址也与其他线程不同 */
-    printf("  [对比线程] TLS 变量地址: %p\n", (void*)&tls_private_counter);
+    printf("  [对比线程 %lu] TLS 变量地址: 0x%p\n", (unsigned long)tid, (void*)&tls_private_counter);
 
     return NULL;
 }
