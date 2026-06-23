@@ -269,6 +269,18 @@ static void* mpmc_producer(void *arg)
         pthread_mutex_lock(&g_mpmc_mutex);
         while (g_mpmc_count >= MPMC_BUFFER_SIZE) {
             mpmc_printf("  [生产者%d] 缓冲区满，等待...\n", id);
+            /*
+            // 步骤 1：原子性地释放 mutex 并进入等待队列
+            atomic {
+                pthread_mutex_unlock(&g_mpmc_mutex);
+                把当前线程放入 g_mpmc_cond 的等待队列;
+                阻塞;  // 线程在这里休眠
+            }
+
+            // 步骤 2：被唤醒后（收到 signal/broadcast）
+            pthread_mutex_lock(&g_mpmc_cond);  // 重新获取 mutex
+            // 此时返回调用者
+            */
             pthread_cond_wait(&g_mpmc_cond, &g_mpmc_mutex);
         }
 
@@ -277,7 +289,37 @@ static void* mpmc_producer(void *arg)
         g_mpmc_count++;
         mpmc_printf("  [生产者%d] 放入 %d (共 %d 个)\n", id, data, g_mpmc_count);
 
-        /* 在 mutex 内 signal，防止消费者在检查条件和 wait 之间丢失唤醒 */
+        /*
+         * 在 mutex 内 signal：被唤醒的消费者拿到锁时，
+         * 条件一定和自己刚修改的一致（不会被其他消费者插进来把条件又消费掉）
+         */
+        /*
+        条件变化后，只需一个人响应 → signal
+        条件变化后，所有等待者都要重新评估 → broadcast
+
+        // 方式 A：signal 在锁内（当前代码）
+        pthread_cond_signal(&g_mpmc_cond);    // ① signal
+        pthread_mutex_unlock(&g_mpmc_mutex);  // ② 解锁
+
+        // 方式 B：signal 在锁外
+        pthread_mutex_unlock(&g_mpmc_mutex);  // ② 解锁
+        pthread_cond_signal(&g_mpmc_cond);    // ① signal
+
+        方式 A 的流程：
+        生产者：signal → 解锁
+        消费者：被唤醒 → 尝试加锁 → 加锁成功 → 处理
+
+        方式 B 的流程：
+        生产者：解锁 → signal
+        消费者：解锁瞬间就可以加锁 → 处理
+                → signal 到达时消费者已经在处理了（浪费一次唤醒，但无害）
+
+        方式 A 中，signal 时锁还在生产者手上，消费者被唤醒后会立即尝试加锁但锁还没释放——消费者可能在内核态阻塞一下等锁。方式 B 中，先解锁再 signal，消费者被唤醒时锁已经可用，能立刻拿到。
+
+        理论上方式 B 略优一点（少一次锁争用），但差别极小。关键的规范要求是：
+
+        只要在修改条件（g_mpmc_count++）和 wait 之间持有锁就行。signal 放在锁内还是锁外都是 POSIX 允许的。
+        */
         pthread_cond_signal(&g_mpmc_cond);
         pthread_mutex_unlock(&g_mpmc_mutex);
 
@@ -323,6 +365,42 @@ static void* mpmc_consumer(void *arg)
         g_mpmc_count--;
         mpmc_printf("  [消费者%d] 取出 %d (剩余 %d 个)\n", id, data, g_mpmc_count);
 
+        /*
+        经典观点：锁外 signal 略优
+
+        锁内 signal 的额外开销：
+
+        生产者：signal(cond)
+        消费者：被唤醒 → 尝试加锁 → 锁还被生产者拿着 → 又睡回去 😴
+        生产者：解锁(mutex)
+        消费者：再被唤醒 → 拿到锁 ✅
+
+        多了一次 睡→醒 的乒乓！(2 次上下文切换)
+
+        锁外 signal 则避免了这步：
+
+        生产者：解锁(mutex)
+        消费者：拿到锁 ✅ 开始处理  ← 消费者醒来就能干活
+        生产者：signal(cond)       ← 这时的 signal 相当于"无事可做"的广播
+
+        所以传统建议是：锁外 signal 少一次无谓的上下文切换。
+
+
+        但现代实现上没那么简单
+        Linux NPTL（Native POSIX Thread Library）：锁内 signal 时，消费者虽然拿不到锁，但 futex 机制会做锁移交（lock handoff）——把锁直接递给被唤醒的消费者，而不是让生产者一个个去争。这种情况下消费者不会真的睡过去又醒来，反而比锁外 signal 更快。
+        多核 CPU：消费者被唤醒后可能在另一个核心上自旋等待锁释放，不经过内核调度，开销极小。
+
+
+                        单核 / 老系统           多核 / 现代 Linux
+        ──────────────  ─────────────────────  ───────────────────────
+        signal 在锁内	⚠️ 多一次上下文切换     ✅ 锁移交，有时更快
+        signal 在锁外	✅ 少一次切换           ✅ 也 OK
+
+        差别在微秒级，99% 的应用不用在意这个。 真正重要的是：
+        signal/broadcast 必须在条件修改之后调用（这个错了就丢唤醒）
+        至于放锁内还是锁外，选一种风格保持一致就行
+
+        */
         pthread_mutex_unlock(&g_mpmc_mutex);
         pthread_cond_signal(&g_mpmc_cond);
 
