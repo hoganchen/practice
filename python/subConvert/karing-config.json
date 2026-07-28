@@ -1,0 +1,4516 @@
+{
+  "log": {
+    "level": "warn"
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "dns-remote",
+        "address": "https://1.1.1.1/dns-query",
+        "strategy": "prefer_ipv4"
+      },
+      {
+        "tag": "dns-direct",
+        "address": "223.5.5.5",
+        "strategy": "prefer_ipv4",
+        "detour": "direct"
+      }
+    ],
+    "rules": [
+      {
+        "rule_set": "geosite-cn",
+        "server": "dns-direct"
+      },
+      {
+        "rule_set": "geosite-geolocation-!cn",
+        "server": "dns-remote"
+      }
+    ],
+    "strategy": "prefer_ipv4"
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 10808
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.32.239",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.3.141",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.46.67",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.34.23",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "JP日本(mibei77.com 米贝节点分享)",
+      "server": "45.32.39.53",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "180.178.60.252",
+      "server_port": 10000,
+      "uuid": "431fe973-a43a-4fac-bf83-2a772e0d0625"
+    },
+    {
+      "type": "hysteria2",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "94.20.88.13",
+      "server_port": 8443,
+      "password": "ew9_M93_6a31Qd45_hUX3984F_jNZ83x_Nz1l_f",
+      "tls": {
+        "enabled": true,
+        "server_name": "azer-tea-grape.bumbleshrimp.com"
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "103.133.1.27",
+      "server_port": 443,
+      "password": "521314",
+      "tls": {
+        "enabled": true,
+        "server_name": "hhtj.hhllfly.kdns.fr"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "germ.skysafe.online",
+      "server_port": 2027,
+      "uuid": "806b803b-7dad-4f13-b525-f3b1ab50e44e",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "germ.skysafe.online",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "AU澳大利亚(mibei77.com 米贝节点分享)",
+      "server": "149.118.72.13",
+      "server_port": 30000,
+      "password": "b42d90fa667942aebc734d60",
+      "tls": {
+        "enabled": true,
+        "server_name": "vpn7.rnmcnm.com"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "AU澳大利亚(mibei77.com 米贝节点分享)",
+      "server": "192.9.175.87",
+      "server_port": 30000,
+      "password": "a34f3990b69f44bfa0d32385",
+      "tls": {
+        "enabled": true,
+        "server_name": "vpn5.rnmcnm.com"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "RU俄罗斯(mibei77.com 米贝节点分享)",
+      "server": "72.56.38.194",
+      "server_port": 9892,
+      "uuid": "884d811f-577b-421e-aabb-608660b0ecfa",
+      "tls": {
+        "enabled": true,
+        "server_name": "dl.google.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "qq"
+        }
+      },
+      "transport": {
+        "type": "grpc",
+        "service_name": "grpc-tunnel"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "RU俄罗斯(mibei77.com 米贝节点分享)",
+      "server": "5.42.106.202",
+      "server_port": 9878,
+      "uuid": "884d811f-577b-421e-aabb-608660b0ecfa",
+      "tls": {
+        "enabled": true,
+        "server_name": "dl.google.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "qq"
+        }
+      },
+      "transport": {
+        "type": "grpc",
+        "service_name": "grpc-tunnel"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "fr17.myxasecure.space",
+      "server_port": 443,
+      "uuid": "06d44c57-8e1a-41f4-b9c4-65d35869e078",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "fr17.myxasecure.space",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "菲律宾(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.63",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "菲律宾(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.119",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "菲律宾(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.97",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "菲律宾(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.21",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "菲律宾(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.30",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "菲律宾(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.140",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "菲律宾(mibei77.com 米贝节点分享)",
+      "server": "104.64.206.42",
+      "server_port": 57137,
+      "uuid": "4476eabb-509c-42d3-bb42-6838bf6fcd1e",
+      "transport": {
+        "type": "ws",
+        "path": "/FREE By Tharuwa (0767597317)",
+        "headers": {
+          "Host": "104.64.206.42"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "菲律宾(mibei77.com 米贝节点分享)",
+      "server": "germ.skysafe.online",
+      "server_port": 2027,
+      "uuid": "806b803b-7dad-4f13-b525-f3b1ab50e44e",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "germ.skysafe.online",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "qq"
+        }
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "菲律宾(mibei77.com 米贝节点分享)",
+      "server": "188.164.248.122",
+      "server_port": 443,
+      "password": "c206d543-023d-46cc-9d5a-1f0f2fc16323",
+      "tls": {
+        "enabled": true,
+        "server_name": "space.byu.id.yxls.eu.cc"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "150.241.65.217",
+      "server_port": 25247,
+      "uuid": "deb9c015-1ffe-4e41-9d21-310eb0422a4c",
+      "transport": {
+        "type": "ws",
+        "path": "/xray",
+        "headers": {
+          "Host": "150.241.65.217"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "fn.fifapes.monster",
+      "server_port": 2090,
+      "uuid": "eab915bc-d2df-73d1-47d0-6eb240497055"
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "138.16.181.6",
+      "server_port": 8444,
+      "uuid": "5bb7df8d-ad02-41fa-a8e6-8a8a4650d2c4",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "apinbxs.eovay.com",
+      "server_port": 39756,
+      "uuid": "57beeeb0-03fc-4fc9-94da-7604488a7134",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "iosapps.itunes.apple.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "ios"
+        }
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "104.18.32.47",
+      "server_port": 443,
+      "password": "humanity",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.gossipglove.com",
+        "insecure": true
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "104.19.229.21",
+      "server_port": 443,
+      "password": "humanity",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.gossipglove.com"
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "jnd02.asgg2026.vip",
+      "server_port": 443,
+      "password": "c90afede-81f8-439d-9a20-f45579f623ec",
+      "tls": {
+        "enabled": true,
+        "server_name": "jnd02.asgg2026.vip"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.3.48",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "usa1.spectrumproxy.shop",
+      "server_port": 443,
+      "password": "76713d07-5a6b-49c2-abd8-bc450a2fa7fc",
+      "tls": {
+        "enabled": true,
+        "server_name": "usa1.spectrumproxy.shop"
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "155.46.167.27",
+      "server_port": 443,
+      "password": "521314",
+      "tls": {
+        "enabled": true,
+        "server_name": "hhtj.hhllfly.kdns.fr",
+        "insecure": true
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "154.193.55.183",
+      "server_port": 443,
+      "uuid": "11e57eeb-ffdf-4983-a9fa-ad352dea7253",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "random"
+        }
+      }
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "216.105.168.19",
+      "server_port": 443,
+      "method": "chacha20-ietf-poly1305",
+      "password": "Yq42Vx56a2SghCnLtOyOCF"
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "www.true.th",
+      "server_port": 80,
+      "uuid": "f27894bf-349c-44e6-a0ce-4c787e18476f",
+      "transport": {
+        "type": "ws",
+        "path": "/GDkX4xpB/",
+        "headers": {
+          "Host": "duatoup3wk8q2.cloudfront.net"
+        }
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "uk.xfj123.top",
+      "server_port": 8881,
+      "password": "e1bd5c86-721c-4a2d-bdf8-ba50e522ec57",
+      "tls": {
+        "enabled": true,
+        "server_name": "uk.xfj123.top",
+        "insecure": true
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "159.65.79.184",
+      "server_port": 20000,
+      "password": "28d38ce6-7c79-4e9d-9175-2186da5be395",
+      "tls": {
+        "enabled": true,
+        "server_name": "addons.mozilla.org",
+        "insecure": true
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "151.101.56.7",
+      "server_port": 80,
+      "uuid": "cfde0aba-0985-4034-ab92-50b1534b126c",
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "BankMelat.glObal.ssl.faStly.nEt."
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "63.141.128.30",
+      "server_port": 8880,
+      "uuid": "6202b230-417c-4d8e-b624-0f71afa9c75d",
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "vms.lifetime42.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "172.64.150.130",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "172.64.150.130"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "155.46.167.30",
+      "server_port": 8880,
+      "uuid": "6202b230-417c-4d8e-b624-0f71afa9c75d",
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "vms.lifetime50.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "91.206.71.8",
+      "server_port": 80,
+      "uuid": "c20a0bcf-aa6f-4c35-9e62-a39b47b04e73",
+      "transport": {
+        "type": "ws",
+        "path": "/pyip=Telegram🇨🇳 @WangCai2",
+        "headers": {
+          "Host": "round-haze-8783.294.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "91.206.71.8",
+      "server_port": 80,
+      "uuid": "c20a0bcf-aa6f-4c35-9e62-a39b47b04e73",
+      "transport": {
+        "type": "ws",
+        "path": "/pyip=Telegram🇨🇳+@WangCai2",
+        "headers": {
+          "Host": "round-haze-8783.294.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "5.129.194.34",
+      "server_port": 4100,
+      "uuid": "9b44bfb4-9d28-4870-9fc3-5154d6d462ff",
+      "transport": {
+        "type": "ws",
+        "path": "/v1",
+        "headers": {
+          "Host": "live.ok.ru"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "194.87.161.60",
+      "server_port": 4100,
+      "uuid": "9b44bfb4-9d28-4870-9fc3-5154d6d462ff",
+      "transport": {
+        "type": "ws",
+        "path": "/v1",
+        "headers": {
+          "Host": "live.ok.ru"
+        }
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "JP日本(mibei77.com 米贝节点分享)",
+      "server": "jpaws.ccwink.photos",
+      "server_port": 44084,
+      "password": "6eca3cb7-eab5-4a96-b95d-444eb566309b",
+      "tls": {
+        "enabled": true,
+        "server_name": "thebofh.org"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "瑞典(mibei77.com 米贝节点分享)",
+      "server": "157.22.19.5",
+      "server_port": 443,
+      "uuid": "c97b2158-64c9-1f55-8167-72970d347288",
+      "tls": {
+        "enabled": true,
+        "server_name": "download.nvidia.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "瑞士(mibei77.com 米贝节点分享)",
+      "server": "fl18.myxasecure.space",
+      "server_port": 443,
+      "uuid": "06d44c57-8e1a-41f4-b9c4-65d35869e078",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "fl18.myxasecure.space",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "塞舌尔(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.58",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "塞舌尔(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.6",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "塞舌尔(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.121",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "塞舌尔(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.118",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "塞舌尔(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.54",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "塞舌尔(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.149",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "塞舌尔(mibei77.com 米贝节点分享)",
+      "server": "45.196.201.135",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "TW台湾(mibei77.com 米贝节点分享)",
+      "server": "tw78.jdvipkuai.cc",
+      "server_port": 56726,
+      "password": "c90afede-81f8-439d-9a20-f45579f623ec",
+      "tls": {
+        "enabled": true,
+        "server_name": "hk11.nynet2026.shop"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "TW台湾(mibei77.com 米贝节点分享)",
+      "server": "45.155.52.231",
+      "server_port": 443,
+      "uuid": "219f9fec-8983-4f6f-af8c-31bd0c6dbf19",
+      "tls": {
+        "enabled": true,
+        "server_name": "ru2.skydrgn-online.online",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "TW台湾(mibei77.com 米贝节点分享)",
+      "server": "172.64.40.79",
+      "server_port": 2083,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/baidu365.org++30.63MB/s",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "TW台湾(mibei77.com 米贝节点分享)",
+      "server": "8.47.69.0",
+      "server_port": 8880,
+      "uuid": "a8178248-3cdf-4fb0-ab7b-87c1ab77201c",
+      "transport": {
+        "type": "ws",
+        "path": "/cdn/assets/stream",
+        "headers": {
+          "Host": "cnd.france2.gg.newwaycdn.com"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "西班牙(mibei77.com 米贝节点分享)",
+      "server": "130.49.77.3",
+      "server_port": 443,
+      "uuid": "e51796bb-3305-ac88-f39d-22fd9dd63b4f",
+      "tls": {
+        "enabled": true,
+        "server_name": "download.nvidia.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "HK香港(mibei77.com 米贝节点分享)",
+      "server": "jpaws.ccwink.photos",
+      "server_port": 58044,
+      "password": "6eca3cb7-eab5-4a96-b95d-444eb566309b",
+      "tls": {
+        "enabled": true,
+        "server_name": "thebofh.org"
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "HK香港(mibei77.com 米贝节点分享)",
+      "server": "y72zuz0pah.yn33dfs2.sbs",
+      "server_port": 781,
+      "password": "302a5902-eecd-4575-a9b4-001de5fe7b6b",
+      "tls": {
+        "enabled": true,
+        "server_name": "emUCdFoC4M3oCW.oss-cn-shanghai.aliyuncs.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "HK香港(mibei77.com 米贝节点分享)",
+      "server": "nas.aizhzo.com",
+      "server_port": 5010,
+      "password": "eBTe6Ax2pUts8oMEWoYVDfnSlHfkLffQ",
+      "tls": {
+        "enabled": true,
+        "server_name": "nas.aizhzo.com",
+        "insecure": true
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "cf.090227.xyz",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.145.2",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.146.229",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "104.18.44.198",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "198.41.223.238",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.42.44",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.4.2",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.14.252",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.11.57",
+      "server_port": 2083,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.151.158",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.41.202",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.1.170",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.4.221",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.8.42",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.32.29",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.8.123",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.41.198",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "104.18.37.237",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.48.245",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.40.49",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.52.18",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.53.27",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.52.152",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "162.159.46.226",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.53.65",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.35.206",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.52.134",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "172.64.53.34",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "114.204.40.185",
+      "server_port": 30006,
+      "uuid": "9f81d9e9-71c5-4fce-8e76-a205518b2292",
+      "tls": {
+        "enabled": true,
+        "server_name": "ruu2rx-oycdrnsrzc.9uokolpk04vmg2ecqb8oys7.workers.dev",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/@Marisa_kristi",
+        "headers": {
+          "Host": "ruu2rx-oycdrnsrzc.9uokolpk04vmg2ecqb8oys7.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "114.204.40.185",
+      "server_port": 30001,
+      "uuid": "03d81fdb-7476-4390-b550-0ba000668af7",
+      "tls": {
+        "enabled": true,
+        "server_name": "ruu2rx-oycdrnsrzc.9uokolpk04vmg2ecqb8oys7.workers.dev",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/@Marisa_kristi",
+        "headers": {
+          "Host": "ruu2rx-oycdrnsrzc.9uokolpk04vmg2ecqb8oys7.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "212.135.210.133",
+      "server_port": 56789,
+      "uuid": "bdd2577d-ac3d-4f23-b349-70116bf3e83d",
+      "tls": {
+        "enabled": true,
+        "server_name": "ruu2rx-oycdrnsrzc.9uokolpk04vmg2ecqb8oys7.workers.dev",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/@Marisa_kristi",
+        "headers": {
+          "Host": "ruu2rx-oycdrnsrzc.9uokolpk04vmg2ecqb8oys7.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "CA加拿大(mibei77.com 米贝节点分享)",
+      "server": "211.107.166.122",
+      "server_port": 12111,
+      "uuid": "276c7d9a-34bd-424d-83c0-404fd54b74a4",
+      "tls": {
+        "enabled": true,
+        "server_name": "ruu2rx-oycdrnsrzc.9uokolpk04vmg2ecqb8oys7.workers.dev",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/@Marisa_kristi",
+        "headers": {
+          "Host": "ruu2rx-oycdrnsrzc.9uokolpk04vmg2ecqb8oys7.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "DE德国(mibei77.com 米贝节点分享)",
+      "server": "de004.asgg2026.vip",
+      "server_port": 443,
+      "password": "c90afede-81f8-439d-9a20-f45579f623ec",
+      "tls": {
+        "enabled": true,
+        "server_name": "de004.asgg2026.vip"
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "DE德国(mibei77.com 米贝节点分享)",
+      "server": "de003.asgg2026.vip",
+      "server_port": 443,
+      "password": "c90afede-81f8-439d-9a20-f45579f623ec",
+      "tls": {
+        "enabled": true,
+        "server_name": "de003.asgg2026.vip"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "DE德国(mibei77.com 米贝节点分享)",
+      "server": "76.164.202.213",
+      "server_port": 8443,
+      "password": "9Me_Jx935gnHx13_Nx45M_NYXe037js_Be4z",
+      "tls": {
+        "enabled": true,
+        "server_name": "mercedes-grape.yyuyy.com"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "DE德国(mibei77.com 米贝节点分享)",
+      "server": "103.133.1.160",
+      "server_port": 80,
+      "uuid": "eaf76557-2219-4799-8171-d7020adfefd0",
+      "transport": {
+        "type": "ws",
+        "path": "/ws",
+        "headers": {
+          "Host": "soft-shadow-1e33.xicav73335.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "DE德国(mibei77.com 米贝节点分享)",
+      "server": "172.64.150.130",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "DE德国(mibei77.com 米贝节点分享)",
+      "server": "vs-de3.vibesignal.space",
+      "server_port": 443,
+      "uuid": "bf0899bc-5abd-40b8-b376-f108e2d8cb6f",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "ajax.googleapis.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "edge"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "DE德国(mibei77.com 米贝节点分享)",
+      "server": "157.22.19.5",
+      "server_port": 443,
+      "uuid": "c97b2158-64c9-1f55-8167-72970d347288",
+      "tls": {
+        "enabled": true,
+        "server_name": "download.nvidia.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "cf.877774.xyz",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "162.159.43.131",
+      "server_port": 443,
+      "uuid": "407ecce0-dc85-465f-89f5-e520e9378baf",
+      "tls": {
+        "enabled": true,
+        "server_name": "ld.223350.xyz",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "ld.223350.xyz"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "104.24.9.6",
+      "server_port": 443,
+      "uuid": "407ecce0-dc85-465f-89f5-e520e9378baf",
+      "tls": {
+        "enabled": true,
+        "server_name": "ld.223350.xyz",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "ld.223350.xyz"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "162.159.49.145",
+      "server_port": 443,
+      "uuid": "407ecce0-dc85-465f-89f5-e520e9378baf",
+      "tls": {
+        "enabled": true,
+        "server_name": "ld.223350.xyz",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "ld.223350.xyz"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "yx.cloudflare.182682.xyz",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "cloudflare-ip.mofashi.ltd",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "store.ubi.com",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "mfa.gov.ua",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "104.19.87.194",
+      "server_port": 443,
+      "uuid": "407ecce0-dc85-465f-89f5-e520e9378baf",
+      "tls": {
+        "enabled": true,
+        "server_name": "ld.223350.xyz",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "ld.223350.xyz"
+        }
+      }
+    },
+    {
+      "type": "vmess",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "2001:bc8:32d7:225::3",
+      "server_port": 55009,
+      "uuid": "cd80d0a4-a8ef-4492-b956-da82a6cecaf9",
+      "security": "auto",
+      "transport": {
+        "type": "ws",
+        "path": "/0zNW56sF"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "cf.130519.xyz",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "FR法国(mibei77.com 米贝节点分享)",
+      "server": "jush.sukario.ir",
+      "server_port": 8443,
+      "uuid": "0fc0e114-8ed6-4c8e-931e-7e3674929750",
+      "tls": {
+        "enabled": true,
+        "server_name": "wyo19lkw.miradion.info",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "GB英国(mibei77.com 米贝节点分享)",
+      "server": "165.215.250.14",
+      "server_port": 443,
+      "password": "humanity",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.calmlunch.com",
+        "insecure": true
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "GB英国(mibei77.com 米贝节点分享)",
+      "server": "wopa1.api3-max.ru",
+      "server_port": 443,
+      "password": "67a1454f-5a95-4e30-9723-1ffcbe7e97f9",
+      "tls": {
+        "enabled": true,
+        "server_name": "wopa1.api3-max.ru"
+      }
+    },
+    {
+      "type": "socks",
+      "tag": "HK香港(mibei77.com 米贝节点分享)",
+      "server": "112.28.149.156",
+      "server_port": 8443,
+      "username": "Og"
+    },
+    {
+      "type": "socks",
+      "tag": "JP日本(mibei77.com 米贝节点分享)",
+      "server": "112.28.149.152",
+      "server_port": 8443,
+      "username": "Og"
+    },
+    {
+      "type": "anytls",
+      "tag": "JP日本(mibei77.com 米贝节点分享)",
+      "server": "jp39.asgg2026.vip",
+      "server_port": 443,
+      "password": "c90afede-81f8-439d-9a20-f45579f623ec",
+      "tls": {
+        "enabled": true,
+        "server_name": "jp39.asgg2026.vip"
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "JP日本(mibei77.com 米贝节点分享)",
+      "server": "us77.jdoanst2026.com",
+      "server_port": 443,
+      "password": "c90afede-81f8-439d-9a20-f45579f623ec",
+      "tls": {
+        "enabled": true,
+        "server_name": "us77.jdoanst2026.com"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "JP日本(mibei77.com 米贝节点分享)",
+      "server": "sp.skysafe.online",
+      "server_port": 2027,
+      "uuid": "806b803b-7dad-4f13-b525-f3b1ab50e44e",
+      "tls": {
+        "enabled": true,
+        "server_name": "sp.skysafe.online",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "edge"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "KR韩国(mibei77.com 米贝节点分享)",
+      "server": "211.104.99.209",
+      "server_port": 11019,
+      "uuid": "3ee15a68-9391-470d-b810-29fc663beb28",
+      "tls": {
+        "enabled": true,
+        "server_name": "sxyyvihkektlx4rjxsdj.pkc73phpweu4rbxbatm444.workers.dev",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/@Marisa_kristi",
+        "headers": {
+          "Host": "sxyyvihkektlx4rjxsdj.pkc73phpweu4rbxbatm444.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "socks",
+      "tag": "KR韩国(mibei77.com 米贝节点分享)",
+      "server": "43.164.136.189",
+      "server_port": 1080,
+      "username": "Og"
+    },
+    {
+      "type": "trojan",
+      "tag": "NL荷兰(mibei77.com 米贝节点分享)",
+      "server": "188.164.248.122",
+      "server_port": 443,
+      "password": "c206d543-023d-46cc-9d5a-1f0f2fc16323",
+      "tls": {
+        "enabled": true,
+        "server_name": "space.byu.id.yxls.eu.cc",
+        "insecure": true
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "NL荷兰(mibei77.com 米贝节点分享)",
+      "server": "46.8.229.48",
+      "server_port": 443,
+      "uuid": "2c634977-584e-4e1f-b501-1b70c77a6743",
+      "tls": {
+        "enabled": true,
+        "server_name": "furrycdn.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "safari"
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/api/v1/video-stream",
+        "headers": {
+          "Host": "furrycdn.net"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "NL荷兰(mibei77.com 米贝节点分享)",
+      "server": "dey.lnmarketplace.net",
+      "server_port": 443,
+      "uuid": "3536e1fa-0850-44d1-b123-925ce12476cf",
+      "tls": {
+        "enabled": true,
+        "server_name": "dey.lnmarketplace.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "NL荷兰(mibei77.com 米贝节点分享)",
+      "server": "221.158.168.29",
+      "server_port": 30021,
+      "uuid": "781f186d-573c-436c-bda3-969a6e506d95",
+      "tls": {
+        "enabled": true,
+        "server_name": "sxyyvihkektlx4rjxsdj.pkc73phpweu4rbxbatm444.workers.dev",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/@Marisa_kristi",
+        "headers": {
+          "Host": "sxyyvihkektlx4rjxsdj.pkc73phpweu4rbxbatm444.workers.dev"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "RU俄罗斯(mibei77.com 米贝节点分享)",
+      "server": "194.87.161.60",
+      "server_port": 4100,
+      "uuid": "9b44bfb4-9d28-4870-9fc3-5154d6d462ff",
+      "transport": {
+        "type": "ws",
+        "path": "/v1",
+        "headers": {
+          "Host": "194.87.161.60"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "SG新加坡(mibei77.com 米贝节点分享)",
+      "server": "149.118.55.215",
+      "server_port": 2053,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "TW台湾(mibei77.com 米贝节点分享)",
+      "server": "tw76.jdvipkuai.cc",
+      "server_port": 28680,
+      "password": "c90afede-81f8-439d-9a20-f45579f623ec",
+      "tls": {
+        "enabled": true,
+        "server_name": "hk15.nynet2026.shop"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "TW台湾(mibei77.com 米贝节点分享)",
+      "server": "tw.ccwink.cc",
+      "server_port": 30102,
+      "password": "6eca3cb7-eab5-4a96-b95d-444eb566309b",
+      "tls": {
+        "enabled": true,
+        "server_name": "tw.ccwink.cc",
+        "insecure": true
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "165.215.250.14",
+      "server_port": 443,
+      "password": "humanity",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.ignitelimit.com",
+        "insecure": true
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "165.215.250.14",
+      "server_port": 443,
+      "password": "humanity",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.creationlong.org",
+        "insecure": true
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "104.18.45.249",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "172.64.145.186",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "104.16.148.8",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "172.64.147.104",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "104.16.253.227",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "172.64.153.159",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "104.18.35.13",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "104.17.184.155",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.60.167",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.46.24",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "108.162.198.43",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "172.64.40.79",
+      "server_port": 2083,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "172.64.35.37",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.38.101",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.45.201",
+      "server_port": 2083,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.16.154",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.38.25",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.45.218",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.21.206",
+      "server_port": 2083,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.60.167",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.1.37",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.1.37",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.48.245",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "172.64.52.240",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "172.64.53.65",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.44.172",
+      "server_port": 2083,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "172.64.40.84",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "172.64.150.246",
+      "server_port": 2083,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "108.162.196.3",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "108.162.196.3",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "172.64.149.209",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "108.162.196.3",
+      "server_port": 2083,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.5.231",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.36.166",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "gr1.fifapes.monster",
+      "server_port": 8882,
+      "uuid": "eab915bc-d2df-73d1-47d0-6eb240497055",
+      "transport": {
+        "type": "http"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.38.25",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "fn.fifapes.monster",
+      "server_port": 2090,
+      "uuid": "eab915bc-d2df-73d1-47d0-6eb240497055"
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "gr1.fifapes.monster",
+      "server_port": 8882,
+      "uuid": "eab915bc-d2df-73d1-47d0-6eb240497055",
+      "transport": {
+        "type": "http"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "gr1.fifapes.monster",
+      "server_port": 8882,
+      "uuid": "eab915bc-d2df-73d1-47d0-6eb240497055",
+      "transport": {
+        "type": "http"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "gr1.fifapes.monster",
+      "server_port": 8882,
+      "uuid": "eab915bc-d2df-73d1-47d0-6eb240497055",
+      "transport": {
+        "type": "http"
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "188.164.248.122",
+      "server_port": 443,
+      "password": "c206d543-023d-46cc-9d5a-1f0f2fc16323",
+      "tls": {
+        "enabled": true,
+        "server_name": "space.byu.id.yxls.eu.cc"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "162.159.4.221",
+      "server_port": 8443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr",
+        "ech": {
+          "enabled": true,
+          "config": [
+            "-----BEGIN ECH CONFIGS-----",
+            "AEX+DQBBBQAgACC+lCL9Gw+f1dZL2D2hsrzheuwvpiHIJtODh9Rqw2xTUwAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=",
+            "-----END ECH CONFIGS-----"
+          ]
+        }
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "t1s1.rittbo.kdns.fr"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "18.239.134.69",
+      "server_port": 80,
+      "uuid": "f55ce6cc-3f6b-40fc-9e3b-abe26db17009",
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "d2e1v87ko56lyw.cloudfront.net:assets.opensignal.com"
+        }
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "104.19.229.21",
+      "server_port": 443,
+      "password": "humanity",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.multiplydose.com"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "154.193.55.183",
+      "server_port": 443,
+      "uuid": "11e57eeb-ffdf-4983-a9fa-ad352dea7253",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "154.193.55.183",
+      "server_port": 443,
+      "uuid": "11e57eeb-ffdf-4983-a9fa-ad352dea7253",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "154.193.55.183",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "154.193.55.183",
+      "server_port": 443,
+      "uuid": "f75814f6-8f81-4847-b792-168c41f2dc85",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "firefox"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "141.133.172.222",
+      "server_port": 20342,
+      "uuid": "5eecb34f-c905-4c77-b7fb-d830b451cd11"
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "141.133.172.222",
+      "server_port": 20342,
+      "uuid": "5eecb34f-c905-4c77-b7fb-d830b451cd11"
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "fn.fifapes.monster",
+      "server_port": 2090,
+      "uuid": "eab915bc-d2df-73d1-47d0-6eb240497055"
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "fn.fifapes.monster",
+      "server_port": 2090,
+      "uuid": "eab915bc-d2df-73d1-47d0-6eb240497055"
+    },
+    {
+      "type": "hysteria2",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "usp.noesissite.ru",
+      "server_port": 443,
+      "password": "042a1881-44e4-4781-bd40-bf75164faf4f",
+      "tls": {
+        "enabled": true,
+        "server_name": "usp.noesissite.ru"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "154.193.55.183",
+      "server_port": 443,
+      "uuid": "11e57eeb-ffdf-4983-a9fa-ad352dea7253",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "storage.yandex.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "104.18.42.98",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "104.18.42.98"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "108.162.196.3",
+      "server_port": 443,
+      "uuid": "eeb6823c-b926-4ea2-866a-5542edd26e59",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1s1.rittbo.kdns.fr"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/",
+        "headers": {
+          "Host": "108.162.196.3"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "5.129.194.34",
+      "server_port": 4100,
+      "uuid": "9b44bfb4-9d28-4870-9fc3-5154d6d462ff",
+      "transport": {
+        "type": "ws",
+        "path": "/v1",
+        "headers": {
+          "Host": "5.129.194.34"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "DE德国(mibei77.com 米贝节点分享)",
+      "server": "desrv.noooo.win",
+      "server_port": 443,
+      "uuid": "6f98a077-004e-4b86-8b78-8d09308d3868",
+      "tls": {
+        "enabled": true,
+        "server_name": "stats.vk-portal.net",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "RU俄罗斯(mibei77.com 米贝节点分享)",
+      "server": "176.124.223.27",
+      "server_port": 443,
+      "password": "521314",
+      "tls": {
+        "enabled": true,
+        "server_name": "hhtj.hhllfly.kdns.fr",
+        "insecure": true
+      }
+    },
+    {
+      "type": "socks",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "212.58.132.5",
+      "server_port": 1080,
+      "username": "Og"
+    },
+    {
+      "type": "socks",
+      "tag": "US美国(mibei77.com 米贝节点分享)",
+      "server": "193.25.215.182",
+      "server_port": 22222,
+      "username": "Og"
+    },
+    {
+      "type": "anytls",
+      "tag": "TW台湾(mibei77.com 米贝节点分享)",
+      "server": "tw2-vds20.anyhk.co",
+      "server_port": 6549,
+      "password": "6eca3cb7-eab5-4a96-b95d-444eb566309b",
+      "tls": {
+        "enabled": true,
+        "server_name": "tw2-vds20.anyhk.co"
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "TW台湾(mibei77.com 米贝节点分享)",
+      "server": "tw2-vds20.anyhk.co",
+      "server_port": 6549,
+      "password": "6eca3cb7-eab5-4a96-b95d-444eb566309b",
+      "tls": {
+        "enabled": true,
+        "server_name": "baidu.com"
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    },
+    {
+      "type": "selector",
+      "tag": "select",
+      "outbounds": [
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "AU澳大利亚(mibei77.com 米贝节点分享)",
+        "AU澳大利亚(mibei77.com 米贝节点分享)",
+        "RU俄罗斯(mibei77.com 米贝节点分享)",
+        "RU俄罗斯(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "瑞典(mibei77.com 米贝节点分享)",
+        "瑞士(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "西班牙(mibei77.com 米贝节点分享)",
+        "HK香港(mibei77.com 米贝节点分享)",
+        "HK香港(mibei77.com 米贝节点分享)",
+        "HK香港(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "GB英国(mibei77.com 米贝节点分享)",
+        "GB英国(mibei77.com 米贝节点分享)",
+        "HK香港(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "KR韩国(mibei77.com 米贝节点分享)",
+        "KR韩国(mibei77.com 米贝节点分享)",
+        "NL荷兰(mibei77.com 米贝节点分享)",
+        "NL荷兰(mibei77.com 米贝节点分享)",
+        "NL荷兰(mibei77.com 米贝节点分享)",
+        "NL荷兰(mibei77.com 米贝节点分享)",
+        "RU俄罗斯(mibei77.com 米贝节点分享)",
+        "SG新加坡(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "RU俄罗斯(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)"
+      ],
+      "default": "CA加拿大(mibei77.com 米贝节点分享)"
+    },
+    {
+      "type": "urltest",
+      "tag": "auto",
+      "outbounds": [
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "AU澳大利亚(mibei77.com 米贝节点分享)",
+        "AU澳大利亚(mibei77.com 米贝节点分享)",
+        "RU俄罗斯(mibei77.com 米贝节点分享)",
+        "RU俄罗斯(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "菲律宾(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "瑞典(mibei77.com 米贝节点分享)",
+        "瑞士(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "塞舌尔(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "西班牙(mibei77.com 米贝节点分享)",
+        "HK香港(mibei77.com 米贝节点分享)",
+        "HK香港(mibei77.com 米贝节点分享)",
+        "HK香港(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "CA加拿大(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "FR法国(mibei77.com 米贝节点分享)",
+        "GB英国(mibei77.com 米贝节点分享)",
+        "GB英国(mibei77.com 米贝节点分享)",
+        "HK香港(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "JP日本(mibei77.com 米贝节点分享)",
+        "KR韩国(mibei77.com 米贝节点分享)",
+        "KR韩国(mibei77.com 米贝节点分享)",
+        "NL荷兰(mibei77.com 米贝节点分享)",
+        "NL荷兰(mibei77.com 米贝节点分享)",
+        "NL荷兰(mibei77.com 米贝节点分享)",
+        "NL荷兰(mibei77.com 米贝节点分享)",
+        "RU俄罗斯(mibei77.com 米贝节点分享)",
+        "SG新加坡(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "DE德国(mibei77.com 米贝节点分享)",
+        "RU俄罗斯(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "US美国(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)",
+        "TW台湾(mibei77.com 米贝节点分享)"
+      ]
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "rule_set": "geosite-cn",
+        "outbound": "direct"
+      },
+      {
+        "rule_set": "geosite-geolocation-!cn",
+        "outbound": "select"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
+        "download_detour": "direct"
+      },
+      {
+        "tag": "geosite-geolocation-!cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-!cn.srs"
+      }
+    ],
+    "final": "select",
+    "auto_detect_interface": true
+  },
+  "_summary": {
+    "total_nodes": 197,
+    "ech_nodes": 87,
+    "hysteria2_nodes": 11
+  }
+}
