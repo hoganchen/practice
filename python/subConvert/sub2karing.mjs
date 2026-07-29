@@ -72,7 +72,7 @@ function fetchSubscription(url) {
 // ============ 解码订阅 ============
 function decodeSubscription(raw) {
   const trimmed = raw.trim();
-  const schemes = ['vless://', 'vmess://', 'ss://', 'trojan://', 'hysteria2://', 'hy2://'];
+  const schemes = ['vless://', 'vmess://', 'ss://', 'trojan://', 'hysteria2://', 'hy2://', 'anytls://', 'socks://'];
   const hasScheme = (s) => schemes.some(p => s.includes(p));
 
   try {
@@ -292,6 +292,37 @@ function parseSocksURI(uri) {
   return outbound;
 }
 
+// ============ 解析 tuic:// URI ============
+function parseTUICURI(uri) {
+  const u = new URL(uri);
+  const userinfo = decodeURIComponent(u.username);
+  const host = u.hostname;
+  const port = parseInt(u.port) || 443;
+  const params = Object.fromEntries(u.searchParams.entries());
+  const remarks = decodeURIComponent(u.hash.replace('#', ''));
+
+  let uuid = userinfo, password = '';
+  if (userinfo.includes(':')) {
+    [uuid, password] = userinfo.split(':', 2);
+  }
+
+  const outbound = {
+    type: 'tuic',
+    tag: remarks || uuid.substring(0, 8),
+    server: host,
+    server_port: port,
+    uuid,
+  };
+  if (password) outbound.password = password;
+  if (params.congestion_control) outbound.congestion_control = params.congestion_control;
+  if (params.udp_relay_mode) outbound.udp_relay_mode = params.udp_relay_mode;
+
+  outbound.tls = { enabled: true, server_name: params.sni || host };
+  if (params.fp) outbound.tls.utls = { enabled: true, fingerprint: params.fp };
+  if (params.alpn) outbound.tls.alpn = [params.alpn];
+  return outbound;
+}
+
 // ============ URI 路由 ============
 function parseURI(uri, echB64) {
   if (uri.startsWith('vless://')) return parseVlessURI(uri, echB64);
@@ -301,6 +332,7 @@ function parseURI(uri, echB64) {
   if (uri.startsWith('vmess://')) return parseVMessURI(uri);
   if (uri.startsWith('anytls://')) return parseAnyTLSURI(uri);
   if (uri.startsWith('socks://')) return parseSocksURI(uri);
+  if (uri.startsWith('tuic://')) return parseTUICURI(uri);
   return null;
 }
 

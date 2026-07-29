@@ -72,7 +72,8 @@ def decode_subscription(raw):
     try:
         decoded = base64.b64decode(trimmed).decode("utf-8")
         if any(decoded.startswith(p) for p in ("vless://", "vmess://", "ss://",
-                                                "trojan://", "hysteria2://", "hy2://")):
+                                                "trojan://", "hysteria2://", "hy2://",
+                                                "anytls://", "socks://")):
             return [l.strip() for l in decoded.split("\n") if l.strip()]
     except Exception:
         pass
@@ -104,14 +105,22 @@ def decode_subscription(raw):
 
 
 # ============ 解析 vless:// URI ============
+_RE_HOST_PORT = re.compile(r"^([^@]+)@(?:\[([^\]]+)\]|([^:]+)):(\d+)(.*)$")
+
+
+def _parse_host(m):
+    """从 regex match 中提取 host（兼容 IPv6 和 IPv4）"""
+    return m.group(2) if m.group(2) is not None else m.group(3)
+
+
 def parse_vless_uri(uri, ech_b64):
-    match = re.match(r"^vless://([^@]+)@([^:]+):(\d+)(.*)", uri)
-    if not match:
+    m = _RE_HOST_PORT.match(uri[len("vless://"):]) if uri.startswith("vless://") else None
+    if not m:
         return None
-    uuid = match.group(1)
-    host = match.group(2)
-    port = int(match.group(3))
-    query_string = match.group(4)
+    uuid = m.group(1)
+    host = _parse_host(m)
+    port = int(m.group(4))
+    query_string = m.group(5)
     params = {}
     remarks = ""
     if "#" in query_string:
@@ -201,13 +210,17 @@ def parse_vmess_uri(uri):
 
 # ============ 解析 hysteria2:// URI ============
 def parse_hysteria2_uri(uri):
-    match = re.match(r"^h(?:ysteria)?2://([^@]+)@([^:]+):(\d+)(.*)", uri)
-    if not match:
-        return None
-    auth = match.group(1)
-    host = match.group(2)
-    port = int(match.group(3))
-    query_string = match.group(4)
+    prefix = "hysteria2://"
+    m = _RE_HOST_PORT.match(uri[len(prefix):]) if uri.startswith(prefix) else None
+    if not m:
+        prefix = "hy2://"
+        m = _RE_HOST_PORT.match(uri[len(prefix):]) if uri.startswith(prefix) else None
+        if not m:
+            return None
+    auth = m.group(1)
+    host = _parse_host(m)
+    port = int(m.group(4))
+    query_string = m.group(5)
     params = {}
     remarks = ""
     if "#" in query_string:
@@ -239,13 +252,13 @@ def parse_hysteria2_uri(uri):
 
 # ============ 解析 trojan:// URI ============
 def parse_trojan_uri(uri):
-    match = re.match(r"^trojan://([^@]+)@([^:]+):(\d+)(.*)", uri)
-    if not match:
+    m = _RE_HOST_PORT.match(uri[len("trojan://"):]) if uri.startswith("trojan://") else None
+    if not m:
         return None
-    password = match.group(1)
-    host = match.group(2)
-    port = int(match.group(3))
-    query_string = match.group(4)
+    password = m.group(1)
+    host = _parse_host(m)
+    port = int(m.group(4))
+    query_string = m.group(5)
     params = {}
     remarks = ""
     if "#" in query_string:
@@ -274,13 +287,13 @@ def parse_trojan_uri(uri):
 
 # ============ 解析 ss:// URI ============
 def parse_ss_uri(uri):
-    match = re.match(r"^ss://([^@]+)@([^:]+):(\d+)(.*)", uri)
-    if not match:
+    m = _RE_HOST_PORT.match(uri[len("ss://"):]) if uri.startswith("ss://") else None
+    if not m:
         return None
-    b64_part = match.group(1)
-    host = match.group(2)
-    port = int(match.group(3))
-    rest = match.group(4)
+    b64_part = m.group(1)
+    host = _parse_host(m)
+    port = int(m.group(4))
+    rest = m.group(5)
     remarks = ""
     if "#" in rest:
         remarks = urllib.parse.unquote(rest.rsplit("#", 1)[1])
@@ -304,13 +317,13 @@ def parse_ss_uri(uri):
 
 # ============ 解析 anytls:// URI ============
 def parse_anytls_uri(uri):
-    match = re.match(r"^anytls://([^@]+)@([^:]+):(\d+)(.*)", uri)
-    if not match:
+    m = _RE_HOST_PORT.match(uri[len("anytls://"):]) if uri.startswith("anytls://") else None
+    if not m:
         return None
-    password = match.group(1)
-    host = match.group(2)
-    port = int(match.group(3))
-    query_string = match.group(4)
+    password = m.group(1)
+    host = _parse_host(m)
+    port = int(m.group(4))
+    query_string = m.group(5)
     params = {}
     remarks = ""
     if "#" in query_string:
@@ -319,8 +332,7 @@ def parse_anytls_uri(uri):
     else:
         qs = query_string
     if qs and qs.startswith("?"):
-        qs = qs[1:]
-        for pair in qs.split("&"):
+        for pair in qs[1:].split("&"):
             if "=" in pair:
                 k, v = pair.split("=", 1)
                 params[k] = urllib.parse.unquote(v)
@@ -331,19 +343,13 @@ def parse_anytls_uri(uri):
         "server_port": port,
         "password": password,
     }
-    security = params.get("security")
-    if security == "tls":
+    if params.get("security") == "tls":
         tls = {"enabled": True, "server_name": params.get("sni", host)}
         fp = params.get("fp")
         if fp:
             tls["utls"] = {"enabled": True, "fingerprint": fp}
-        # REALITY
         if params.get("pbk"):
-            tls["reality"] = {
-                "enabled": True,
-                "public_key": params["pbk"],
-                "short_id": params.get("sid", ""),
-            }
+            tls["reality"] = {"enabled": True, "public_key": params["pbk"], "short_id": params.get("sid", "")}
         outbound["tls"] = tls
     return outbound
 
@@ -405,6 +411,59 @@ def parse_socks_uri(uri):
     return outbound
 
 
+# ============ 解析 tuic:// URI ============
+def parse_tuic_uri(uri):
+    m = _RE_HOST_PORT.match(uri[len("tuic://"):]) if uri.startswith("tuic://") else None
+    if not m:
+        return None
+    userinfo = m.group(1)
+    host = _parse_host(m)
+    port = int(m.group(4))
+    query_string = m.group(5)
+    params = {}
+    remarks = ""
+    if "#" in query_string:
+        qs, frag = query_string.rsplit("#", 1)
+        remarks = urllib.parse.unquote(frag)
+    else:
+        qs = query_string
+    if qs and qs.startswith("?"):
+        for pair in qs[1:].split("&"):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                params[k] = urllib.parse.unquote(v)
+    # userinfo 格式: uuid 或 uuid:password（password 可能 URL 编码）
+    uuid = userinfo
+    password = ""
+    if "%3A" in userinfo or ":" in userinfo:
+        sep = ":" if ":" in userinfo else "%3A"
+        parts = userinfo.split(sep, 1)
+        uuid = parts[0]
+        password = urllib.parse.unquote(parts[1])
+    outbound = {
+        "type": "tuic",
+        "tag": remarks.strip() or uuid[:8],
+        "server": host,
+        "server_port": port,
+        "uuid": uuid,
+    }
+    if password:
+        outbound["password"] = password
+    tls = {"enabled": True, "server_name": params.get("sni", host)}
+    fp = params.get("fp")
+    if fp:
+        tls["utls"] = {"enabled": True, "fingerprint": fp}
+    alpn = params.get("alpn")
+    if alpn:
+        tls["alpn"] = [alpn]
+    outbound["tls"] = tls
+    if params.get("congestion_control"):
+        outbound["congestion_control"] = params["congestion_control"]
+    if params.get("udp_relay_mode"):
+        outbound["udp_relay_mode"] = params["udp_relay_mode"]
+    return outbound
+
+
 # ============ URI 路由 ============
 def parse_uri(uri, ech_b64):
     scheme = urllib.parse.urlparse(uri).scheme
@@ -422,6 +481,8 @@ def parse_uri(uri, ech_b64):
         return parse_anytls_uri(uri)
     elif scheme == "socks":
         return parse_socks_uri(uri)
+    elif scheme == "tuic":
+        return parse_tuic_uri(uri)
     return None
 
 
