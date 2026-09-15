@@ -78,9 +78,22 @@ bool is_empty(const Queue *queue) {
  * 判断满的方式： (rear + 1) % QUEUE_CAPACITY == front
  * 即队尾指针的下一个位置是队首指针，表示没有可用空间
  * 这种实现会浪费一个元素的空间来区分空和满
+ *
+ * QUEUE_CAPACITY = 1 时：
+  is_full: (0+1)%1 = 0 == front=0 → 永远为 true
+  → 容量为 0，队列无法使用（退化情形，通常需在编译期排除）
  */
 bool is_full(const Queue *queue) {
     return (queue->rear + 1) % QUEUE_CAPACITY == queue->front;
+}
+
+/* 替代实现：不浪费空间 */
+bool is_full_alt(const Queue *q) {
+    return q->count == QUEUE_CAPACITY;
+}
+
+bool is_empty_alt(const Queue *q) {
+    return q->count == 0;
 }
 
 /**

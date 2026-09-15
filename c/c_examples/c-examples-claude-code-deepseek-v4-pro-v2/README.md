@@ -77,6 +77,11 @@ gcc 01_hello_world.c -o 01_hello_world.exe -std=c11 -Wall
 | 多线程 | `18_threading/*.c` | `-lpthread` |
 | 数学函数 | `15_standard_library/02_math_functions.c` | `-lm`（MinGW 可选） |
 | 多文件项目 | `17_multifile/main.c` + `helper.c` | 同时编译两个文件 |
+| 平台专属 | `13_file_io/04_mmap_posix.c`<br>`13_file_io/05_memory_mapping_windows.c` | 均可在两平台编译；非目标平台会编译为提示桩，实际逻辑只在对应平台生效 |
+
+> **内存映射的平台差异**：`04_mmap_posix.c` 用 POSIX 的 `mmap`（Linux/macOS），
+> `05_memory_mapping_windows.c` 用 Windows 的 `CreateFileMapping`/`MapViewOfFile`。
+> 两者等价，互相在对方平台编译为提示信息，因此 `build.bat` / `build.sh` 不会因平台不同而报错。
 
 ### 多文件项目
 
@@ -151,6 +156,7 @@ C-examples-claude-code-kimi-v2.7/
 | 03_data_types | 04_const_and_typedef.c | const限定符与typedef类型别名 |
 | 03_data_types | 05_fixed_width_integers.c | 定宽整数类型（stdint.h/inttypes.h） |
 | 03_data_types | 06_boolean_type.c | 布尔类型（stdbool.h/C99 _Bool） |
+| 03_data_types | 08_endianness.c | 字节序检测（大端/小端，union/指针/编译期宏三种方法） |
 | 04_operators | 01_arithmetic_logical_ops.c | 算术运算符与逻辑运算符 |
 | 04_operators | 02_bitwise_ops.c | 位运算符（&、\|、^、~、<<、>>） |
 | 04_operators | 03_relational_and_ternary.c | 关系运算符与三元运算符 |
@@ -194,6 +200,8 @@ C-examples-claude-code-kimi-v2.7/
 | 13_file_io | 01_file_open_close.c | 文件打开与关闭（fopen/fclose） |
 | 13_file_io | 02_file_read_write.c | 文件读写（fgetc/fgets/fread/fprintf） |
 | 13_file_io | 03_file_positioning.c | 文件定位与随机访问（fseek/ftell） |
+| 13_file_io | 04_mmap_posix.c | 内存映射 mmap（POSIX，Linux/macOS） |
+| 13_file_io | 05_memory_mapping_windows.c | 内存映射（Windows API，CreateFileMapping/MapViewOfFile） |
 | 14_preprocessor | 01_macro_define.c | 宏定义（对象宏、函数宏） |
 | 14_preprocessor | 02_conditional_compilation.c | 条件编译（#if/#ifdef/#ifndef） |
 | 14_preprocessor | 03_stringize_concatenation.c | 字符串化与符号拼接运算符（#和##） |
