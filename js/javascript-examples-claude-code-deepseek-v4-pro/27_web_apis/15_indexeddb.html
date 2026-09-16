@@ -1,0 +1,1656 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：IndexedDB 实操（开库 / 对象仓库 / 索引 / 事务 / 游标 / 版本升级）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】高级
+  【前置知识】27_web_apis/05_web_storage.html（localStorage）、
+             27_web_apis/15_indexeddb.js（同知识点的 Node 版：手写迷你 IndexedDB）、
+             27_web_apis/10_browser_storage_limits.html（容量与配额）
+
+  【知识点说明】
+
+  1. 是什么
+     IndexedDB 是浏览器内置的事务型对象数据库。它的层级是：
+       库 database → 对象仓库 objectStore（≈表）→ 记录 record（键值对）
+                                          ↘ 索引 index（二级索引，支持范围查询）
+     整套 API 是**异步 + 事件回调**风格：每个操作返回一个 request 对象，
+     结果在 request.result 上、通过 onsuccess 通知你。
+
+  2. 为什么需要
+     localStorage 有三个天花板：只能存字符串、同步阻塞主线程、约 5MB 且没有查询能力。
+     IndexedDB 用结构化克隆（直接存对象）、全异步、大容量（按磁盘比例分配）
+     和索引 + 游标 + IDBKeyRange（真正的查询能力）把这三点全解决了。
+
+  3. 核心 API 一览
+     · 开库：indexedDB.open(name, version) → onupgradeneeded / onsuccess / onerror / onblocked
+     · 建仓库：db.createObjectStore(name, { keyPath, autoIncrement })
+     · 建索引：store.createIndex(name, keyPath, { unique, multiEntry })
+     · 事务：db.transaction(['store'], 'readonly' | 'readwrite') → oncomplete / onerror / onabort
+     · 增删改查：store.add / put / get / getAll / getAllKeys / delete / clear / count
+     · 游标：store.openCursor(query, direction) → cursor.continue() / update() / delete() / advance(n)
+     · 索引：store.index('by_x').getAll(IDBKeyRange.bound(a, b)) / .openCursor()
+     · 键区间：IDBKeyRange.only / lowerBound / upperBound / bound
+
+  4. 必须记住的语义（本页每一步操作都在演示它们）
+     · 事务自动提交：没有新请求挂进来、事件队列空了就提交，用完即焚，不能缓存复用。
+     · 未处理的请求错误会让整个事务 abort 回滚（要用 event.preventDefault() 吃掉它）。
+     · get 返回的是结构化克隆出来的**副本**，改副本不影响库里的数据，必须 put 回去。
+     · 版本只能升不能降；升级时要让旧连接在 onversionchange 里 close()，否则被 blocked。
+     · 一切"建表建索引 + 数据迁移"都写在 onupgradeneeded 里。
+
+  5. 本页在 file:// 下的特殊性
+     Chrome / Safari 对 file:// 的"不透明源"会禁用 IndexedDB（Firefox 多数版本可用）。
+     所以本页**第一步就是探测**：探测失败时自动切换到内置的**内存版模拟实现**
+     （API 形状与真实 IndexedDB 完全一致），并在顶部横幅里说明原因。
+     这样无论用哪种方式打开，本页都是零报错、可交互的。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链、无 CDN、样式内联、可离线运行）。
+     想用**真实的 IndexedDB**：把本目录用任意静态服务器打开即可，例如
+       npx serve 27_web_apis
+     或用 27_web_apis/17_service_worker.js 里自建的那个 Node HTTP 服务。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     顶部显示环境探测结果；点击左侧按钮可以建库建索引、批量插入、增删改查、
+     游标遍历、索引与范围查询、制造唯一索引冲突、升级到 v2、演示事务回滚、
+     与 localStorage 做写入速度对比。右侧日志区逐行打印每一步的 API 调用与结果，
+     中间的表格实时展示对象仓库里的当前数据。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IndexedDB 实操</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 17px;
+        margin-top: 0;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 14px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div {
+        flex: 1 1 420px;
+        min-width: 340px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 13px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover:not(:disabled) {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      #log {
+        margin: 0;
+        height: 460px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .log-err {
+        color: #ff7b72;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13.5px;
+        margin: 6px 0;
+      }
+
+      .banner {
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 12px 0;
+        font-size: 14px;
+        border: 1px solid;
+      }
+
+      .banner.ok {
+        background: #dafbe1;
+        border-color: #2da44e;
+        color: #116329;
+      }
+
+      .banner.warn {
+        background: #fff8c5;
+        border-color: #bf8700;
+        color: #7d4e00;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13px;
+      }
+
+      th,
+      td {
+        border: 1px solid #d0d7de;
+        padding: 5px 8px;
+        text-align: left;
+      }
+
+      th {
+        background: #f0f3f6;
+      }
+
+      tr.hit td {
+        background: #fff8f0;
+        outline: 2px solid #f0883e;
+        outline-offset: -2px;
+      }
+
+      .status {
+        font-family: Consolas, Monaco, monospace;
+        font-size: 13px;
+        background: #f0f3f6;
+        border-radius: 6px;
+        padding: 8px 12px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>IndexedDB 实操</h1>
+
+    <p class="hint">
+      本页所有操作都作用在一个真实的对象仓库 <code>books</code> 上（主键 <code>isbn</code>）。
+      右侧日志区打印每一次 API 调用与结果，中间表格实时反映库里的数据。
+    </p>
+
+    <div id="banner" class="banner warn">正在探测 IndexedDB 可用性……</div>
+
+    <div class="layout">
+      <!-- ============ 左列：操作区 ============ -->
+      <div>
+        <div class="card">
+          <h2>数据库状态</h2>
+          <div id="status" class="status">尚未打开</div>
+        </div>
+
+        <div class="card">
+          <h2>操作按钮</h2>
+
+          <p class="hint">第 1 组：开库与建表（onupgradeneeded）</p>
+          <button data-act="open">open('library', 1) 建库建索引</button>
+          <button data-act="seed">批量插入 5 本书</button>
+          <button data-act="refresh">重新读取并渲染表格</button>
+
+          <p class="hint">第 2 组：增删改查（事务 + objectStore）</p>
+          <button data-act="get">get('978-7-111-2')</button>
+          <button data-act="copy">验证 get 返回的是副本</button>
+          <button data-act="put">put 把第一本打八折</button>
+          <button data-act="delete">delete('978-7-111-3')</button>
+          <button data-act="count">count()</button>
+          <button data-act="clear">clear() 清空</button>
+
+          <p class="hint">第 3 组：游标与索引查询</p>
+          <button data-act="cursor">游标全表遍历</button>
+          <button data-act="cursor-prev">游标倒序遍历</button>
+          <button data-act="idx-get">索引点查 by_author = Zakas</button>
+          <button data-act="idx-range">索引范围查 2018~2019</button>
+          <button data-act="cursor-update">游标里 update 打折</button>
+
+          <p class="hint">第 4 组：错误处理与事务</p>
+          <button data-act="dup">add 撞主键（ConstraintError）</button>
+          <button data-act="unique">撞唯一索引（by_title）</button>
+          <button data-act="rollback">事务回滚演示（原子性）</button>
+          <button data-act="badstore">访问不存在的仓库（NotFoundError）</button>
+
+          <p class="hint">第 5 组：版本升级与对比</p>
+          <button data-act="upgrade">升级到 v2（新增 logs 仓库）</button>
+          <button data-act="blocked">不关连接就升级（看 blocked）</button>
+          <button data-act="bench">与 localStorage 写入速度对比</button>
+          <button data-act="drop">删除整个数据库（重置）</button>
+        </div>
+      </div>
+
+      <!-- ============ 右列：数据与日志 ============ -->
+      <div>
+        <div class="card">
+          <h2>对象仓库 books 的当前内容</h2>
+          <div id="table-wrap">
+            <p class="hint">还没有数据，先点「open 建库建索引」再点「批量插入 5 本书」。</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>操作日志</h2>
+          <pre id="log"></pre>
+          <p class="hint">按 F12 打开开发者工具的 Console，可以看到同样的输出。</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ================================================================
+        // 0. 通用工具
+        // ================================================================
+
+        var logEl = document.getElementById('log');
+        var bannerEl = document.getElementById('banner');
+        var statusEl = document.getElementById('status');
+        var tableWrap = document.getElementById('table-wrap');
+        var step = 0;
+
+        /** 往日志区追加一行 */
+        function log(text, kind) {
+          step += 1;
+          var prefix = String(step).padStart(2, '0') + ' | ';
+          var span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = prefix + text;
+          logEl.appendChild(span);
+          logEl.appendChild(document.createTextNode('\n'));
+          logEl.scrollTop = logEl.scrollHeight;
+          console.log(text);
+        }
+
+        /** 显示一行状态摘要 */
+        function setStatus(text) {
+          statusEl.textContent = text;
+        }
+
+        // ================================================================
+        // 1. 环境探测：真实的 IndexedDB 到底能不能用？
+        // ================================================================
+
+        var DB_NAME = 'library';
+        var STORE = 'books';
+
+        /** 真正地试开一次库，而不是只看 window.indexedDB 存不存在 */
+        function probeIndexedDB() {
+          return new Promise(function (resolve) {
+            var settled = false;
+            function done(ok, reason) {
+              if (settled) return;
+              settled = true;
+              resolve({ ok: ok, reason: reason });
+            }
+            try {
+              if (!window.indexedDB) {
+                done(false, '当前环境没有 window.indexedDB 对象');
+                return;
+              }
+              var req = window.indexedDB.open('__probe__', 1);
+              req.onupgradeneeded = function () {
+                if (!req.result.objectStoreNames.contains('t')) req.result.createObjectStore('t');
+              };
+              req.onsuccess = function () {
+                req.result.close();
+                try {
+                  window.indexedDB.deleteDatabase('__probe__');
+                } catch (e) {
+                  void e;
+                }
+                done(true, '');
+              };
+              // file:// 下 Chrome 会走到这里：不透明源被拒绝
+              req.onerror = function () {
+                done(false, (req.error && req.error.name) + '：' + (req.error && req.error.message));
+              };
+              req.onblocked = function () {
+                done(false, '被其它标签页阻塞');
+              };
+              setTimeout(function () {
+                done(false, '3 秒内没有任何回调');
+              }, 3000);
+            } catch (err) {
+              // Safari 在 file:// 下是**同步抛** SecurityError
+              done(false, err.name + '：' + err.message);
+            }
+          });
+        }
+
+        // ================================================================
+        // 2. 降级方案：内存版 IndexedDB（API 形状与真实实现一致）
+        //    —— 只有在真实 IndexedDB 不可用时才会被启用。
+        //    它刻意保持了"异步 + 事务 + 游标"的三条核心语义，
+        //    所以下面所有业务代码一行都不用改。
+        // ================================================================
+
+        function makeMemoryIndexedDB() {
+          var dbs = new Map();
+
+          function rank(k) {
+            if (typeof k === 'number') return 0;
+            if (k instanceof Date) return 1;
+            if (typeof k === 'string') return 2;
+            return 4;
+          }
+
+          function cmp(a, b) {
+            var ra = rank(a);
+            var rb = rank(b);
+            if (ra !== rb) return ra - rb;
+            if (ra === 0) return a - b;
+            if (ra === 1) return a.getTime() - b.getTime();
+            return a < b ? -1 : a > b ? 1 : 0;
+          }
+
+          function err(name, msg) {
+            var e = new Error(msg);
+            e.name = name;
+            return e;
+          }
+
+          function byPath(obj, path) {
+            var cur = obj;
+            var parts = String(path).split('.');
+            for (var i = 0; i < parts.length; i++) {
+              if (cur === null || cur === undefined) return undefined;
+              cur = cur[parts[i]];
+            }
+            return cur;
+          }
+
+          function NameList(names) {
+            this._n = names.slice();
+          }
+          NameList.prototype.contains = function (n) {
+            return this._n.indexOf(n) !== -1;
+          };
+          NameList.prototype.item = function (i) {
+            return this._n[i] === undefined ? null : this._n[i];
+          };
+          Object.defineProperty(NameList.prototype, 'length', {
+            get: function () {
+              return this._n.length;
+            },
+          });
+
+          function makeRange(lower, upper, lo, uo) {
+            return {
+              _shim: true,
+              lower: lower,
+              upper: upper,
+              lowerOpen: lo,
+              upperOpen: uo,
+              includes: function (k) {
+                if (lower !== undefined) {
+                  var c1 = cmp(k, lower);
+                  if (c1 < 0 || (c1 === 0 && lo)) return false;
+                }
+                if (upper !== undefined) {
+                  var c2 = cmp(k, upper);
+                  if (c2 > 0 || (c2 === 0 && uo)) return false;
+                }
+                return true;
+              },
+            };
+          }
+
+          /** 判断一个值是不是"键区间"（真实 IDBKeyRange 或本 shim 的） */
+          function isRange(q) {
+            if (!q) return false;
+            if (q._shim === true) return true;
+            return typeof window.IDBKeyRange === 'function' && q instanceof window.IDBKeyRange;
+          }
+
+          var ShimKeyRange = {
+            only: function (v) {
+              return makeRange(v, v, false, false);
+            },
+            lowerBound: function (v, open) {
+              return makeRange(v, undefined, !!open, true);
+            },
+            upperBound: function (v, open) {
+              return makeRange(undefined, v, true, !!open);
+            },
+            bound: function (a, b, ao, bo) {
+              return makeRange(a, b, !!ao, !!bo);
+            },
+            _shim: true,
+          };
+
+          /** 事务：维护一个"还有多少请求没完成"的计数，归零即自动提交 */
+          function Tx(db, names, mode) {
+            this.db = db;
+            this.mode = mode;
+            this.objectStoreNames = new NameList(names);
+            this.error = null;
+            this.oncomplete = null;
+            this.onerror = null;
+            this.onabort = null;
+            this._pending = 0;
+            this._closed = false;
+            this._self = this;
+          }
+          Tx.prototype._begin = function () {
+            // 事务开始时的快照，用于出错回滚（真实 IndexedDB 靠日志回滚，效果一样）
+            if (!this._snapshot) {
+              this._snapshot = [];
+              this.db._data.forEach(function (v, k) {
+                this.push([k, structuredClone(v)]);
+              }, this._snapshot);
+            }
+            this._pending += 1;
+          };
+          Tx.prototype._end = function (failed) {
+            this._pending -= 1;
+            if (failed) {
+              // 未处理的请求错误 → 整个事务回滚
+              if (this._snapshot) {
+                var data = this.db._data;
+                data.clear();
+                this._snapshot.forEach(function (pair) {
+                  data.set(pair[0], pair[1]);
+                });
+              }
+              this.error = this.error || err('AbortError', '事务被中止');
+              if (!this._closed) {
+                this._closed = true;
+                if (this.onabort) this.onabort({ target: this });
+              }
+              return;
+            }
+            if (this._pending === 0 && !this._closed) {
+              this._closed = true;
+              var self = this;
+              setTimeout(function () {
+                if (self.oncomplete) self.oncomplete({ target: self });
+              }, 0);
+            }
+          };
+          Tx.prototype.abort = function () {
+            this._closed = true;
+            if (this.onabort) this.onabort({ target: this });
+          };
+          Tx.prototype.objectStore = function (name) {
+            if (this.objectStoreNames.contains(name) === false) {
+              throw err('NotFoundError', "事务里没有对象仓库 '" + name + "'");
+            }
+            if (!this._stores) this._stores = {};
+            if (!this._stores[name]) this._stores[name] = new Store(this, this.db._data.get(name), name);
+            return this._stores[name];
+          };
+
+          function Store(tx, data, name) {
+            this._tx = tx;
+            this._data = data;
+            this.name = name;
+            this.keyPath = data.keyPath;
+            this.autoIncrement = data.autoIncrement;
+            var keys = [];
+            data.indexes.forEach(function (v, k) {
+              keys.push(k);
+            });
+            this.indexNames = new NameList(keys);
+          }
+
+          Store.prototype._req = function (fn, onFail) {
+            var self = this;
+            var tx = this._tx;
+            var req = { result: undefined, error: null, onsuccess: null, onerror: null, _cursorIndex: -1 };
+            tx._begin();
+            setTimeout(function () {
+              var failed = false;
+              try {
+                req.result = fn();
+              } catch (e) {
+                req.error = e;
+                failed = true;
+                if (onFail) onFail(e);
+              }
+              if (failed) {
+                var handled = false;
+                if (req.onerror) {
+                  req.onerror({
+                    target: req,
+                    preventDefault: function () {
+                      handled = true;
+                    },
+                  });
+                }
+                tx._end(!handled);
+              } else {
+                if (req.onsuccess) req.onsuccess({ target: req });
+                tx._end(false);
+              }
+            }, 0);
+            return req;
+          };
+
+          Store.prototype._rows = function (query) {
+            var rows = this._data.records;
+            if (!query) return rows.slice();
+            if (isRange(query)) {
+              return rows.filter(function (r) {
+                return query.includes(r.key);
+              });
+            }
+            return rows.filter(function (r) {
+              return cmp(r.key, query) === 0;
+            });
+          };
+
+          Store.prototype.add = function (value, key) {
+            return this._put(value, key, false);
+          };
+          Store.prototype.put = function (value, key) {
+            return this._put(value, key, true);
+          };
+          Store.prototype._put = function (value, key, overwrite) {
+            var self = this;
+            return this._req(function () {
+              if (self._tx.mode === 'readonly') throw err('ReadOnlyError', '只读事务不能写');
+              var k = key;
+              if (self.keyPath) {
+                k = byPath(value, self.keyPath);
+                if (k === undefined) {
+                  if (!self.autoIncrement) throw err('DataError', "缺少 keyPath '" + self.keyPath + "'");
+                  k = self._data.nextKey++;
+                  value[self.keyPath] = k;
+                }
+              } else if (k === undefined) {
+                k = self._data.nextKey++;
+              }
+              var i = -1;
+              for (var n = 0; n < self._data.records.length; n++) {
+                if (cmp(self._data.records[n].key, k) === 0) i = n;
+              }
+              if (i >= 0 && !overwrite) throw err('ConstraintError', '键 ' + JSON.stringify(k) + ' 已存在');
+              // 唯一索引冲突检查（真实 IndexedDB 同样在写入时校验）
+              self._data.indexes.forEach(function (def) {
+                if (!def.unique) return;
+                var newVal = byPath(value, def.keyPath);
+                if (newVal === undefined) return;
+                for (var m = 0; m < self._data.records.length; m++) {
+                  if (m === i) continue;
+                  var oldVal = byPath(self._data.records[m].value, def.keyPath);
+                  if (oldVal !== undefined && cmp(oldVal, newVal) === 0) {
+                    throw err('ConstraintError', "唯一索引 '" + def.name + "' 上已有值 " + JSON.stringify(newVal));
+                  }
+                }
+              });
+              var rec = { key: k, value: structuredClone(value) };
+              if (i >= 0) self._data.records[i] = rec;
+              else {
+                self._data.records.push(rec);
+                self._data.records.sort(function (a, b) {
+                  return cmp(a.key, b.key);
+                });
+              }
+              return k;
+            });
+          };
+          Store.prototype.get = function (k) {
+            var self = this;
+            return this._req(function () {
+              for (var i = 0; i < self._data.records.length; i++) {
+                if (cmp(self._data.records[i].key, k) === 0) return structuredClone(self._data.records[i].value);
+              }
+              return undefined;
+            });
+          };
+          Store.prototype.getAll = function (query, count) {
+            var self = this;
+            return this._req(function () {
+              var rows = self._rows(query);
+              if (count !== undefined) rows = rows.slice(0, count);
+              return rows.map(function (r) {
+                return structuredClone(r.value);
+              });
+            });
+          };
+          Store.prototype.getAllKeys = function (query, count) {
+            var self = this;
+            return this._req(function () {
+              var rows = self._rows(query);
+              if (count !== undefined) rows = rows.slice(0, count);
+              return rows.map(function (r) {
+                return r.key;
+              });
+            });
+          };
+          Store.prototype.count = function (query) {
+            var self = this;
+            return this._req(function () {
+              return self._rows(query).length;
+            });
+          };
+          Store.prototype.delete = function (k) {
+            var self = this;
+            return this._req(function () {
+              for (var i = 0; i < self._data.records.length; i++) {
+                if (cmp(self._data.records[i].key, k) === 0) {
+                  self._data.records.splice(i, 1);
+                  break;
+                }
+              }
+              return undefined;
+            });
+          };
+          Store.prototype.clear = function () {
+            var self = this;
+            return this._req(function () {
+              self._data.records.length = 0;
+              return undefined;
+            });
+          };
+          Store.prototype.createIndex = function (name, keyPath, options) {
+            if (!this._tx.db._inUpgrade) throw err('InvalidStateError', '索引只能在 onupgradeneeded 里建');
+            this._data.indexes.set(name, {
+              name: name,
+              keyPath: keyPath,
+              unique: !!(options && options.unique),
+            });
+            var keys = [];
+            this._data.indexes.forEach(function (v, k) {
+              keys.push(k);
+            });
+            this.indexNames = new NameList(keys);
+            return new Index(this, this._data.indexes.get(name));
+          };
+          Store.prototype.index = function (name) {
+            if (!this._data.indexes.has(name)) throw err('NotFoundError', "没有索引 '" + name + "'");
+            return new Index(this, this._data.indexes.get(name));
+          };
+          Store.prototype.openCursor = function (query, direction) {
+            var self = this;
+            var rows = this._rows(query);
+            var entries = rows.map(function (r) {
+              return { key: r.key, primaryKey: r.key, value: r.value };
+            });
+            if (direction === 'prev') entries.reverse();
+            var req = { result: undefined, error: null, onsuccess: null, onerror: null, _cursorIndex: -1 };
+            var advance = function (idx) {
+              self._tx._begin();
+              setTimeout(function () {
+                req._cursorIndex = idx;
+                if (idx >= entries.length) {
+                  req.result = null;
+                  if (req.onsuccess) req.onsuccess({ target: req });
+                  self._tx._end(false);
+                  return;
+                }
+                req.result = makeCursor(self, entries, idx, req);
+                if (req.onsuccess) req.onsuccess({ target: req });
+                self._tx._end(false);
+              }, 0);
+            };
+            advance(0);
+            req._advanceTo = advance;
+            return req;
+          };
+
+          function makeCursor(store, entries, i, req) {
+            return {
+              get key() {
+                return entries[i].key;
+              },
+              get primaryKey() {
+                return entries[i].primaryKey;
+              },
+              get value() {
+                return structuredClone(entries[i].value);
+              },
+              update: function (v) {
+                return store.put(v, store.keyPath ? undefined : entries[i].primaryKey);
+              },
+              delete: function () {
+                return store.delete(entries[i].primaryKey);
+              },
+              // continue / advance 复用的是**同一个 request 对象**：
+              // 它会再次触发 onsuccess，并把游标往前挪 —— 真实 IndexedDB 就是这样。
+              continue: function () {
+                if (req._advanceTo) req._advanceTo(i + 1);
+              },
+              advance: function (n) {
+                if (req._advanceTo) req._advanceTo(i + n);
+              },
+            };
+          }
+
+          function Index(store, def) {
+            this._store = store;
+            this.name = def.name;
+            this.keyPath = def.keyPath;
+            this.unique = def.unique;
+          }
+          Index.prototype._entries = function () {
+            var out = [];
+            this._store._data.records.forEach(function (rec) {
+              var v = byPath(rec.value, this.keyPath);
+              if (v === undefined || v === null) return;
+              out.push({ key: v, primaryKey: rec.key, value: rec.value });
+            }, this);
+            out.sort(function (a, b) {
+              return cmp(a.key, b.key) || cmp(a.primaryKey, b.primaryKey);
+            });
+            return out;
+          };
+          Index.prototype.getAll = function (query) {
+            var self = this;
+            return this._store._req(function () {
+              var list = self._entries();
+              if (query) {
+                list = list.filter(function (e) {
+                  return isRange(query) ? query.includes(e.key) : cmp(e.key, query) === 0;
+                });
+              }
+              return list.map(function (e) {
+                return structuredClone(e.value);
+              });
+            });
+          };
+          Index.prototype.count = function (query) {
+            var self = this;
+            return this._store._req(function () {
+              var list = self._entries();
+              if (query) {
+                list = list.filter(function (e) {
+                  return isRange(query) ? query.includes(e.key) : cmp(e.key, query) === 0;
+                });
+              }
+              return list.length;
+            });
+          };
+          Index.prototype.openCursor = function (query, direction) {
+            var self = this;
+            var entries = this._entries();
+            if (query) {
+              entries = entries.filter(function (e) {
+                return isRange(query) ? query.includes(e.key) : cmp(e.key, query) === 0;
+              });
+            }
+            if (direction === 'prev') entries.reverse();
+            var req = { result: undefined, error: null, onsuccess: null, onerror: null };
+            var advance = function (idx) {
+              self._store._tx._begin();
+              setTimeout(function () {
+                if (idx >= entries.length) {
+                  req.result = null;
+                  if (req.onsuccess) req.onsuccess({ target: req });
+                  self._store._tx._end(false);
+                  return;
+                }
+                req.result = makeCursor(self._store, entries, idx, req);
+                if (req.onsuccess) req.onsuccess({ target: req });
+                self._store._tx._end(false);
+              }, 0);
+            };
+            advance(0);
+            req._advanceTo = advance;
+            return req;
+          };
+
+          function DB(name, version, data) {
+            this.name = name;
+            this.version = version;
+            this._data = data;
+            this._inUpgrade = false;
+            this._closed = false;
+            this.onversionchange = null;
+            var keys = [];
+            data.forEach(function (v, k) {
+              keys.push(k);
+            });
+            this.objectStoreNames = new NameList(keys);
+          }
+          DB.prototype.transaction = function (names, mode) {
+            if (this._closed) throw err('InvalidStateError', '连接已关闭');
+            var list = Array.isArray(names) ? names : [names];
+            var self = this;
+            list.forEach(function (n) {
+              if (!self._data.has(n)) throw err('NotFoundError', "没有对象仓库 '" + n + "'");
+            });
+            var tx = new Tx(this, list, mode || 'readonly');
+            // 让"一个请求都没发"的空事务也能自动提交（真实 IndexedDB 就是这样）
+            tx._begin();
+            setTimeout(function () {
+              tx._end(false);
+            }, 0);
+            return tx;
+          };
+          DB.prototype.createObjectStore = function (name, options) {
+            if (!this._inUpgrade) throw err('InvalidStateError', '对象仓库只能在 onupgradeneeded 里建');
+            this._data.set(name, {
+              records: [],
+              keyPath: (options && options.keyPath) || null,
+              autoIncrement: !!(options && options.autoIncrement),
+              nextKey: 1,
+              indexes: new Map(),
+            });
+            var keys = [];
+            this._data.forEach(function (v, k) {
+              keys.push(k);
+            });
+            this.objectStoreNames = new NameList(keys);
+            var fakeTx = { mode: 'versionchange', db: this };
+            return new Store(fakeTx, this._data.get(name), name);
+          };
+          DB.prototype.close = function () {
+            this._closed = true;
+          };
+
+          var api = {
+            open: function (name, version) {
+              var req = {
+                result: undefined,
+                error: null,
+                transaction: null,
+                onsuccess: null,
+                onerror: null,
+                onupgradeneeded: null,
+                onblocked: null,
+              };
+              setTimeout(function () {
+                var entry = dbs.get(name);
+                var cur = entry ? entry.version : 0;
+                var target = version === undefined ? cur || 1 : version;
+
+                // 版本只能升不能降
+                if (entry && target < cur) {
+                  req.error = err('VersionError', '不能把版本从 ' + cur + ' 降到 ' + target);
+                  if (req.onerror) req.onerror({ target: req, preventDefault: function () {} });
+                  return;
+                }
+
+                // 升级前必须等所有旧连接关闭，否则 blocked
+                if (entry && target > cur) {
+                  var alive = (entry.connections || []).filter(function (c) {
+                    return !c._closed;
+                  });
+                  if (alive.length > 0) {
+                    if (req.onblocked) req.onblocked({ target: req });
+                    req.error = err('BlockedError', '还有 ' + alive.length + ' 个连接没关闭');
+                    if (req.onerror) req.onerror({ target: req, preventDefault: function () {} });
+                    return;
+                  }
+                }
+
+                var data = entry ? entry.data : new Map();
+                var db = new DB(name, target, data);
+                if (!entry) {
+                  entry = { version: target, data: data, connections: [] };
+                  dbs.set(name, entry);
+                }
+                db._rec = entry;
+                entry.version = target;
+                entry.connections.push(db);
+                req.result = db;
+
+                if (target > cur) {
+                  db._inUpgrade = true;
+                  req.transaction = { mode: 'versionchange' };
+                  if (req.onupgradeneeded) {
+                    req.onupgradeneeded({ target: req, oldVersion: cur, newVersion: target });
+                  }
+                  db._inUpgrade = false;
+                }
+                if (req.onsuccess) req.onsuccess({ target: req });
+              }, 0);
+              return req;
+            },
+            deleteDatabase: function (name) {
+              var req = { result: undefined, error: null, onsuccess: null, onerror: null };
+              setTimeout(function () {
+                dbs.delete(name);
+                if (req.onsuccess) req.onsuccess({ target: req });
+              }, 0);
+              return req;
+            },
+          };
+
+          return { indexedDB: api, IDBKeyRange: ShimKeyRange, fake: true };
+        }
+
+        // ================================================================
+        // 3. 选定实现（真实 or 降级），并统一出一个 KeyRange
+        // ================================================================
+
+        var idbApi = window.indexedDB; // 真实实现
+        var KeyRange = window.IDBKeyRange; // 真实的键区间构造器
+        var usingFake = false;
+
+        function useFake(reason) {
+          var shim = makeMemoryIndexedDB();
+          idbApi = shim.indexedDB;
+          KeyRange = shim.IDBKeyRange;
+          usingFake = true;
+          bannerEl.className = 'banner warn';
+          bannerEl.textContent =
+            '⚠ 真实 IndexedDB 不可用（' +
+            reason +
+            '）。已自动切换到内置的「内存版 IndexedDB」：API 形状与真实实现完全一致' +
+            '（同样是异步 + 事务 + 游标），本页所有按钮依然可用，但数据不会持久化。' +
+            '想用真实的 IndexedDB，请把本目录用 HTTP 服务器打开（例如 npx serve 27_web_apis）。';
+          log('环境探测失败：' + reason, 'warn');
+          log('已启用内存版模拟实现，API 形状一致，仅"不落盘"这一点不同。', 'warn');
+        }
+
+        // ================================================================
+        // 4. 业务代码 —— 下面这些才是"真正的 IndexedDB 用法"
+        // ================================================================
+
+        var BOOKS = [
+          { isbn: '978-7-111-1', title: 'JavaScript 权威指南', author: 'Flanagan', year: 2020, price: 128 },
+          { isbn: '978-7-111-2', title: 'JavaScript 高级程序设计', author: 'Zakas', year: 2019, price: 99 },
+          { isbn: '978-7-111-3', title: '你不知道的 JavaScript', author: 'Simpson', year: 2018, price: 79 },
+          { isbn: '978-7-111-4', title: '深入理解 ES6', author: 'Zakas', year: 2017, price: 89 },
+          { isbn: '978-7-111-5', title: 'CSS 世界', author: '张鑫旭', year: 2018, price: 108 },
+        ];
+
+        var db = null; // 复用的连接（真实项目里一般全站共用一个）
+
+        /** 开库。注意：建仓库/建索引必须写在 onupgradeneeded 里 */
+        function openDB(name, version) {
+          return new Promise(function (resolve, reject) {
+            log("indexedDB.open('" + name + "', " + version + ')');
+            var req = idbApi.open(name, version);
+            req.onupgradeneeded = function (event) {
+              var d = req.result;
+              log('  ▶ onupgradeneeded：版本 ' + event.oldVersion + ' → ' + event.newVersion, 'ok');
+              if (!d.objectStoreNames.contains(STORE)) {
+                var store = d.createObjectStore(STORE, { keyPath: 'isbn' });
+                store.createIndex('by_author', 'author', { unique: false });
+                store.createIndex('by_year', 'year', { unique: false });
+                store.createIndex('by_title', 'title', { unique: true });
+                log('    建对象仓库 books(keyPath: isbn) + 3 个索引', 'ok');
+              }
+              // 升级到 v2 时顺带加一个 logs 仓库（见"升级到 v2"按钮）
+              if (event.newVersion >= 2 && !d.objectStoreNames.contains('logs')) {
+                d.createObjectStore('logs', { autoIncrement: true });
+                log('    建对象仓库 logs（自增主键）', 'ok');
+              }
+            };
+            req.onsuccess = function () {
+              resolve(req.result);
+            };
+            req.onerror = function () {
+              reject(req.error);
+            };
+            req.onblocked = function () {
+              log('  ▶ onblocked：有旧连接没关闭，升级被阻塞', 'warn');
+            };
+          });
+        }
+
+        /** 把 request 包成 Promise（真实项目里用 idb 库，这里手写等价物） */
+        function reqToPromise(request) {
+          return new Promise(function (resolve, reject) {
+            request.onsuccess = function () {
+              resolve(request.result);
+            };
+            request.onerror = function (event) {
+              if (event.preventDefault) event.preventDefault();
+              reject(request.error);
+            };
+          });
+        }
+
+        /** 等事务提交（oncomplete 才代表真的落库） */
+        function txDone(tx) {
+          return new Promise(function (resolve, reject) {
+            tx.oncomplete = function () {
+              resolve();
+            };
+            tx.onerror = function () {
+              reject(tx.error);
+            };
+            tx.onabort = function () {
+              reject(tx.error || new Error('事务被中止'));
+            };
+          });
+        }
+
+        /** 打开一个事务并返回 store，同时把结束时的日志挂好 */
+        function tx(storeName, mode) {
+          var t = db.transaction([storeName], mode);
+          t.onerror = function () {
+            log('  tx.onerror：' + (t.error && t.error.name), 'err');
+          };
+          return t;
+        }
+
+        /** 读取全部数据并渲染成表格（高亮 hit 为主键数组，或 true 表示全部高亮） */
+        function renderTable(hits) {
+          var t = tx(STORE, 'readonly');
+          var store = t.objectStore(STORE);
+          return reqToPromise(store.getAll()).then(function (list) {
+            return txDone(t).then(function () {
+              drawTable(list, hits);
+              return list;
+            });
+          });
+        }
+
+        function drawTable(list, hits) {
+          if (!list.length) {
+            tableWrap.textContent = '';
+            var p = document.createElement('p');
+            p.className = 'hint';
+            p.textContent = '仓库是空的。';
+            tableWrap.appendChild(p);
+            return;
+          }
+          var table = document.createElement('table');
+          var head = document.createElement('tr');
+          ['isbn（主键）', 'title', 'author', 'year', 'price'].forEach(function (h) {
+            var th = document.createElement('th');
+            th.textContent = h;
+            head.appendChild(th);
+          });
+          table.appendChild(head);
+          list.forEach(function (b) {
+            var tr = document.createElement('tr');
+            if (hits === true || (Array.isArray(hits) && hits.indexOf(b.isbn) !== -1)) tr.className = 'hit';
+            [b.isbn, b.title, b.author, b.year, b.price].forEach(function (v) {
+              var td = document.createElement('td');
+              td.textContent = String(v);
+              tr.appendChild(td);
+            });
+            table.appendChild(tr);
+          });
+          tableWrap.textContent = '';
+          tableWrap.appendChild(table);
+        }
+
+        /** 把 DOMStringList（objectStoreNames）转成真数组 */
+        function nameArray(list) {
+          var out = [];
+          for (var i = 0; i < list.length; i++) out.push(list.item(i));
+          return out;
+        }
+
+        function updateStatus() {
+          if (!db) {
+            setStatus('尚未打开');
+            return;
+          }
+          var names = nameArray(db.objectStoreNames);
+          setStatus(
+            '连接：' + db.name + '\n版本：v' + db.version + '\n对象仓库：' + names.join(', ') + '\n实现：' + (usingFake ? '内存模拟' : '浏览器原生 IndexedDB'),
+          );
+        }
+
+        /** 保证库已打开（没有就先开） */
+        function ensureDB() {
+          if (db) return Promise.resolve(db);
+          return openDB(DB_NAME, 1).then(function (d) {
+            db = d;
+            updateStatus();
+            log('开库成功：db.name=' + d.name + ' db.version=' + d.version, 'ok');
+            return d;
+          });
+        }
+
+        // ================================================================
+        // 5. 按钮动作
+        // ================================================================
+
+        var actions = {
+          open: function () {
+            return ensureDB().then(function () {
+              log('objectStoreNames = [' + nameArray(db.objectStoreNames).join(', ') + ']');
+              log('提示：db.objectStoreNames 只是名字列表，想看 keyPath 要进事务拿 store。', 'dim');
+              return renderTable();
+            });
+          },
+
+          seed: function () {
+            return ensureDB().then(function () {
+              var t = tx(STORE, 'readwrite');
+              var store = t.objectStore(STORE);
+              BOOKS.forEach(function (b) {
+                store.add(b); // 同一个事务里连发 5 个请求
+              });
+              log('在同一个事务里连续 add ' + BOOKS.length + ' 条记录……');
+              return txDone(t).then(function () {
+                log('  tx.oncomplete：事务提交，5 条已落库', 'ok');
+                return renderTable();
+              });
+            }).catch(function (e) {
+              log('  失败：' + e.name + '：' + e.message, 'err');
+            });
+          },
+
+          refresh: function () {
+            return ensureDB().then(function () {
+              return renderTable();
+            });
+          },
+
+          get: function () {
+            return ensureDB().then(function () {
+              var t = tx(STORE, 'readonly');
+              return reqToPromise(t.objectStore(STORE).get('978-7-111-2')).then(function (b) {
+                return txDone(t).then(function () {
+                  log("get('978-7-111-2') → " + (b ? b.title + ' / ' + b.author + ' / ' + b.year : 'undefined（没有这条）'), b ? 'ok' : 'warn');
+                  return renderTable(['978-7-111-2']);
+                });
+              });
+            });
+          },
+
+          copy: function () {
+            return ensureDB().then(function () {
+              var t1 = tx(STORE, 'readonly');
+              return reqToPromise(t1.objectStore(STORE).get('978-7-111-2')).then(function (copy) {
+                return txDone(t1).then(function () {
+                  if (!copy) {
+                    log('库里没有这条记录，先点「批量插入 5 本书」。', 'warn');
+                    return;
+                  }
+                  copy.title = '【我在副本上乱改】';
+                  var t2 = tx(STORE, 'readonly');
+                  return reqToPromise(t2.objectStore(STORE).get('978-7-111-2')).then(function (again) {
+                    return txDone(t2).then(function () {
+                      log('改动 get 返回的对象后重新读一次 → title = ' + again.title, 'ok');
+                      log('  → 库里没变：IndexedDB 存取都走结构化克隆，拿到的永远是副本，必须 put 回去。', 'dim');
+                    });
+                  });
+                });
+              });
+            });
+          },
+
+          put: function () {
+            return ensureDB().then(function () {
+              var t1 = tx(STORE, 'readonly');
+              return reqToPromise(t1.objectStore(STORE).get('978-7-111-1')).then(function (b) {
+                return txDone(t1).then(function () {
+                  if (!b) {
+                    log('先插入数据再试。', 'warn');
+                    return;
+                  }
+                  var oldPrice = b.price;
+                  b.price = Math.round(b.price * 0.8);
+                  var t2 = tx(STORE, 'readwrite');
+                  return reqToPromise(t2.objectStore(STORE).put(b)).then(function () {
+                    return txDone(t2).then(function () {
+                      log('put 之后 price：' + oldPrice + ' → ' + b.price, 'ok');
+                      return renderTable(['978-7-111-1']);
+                    });
+                  });
+                });
+              });
+            });
+          },
+
+          delete: function () {
+            return ensureDB().then(function () {
+              var t = tx(STORE, 'readwrite');
+              return reqToPromise(t.objectStore(STORE).delete('978-7-111-3')).then(function () {
+                return txDone(t).then(function () {
+                  log("delete('978-7-111-3') 完成", 'ok');
+                  return renderTable();
+                });
+              });
+            });
+          },
+
+          count: function () {
+            return ensureDB().then(function () {
+              var t = tx(STORE, 'readonly');
+              return reqToPromise(t.objectStore(STORE).count()).then(function (n) {
+                return txDone(t).then(function () {
+                  log('count() = ' + n);
+                });
+              });
+            });
+          },
+
+          clear: function () {
+            return ensureDB().then(function () {
+              var t = tx(STORE, 'readwrite');
+              return reqToPromise(t.objectStore(STORE).clear()).then(function () {
+                return txDone(t).then(function () {
+                  log('clear() 已清空对象仓库（库本身还在）', 'warn');
+                  return renderTable();
+                });
+              });
+            });
+          },
+
+          cursor: function () {
+            return walk(false);
+          },
+
+          'cursor-prev': function () {
+            return walk(true);
+          },
+
+          'cursor-update': function () {
+            return ensureDB().then(function () {
+              var t = tx(STORE, 'readwrite');
+              var store = t.objectStore(STORE);
+              var req = store.openCursor();
+              var n = 0;
+              var done = new Promise(function (resolve, reject) {
+                req.onsuccess = function (event) {
+                  var cursor = event.target.result;
+                  if (!cursor) {
+                    resolve();
+                    return;
+                  }
+                  n += 1;
+                  var v = cursor.value;
+                  if (v.year <= 2018) {
+                    var old = v.price;
+                    v.price = Math.round(v.price * 0.7);
+                    cursor.update(v); // 改当前这一条
+                    log('  2018 年及以前 → 打七折：' + v.title + ' ' + old + ' → ' + v.price);
+                  }
+                  cursor.continue(); // 必须 continue 才会前进
+                };
+                req.onerror = function (e) {
+                  e.preventDefault();
+                  reject(req.error);
+                };
+              });
+              return done.then(function () {
+                return txDone(t).then(function () {
+                  log('游标遍历 ' + n + ' 条后事务提交', 'ok');
+                  return renderTable();
+                });
+              });
+            });
+          },
+
+          'idx-get': function () {
+            return ensureDB().then(function () {
+              var t = tx(STORE, 'readonly');
+              var idx = t.objectStore(STORE).index('by_author');
+              return reqToPromise(idx.getAll('Zakas')).then(function (list) {
+                return txDone(t).then(function () {
+                  log("index('by_author').getAll('Zakas') → " + list.length + ' 条', 'ok');
+                  list.forEach(function (b) {
+                    log('    ' + b.title + '（' + b.year + '）');
+                  });
+                  return renderTable(
+                    list.map(function (b) {
+                      return b.isbn;
+                    }),
+                  );
+                });
+              });
+            });
+          },
+
+          'idx-range': function () {
+            return ensureDB().then(function () {
+              var range = KeyRange.bound(2018, 2019);
+              log('IDBKeyRange.bound(2018, 2019) → 闭区间 [2018, 2019]');
+              var t = tx(STORE, 'readonly');
+              var idx = t.objectStore(STORE).index('by_year');
+              return reqToPromise(idx.getAll(range)).then(function (list) {
+                return txDone(t).then(function () {
+                  log('按 by_year 索引范围查询 → ' + list.length + ' 条（结果按索引键排序）', 'ok');
+                  list.forEach(function (b) {
+                    log('    ' + b.year + '  ' + b.title);
+                  });
+                  return renderTable(
+                    list.map(function (b) {
+                      return b.isbn;
+                    }),
+                  );
+                });
+              });
+            });
+          },
+
+          dup: function () {
+            return ensureDB().then(function () {
+              var t = tx(STORE, 'readwrite');
+              var req = t.objectStore(STORE).add({ isbn: '978-7-111-2', title: '撞主键', author: 'x', year: 2000 });
+              return reqToPromise(req).then(
+                function () {
+                  log('居然成功了？', 'warn');
+                },
+                function (e) {
+                  log('  ✗ ' + e.name + '：' + e.message, 'err');
+                  log('  add 不能覆盖已有主键 —— 想覆盖请用 put。', 'dim');
+                  return txDone(t).catch(function () {
+                    log('  （错误没被处理，事务被 abort 回滚了）', 'warn');
+                  });
+                },
+              );
+            });
+          },
+
+          unique: function () {
+            return ensureDB().then(function () {
+              var t = tx(STORE, 'readwrite');
+              var req = t.objectStore(STORE).add({ isbn: '978-7-111-9', title: 'CSS 世界', author: '别人', year: 2021 });
+              return reqToPromise(req).then(
+                function () {
+                  log('居然成功了？说明库里还没有同名书。', 'warn');
+                },
+                function (e) {
+                  log('  ✗ ' + e.name + '：' + e.message, 'err');
+                  log('  by_title 是唯一索引，重复的书名会被拒绝 —— 注意这个错误是在 add 时抛的。', 'dim');
+                  return txDone(t).catch(function () {});
+                },
+              );
+            });
+          },
+
+          rollback: function () {
+            return ensureDB().then(function () {
+              var t1 = tx(STORE, 'readonly');
+              return reqToPromise(t1.objectStore(STORE).count()).then(function (before) {
+                return txDone(t1).then(function () {
+                  var t = tx(STORE, 'readwrite');
+                  var store = t.objectStore(STORE);
+                  store.add({ isbn: '978-7-111-100', title: '临时书 A', author: '某人', year: 2024 });
+                  store.add({ isbn: '978-7-111-2', title: '撞主键的第二条', author: '某人', year: 2024 });
+                  t.onabort = function () {
+                    log('  ▶ tx.onabort：事务回滚，第一条"正常的写入"也一并撤销了', 'warn');
+                  };
+                  t.onerror = function () {};
+                  return txDone(t).catch(function () {
+                    var t2 = tx(STORE, 'readonly');
+                    return reqToPromise(t2.objectStore(STORE).count()).then(function (after) {
+                      return txDone(t2).then(function () {
+                        log('  写入前后记录数：' + before + ' → ' + after + (before === after ? '（原子性成立）' : '（出问题了）'), 'ok');
+                        return renderTable();
+                      });
+                    });
+                  });
+                });
+              });
+            });
+          },
+
+          badstore: function () {
+            return ensureDB().then(function () {
+              try {
+                db.transaction(['no_such_store']);
+              } catch (e) {
+                log('  ✗ ' + e.name + '：' + e.message, 'err');
+              }
+              var t = tx(STORE, 'readonly');
+              try {
+                t.objectStore(STORE).index('no_such_index');
+              } catch (e) {
+                log('  ✗ ' + e.name + '：' + e.message, 'err');
+              }
+              log('  NotFoundError 最常见的原因：忘了在 onupgradeneeded 里建仓库/索引。', 'dim');
+            });
+          },
+
+          upgrade: function () {
+            return ensureDB().then(function () {
+              db.close(); // 升级前必须关掉旧连接，否则新连接会一直 blocked
+              log('已 close() 旧连接，现在 open(..., 2) 触发升级……');
+              return openDB(DB_NAME, 2).then(function (d) {
+                db = d;
+                updateStatus();
+                log('升级完成：db.version = ' + d.version + '，stores = [' + nameArray(d.objectStoreNames).join(', ') + ']', 'ok');
+                return renderTable();
+              });
+            });
+          },
+
+          blocked: function () {
+            return ensureDB().then(function () {
+              log('故意不关闭连接就升级到 v3，观察 blocked 回调……', 'warn');
+              return new Promise(function (resolve) {
+                var req = idbApi.open(DB_NAME, 3);
+                req.onupgradeneeded = function () {
+                  log('  （不该走到这里）', 'warn');
+                };
+                req.onblocked = function () {
+                  log('  ▶ onblocked：旧连接没关，升级被阻塞', 'warn');
+                  log('    真实浏览器里页面会一直卡在这里，看起来像"坏了"——用户只能刷新。', 'warn');
+                  log('    正解：在旧连接的 onversionchange 回调里执行 db.close()。', 'ok');
+                };
+                req.onsuccess = function () {
+                  log('  onsuccess：升级成功（说明没有旧连接占用）');
+                  resolve();
+                };
+                req.onerror = function () {
+                  log('  onerror：' + (req.error && req.error.name), 'err');
+                  resolve();
+                };
+                setTimeout(resolve, 300);
+              });
+            });
+          },
+
+          bench: function () {
+            return ensureDB().then(function () {
+              var N = 2000;
+              var payload = [];
+              for (var i = 0; i < N; i++) {
+                payload.push({ isbn: 'B-' + i, title: '书名 ' + i, author: '作者' + (i % 10), year: 2000 + (i % 25), price: i });
+              }
+
+              // ① localStorage：必须整体序列化成一个字符串
+              var t0 = performance.now();
+              try {
+                localStorage.setItem('__bench__', JSON.stringify(payload));
+                var raw = localStorage.getItem('__bench__');
+                JSON.parse(raw);
+              } catch (e) {
+                log('  localStorage 写入失败：' + e.name + '（可能是无痕模式或配额为 0）', 'err');
+              }
+              var t1 = performance.now();
+              var sizeKB = Math.round((JSON.stringify(payload).length * 2) / 1024);
+              log('localStorage：' + N + ' 条 → 序列化 + 写入 + 读回 + 解析，耗时 ' + (t1 - t0).toFixed(1) + ' ms，占用约 ' + sizeKB + ' KB（UTF-16）');
+
+              // ② IndexedDB：直接存对象，不用序列化
+              var t2 = performance.now();
+              var t = tx(STORE, 'readwrite');
+              var store = t.objectStore(STORE);
+              payload.forEach(function (b) {
+                store.put(b);
+              });
+              return txDone(t).then(function () {
+                var t3 = performance.now();
+                log('IndexedDB  ：' + N + ' 条 → put 进同一个事务，耗时 ' + (t3 - t2).toFixed(1) + ' ms（结构化克隆，无需 JSON）', 'ok');
+                log('  注意：这里的对象直接存进去了，Date / Map / Set 都不会像 JSON 那样退化。', 'dim');
+                log('  另外 IndexedDB 是异步的：上面这段时间里主线程照样能响应点击。', 'dim');
+                if (usingFake) {
+                  log('  ⚠ 当前用的是内存模拟实现，每个请求都排进事件循环，耗时被放大了几十倍；', 'warn');
+                  log('    在真实 IndexedDB 下这个对比会反过来（写入量越大差距越明显）。', 'warn');
+                }
+                try {
+                  localStorage.removeItem('__bench__');
+                } catch (e) {
+                  void e;
+                }
+                // 把压测数据清掉，免得污染后面的演示
+                var t4 = tx(STORE, 'readwrite');
+                return reqToPromise(t4.objectStore(STORE).clear()).then(function () {
+                  return txDone(t4).then(function () {
+                    log('（压测数据已清理，可以重新点「批量插入 5 本书」）', 'dim');
+                    return renderTable();
+                  });
+                });
+              });
+            });
+          },
+
+          drop: function () {
+            return new Promise(function (resolve) {
+              if (db) {
+                db.close();
+                db = null;
+              }
+              log('已关闭连接，开始 deleteDatabase("' + DB_NAME + '") ……');
+              var req = idbApi.deleteDatabase(DB_NAME);
+              req.onsuccess = function () {
+                log('数据库已删除，一切从头开始。', 'warn');
+                updateStatus();
+                drawTable([], []); // 直接把表格画空，不去碰已经关闭的连接
+                resolve();
+              };
+              req.onerror = function () {
+                log('删除失败：' + (req.error && req.error.name), 'err');
+                resolve();
+              };
+              setTimeout(resolve, 500);
+            });
+          },
+        };
+
+        /** 游标遍历的公共实现 */
+        function walk(reverse) {
+          return ensureDB().then(function () {
+            var t = tx(STORE, 'readonly');
+            var store = t.objectStore(STORE);
+            var req = store.openCursor(undefined, reverse ? 'prev' : 'next');
+            var keys = [];
+            log('openCursor(undefined, ' + (reverse ? "'prev'" : "'next'") + ')：游标按主键' + (reverse ? '倒序' : '升序') + '逐条给出结果');
+            var done = new Promise(function (resolve, reject) {
+              req.onsuccess = function (event) {
+                var cursor = event.target.result;
+                if (!cursor) {
+                  resolve();
+                  return; // null 表示遍历结束
+                }
+                keys.push(cursor.key);
+                log('    ' + cursor.key + '  ' + cursor.value.title + '  ' + cursor.value.year);
+                cursor.continue(); // 关键：continue 才会走到下一条
+              };
+              req.onerror = function (e) {
+                e.preventDefault();
+                reject(req.error);
+              };
+            });
+            return done.then(function () {
+              return txDone(t).then(function () {
+                log('  共遍历 ' + keys.length + ' 条；游标每次 continue() 都是一次新请求，' + '所以事务在整个遍历期间保持活跃。', 'ok');
+                return renderTable(keys);
+              });
+            });
+          });
+        }
+
+        // ================================================================
+        // 6. 事件委托绑定所有按钮
+        // ================================================================
+
+        var busy = false;
+
+        document.addEventListener('click', function (event) {
+          var btn = event.target.closest('button[data-act]');
+          if (!btn) return;
+          if (busy) {
+            log('上一个操作还没结束，稍等一下……', 'warn');
+            return;
+          }
+          var act = btn.getAttribute('data-act');
+          var fn = actions[act];
+          log('▸ 点击了：' + btn.textContent);
+          if (typeof fn !== 'function') {
+            log('未实现的动作：' + act, 'warn');
+            return;
+          }
+          busy = true;
+          Promise.resolve()
+            .then(fn)
+            .catch(function (e) {
+              log('操作抛错：' + (e && e.name) + '：' + (e && e.message), 'err');
+            })
+            .then(function () {
+              busy = false;
+            });
+        });
+
+        // ================================================================
+        // 7. 启动：先探测环境，再决定用真实实现还是模拟实现
+        // ================================================================
+
+        log('本页演示：开库 → 建对象仓库与索引 → 事务增删改查 → 游标 → 索引查询 → 版本升级。', 'dim');
+        log('开始探测 IndexedDB 可用性（file:// 下 Chrome/Safari 会禁用它）……');
+
+        probeIndexedDB().then(function (result) {
+          if (result.ok) {
+            bannerEl.className = 'banner ok';
+            bannerEl.textContent = '✓ 当前环境支持真实的 IndexedDB（数据会持久化到浏览器里）。';
+            log('探测成功：可以使用浏览器原生的 IndexedDB。', 'ok');
+          } else {
+            useFake(result.reason);
+          }
+          updateStatus();
+          log('准备就绪：先点「open 建库建索引」，再点「批量插入 5 本书」。', 'ok');
+        });
+      })();
+    </script>
+  </body>
+</html>

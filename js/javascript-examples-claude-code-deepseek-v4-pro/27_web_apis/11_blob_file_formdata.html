@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：Blob / File / FileReader / FormData —— 二进制数据的表示与传递
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】进阶
+  【前置知识】27_web_apis/11_blob_file_formdata.js（同知识点的 Node 版）、
+             27_web_apis/04_fetch_api.html（fetch 发送请求体）、
+             27_web_apis/02_dom_events.html（事件与事件对象）
+
+  【知识点说明】
+
+  1. 是什么
+     - Blob（Binary Large Object）：浏览器里表示"一段不可变的二进制数据 + 一个
+       MIME 类型"的对象。它不关心内容是图片、文本还是压缩包，只负责"装字节"。
+       可以把它理解成"带类型标签的只读文件"。
+     - File：Blob 的子类，额外带 name（文件名）与 lastModified（修改时间戳）。
+       用户在 <input type="file"> 里选中的、以及拖放进来的，都是 File 对象。
+     - FileReader：把 Blob 读成文本 / DataURL / ArrayBuffer 的传统 API，
+       纯事件式（onload / onerror / onprogress），没有 Promise 版本。
+       现代代码更常用 Blob 自带的 Promise 方法：text() / arrayBuffer() / stream()。
+     - FormData：表单数据容器，让"文本字段 + 文件"能一次性提交。
+       交给 fetch 时会自动编码成 multipart/form-data。
+
+  2. 为什么需要
+     网页里到处是二进制：上传的图片、要下载的报表、Canvas 导出的图、
+     录音录像的原始数据。JS 早期只能玩字符串，处理二进制要靠各种奇技淫巧。
+     Blob / ArrayBuffer / TypedArray 这一套出现后，二进制才成为一等公民。
+     FormData 则解决了最常见的"文件上传"场景——不用手写编码。
+
+  3. 核心语法要点
+     - new Blob(parts, { type })  parts 可以是 字符串 / ArrayBuffer /
+       TypedArray / 其它 Blob；type 是 MIME 类型。
+     - blob.size / blob.type / blob.slice(start, end, type)
+     - blob.text() / blob.arrayBuffer() / blob.stream() → 都是 Promise
+     - URL.createObjectURL(blob) → 生成 blob:http://... 临时地址，
+       可直接给 <img src>、<video src>、<a download>；用完必须 revokeObjectURL。
+     - new File(bits, name, { type, lastModified })
+     - new FileReader() + readAsText / readAsDataURL / readAsArrayBuffer
+     - new FormData(form?) + append / set / get / getAll / has / delete / entries
+     - fetch(url, { method: 'POST', body: formData })  → 自动 multipart 编码
+
+  4. 常见陷阱
+     - Blob 不可变：造好之后改不了，只能 slice 出新 Blob。
+     - 大文件不要用 readAsDataURL：Base64 会把体积膨胀约 33%，且整个字符串
+       长期驻留内存。预览大文件一律用 createObjectURL。
+     - FileReader 与 blob.text() 都会把整个文件读进内存；读超大文件应该用
+       blob.stream() + getReader() 边读边处理。
+     - <input type="file"> 的 value 是只读的（安全限制），清空只能
+       input.value = ''。
+     - 文件选择框的 change 事件在"选了同一个文件"时不会触发，
+       因为 value 没变化。
+     - file:// 协议下的限制：本页所有演示（Blob / File / FileReader /
+       createObjectURL / FormData 构造）都能正常工作；但用 fetch 去读本地
+       文件会被 CORS 拦下（浏览器把每个本地文件视为独立源），
+       这一点在页面里用 try/catch 演示，不会留下未捕获错误。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（零外链、零 CDN、可离线运行）。
+     也可以点「选择文件」按钮挑一个本地文件来观察真实的 File 对象。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     页面上有 4 组按钮。每点一次，右侧日志区会打印该操作的完整细节：
+     Blob 的字节数/类型/内容、切片结果、File 的元信息与三种读取方式、
+     FileReader 的事件序列、FormData 的字段遍历、multipart 编码后的原始字节，
+     以及 Object URL 的创建与释放。左下方还有一块预览区实时展示图片/文本。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Blob / File / FileReader / FormData</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 18px;
+        margin-top: 0;
+      }
+
+      h3 {
+        font-size: 14.5px;
+        margin: 14px 0 6px;
+        color: #57606a;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 14px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div {
+        flex: 1 1 420px;
+        min-width: 340px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 13px;
+      }
+
+      #log {
+        margin: 0;
+        height: 460px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13.5px;
+      }
+
+      #preview {
+        border: 1px dashed #d0d7de;
+        border-radius: 8px;
+        padding: 10px;
+        background: #fbfcfd;
+        min-height: 90px;
+        font-size: 13px;
+      }
+
+      #preview img {
+        max-width: 100%;
+        max-height: 160px;
+        display: block;
+        border-radius: 6px;
+      }
+
+      .kv {
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        background: #f6f8fa;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        padding: 8px 10px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      #fileMeta {
+        color: #1f2328;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Blob / File / FileReader / FormData</h1>
+
+    <p class="hint">
+      二进制数据在浏览器里怎么表示、怎么读、怎么传？本页用真实 API 一步一步演示。
+      所有演示都能离线运行；点「选择文件」时浏览器只会读取你选中的那个文件，不会上传到任何地方。
+    </p>
+
+    <div class="layout">
+      <!-- ================= 左侧：操作区 ================= -->
+      <div>
+        <div class="card">
+          <h2>1. Blob：创建与读取</h2>
+          <p class="hint">
+            Blob = 一段不可变的字节 + 一个 MIME 类型。<code>size</code> 数的是字节，
+            不是字符——中文在 UTF-8 下占 3 字节。
+          </p>
+          <button data-act="blob-create">创建 Blob 并读取（text / arrayBuffer / stream）</button>
+          <button data-act="blob-slice">切 10KB 假文件（看 size 与字节）</button>
+          <button data-act="blob-objecturl">createObjectURL + revoke 演示</button>
+        </div>
+
+        <div class="card">
+          <h2>2. File：文件对象与 FileReader</h2>
+          <p class="hint">
+            可以点按钮挑一个你自己的文件；也可以点「用内置假文件」在没有任何文件的情况下看效果。
+          </p>
+          <div class="row">
+            <input type="file" id="fileInput" />
+            <button data-act="file-fake">用内置假文件</button>
+          </div>
+          <div id="fileMeta" class="kv">（还没选择文件）</div>
+          <h3>用 FileReader 读取上面的文件</h3>
+          <button data-act="fr-text">readAsText（文本）</button>
+          <button data-act="fr-dataurl">readAsDataURL（Base64）</button>
+          <button data-act="fr-buffer">readAsArrayBuffer（原始字节）</button>
+          <button data-act="fr-abort">读一个大文件然后 abort()</button>
+        </div>
+
+        <div class="card">
+          <h2>3. 大文件切片（分片上传思路）</h2>
+          <p class="hint">
+            <code>blob.slice(start, end)</code> 是分片上传的基础：
+            每片单独发一个请求，失败只重传那一片。
+          </p>
+          <button data-act="chunk-plan">规划分片（1MB 文件 / 256KB 一片）</button>
+          <button data-act="chunk-upload">模拟串行上传全部分片</button>
+        </div>
+
+        <div class="card">
+          <h2>4. FormData：文本 + 文件一起提交</h2>
+          <p class="hint">
+            FormData 被 fetch 发送时会自动编码成 <code>multipart/form-data</code>。
+            下面按钮会手写这段编码，把"上传到底发了什么字节"摊开给你看。
+          </p>
+          <button data-act="fd-build">构造 FormData 并遍历字段</button>
+          <button data-act="fd-encode">手写 multipart 编码（十六进制 + 文本）</button>
+          <button data-act="fd-parse">把上面的字节反向解析回字段</button>
+        </div>
+
+        <div class="card">
+          <h2>5. file:// 协议下的限制演示</h2>
+          <p class="hint">
+            本页是双击打开的，地址栏是 <code>file://</code>。Blob 家族全部可用，
+            但"用代码去读本地文件"会被同源策略拦住。点下面按钮看看会发生什么。
+          </p>
+          <button data-act="file-protocol">试着 fetch 一个本地文件（预期失败）</button>
+          <button data-act="file-protocol2">检查当前页面的协议与源</button>
+        </div>
+      </div>
+
+      <!-- ================= 右侧：日志 + 预览 ================= -->
+      <div>
+        <div class="card">
+          <h2>预览区</h2>
+          <div id="preview" class="hint">
+            这里会显示：Object URL 指向的图片、FileReader 读出的文本、
+            或 FileReader 读出的 DataURL 图片。
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>操作日志</h2>
+          <pre id="log"></pre>
+          <p class="hint">按 F12 打开开发者工具的 Console，可以看到同样的输出。</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // 用 IIFE 造出私有作用域，避免变量污染到 window 上。
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 通用工具：日志、字节格式化、分节标题
+        // ------------------------------------------------------------------
+
+        const logEl = document.getElementById('log');
+        const previewEl = document.getElementById('preview');
+        const fileMetaEl = document.getElementById('fileMeta');
+        const fileInput = document.getElementById('fileInput');
+        let step = 0;
+
+        /**
+         * 往日志区追加一行。
+         * @param {string} text 要打印的内容
+         * @param {'ok'|'warn'|'dim'} [kind] 颜色分类
+         */
+        function log(text, kind) {
+          step += 1;
+          const prefix = String(step).padStart(2, '0') + ' | ';
+          const span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = prefix + text; // 用 textContent，避免把内容当 HTML 解析
+          logEl.appendChild(span);
+          logEl.appendChild(document.createTextNode('\n'));
+          logEl.scrollTop = logEl.scrollHeight;
+          console.log(text);
+        }
+
+        /** 打印一个分节标题，让日志更好读 */
+        function section(title) {
+          log('');
+          log('=== ' + title + ' ===', 'dim');
+        }
+
+        /** 字节数组 → "89 50 4E 47 ..." 十六进制串 */
+        function toHex(bytes, max) {
+          const limit = max || 48;
+          const shown = bytes.subarray(0, limit);
+          const hex = Array.from(shown, function (b) {
+            return b.toString(16).padStart(2, '0').toUpperCase();
+          }).join(' ');
+          return bytes.length > limit ? hex + ' ... (共 ' + bytes.length + ' 字节)' : hex;
+        }
+
+        /** 人类可读的字节数 */
+        function humanSize(n) {
+          if (n < 1024) return n + ' B';
+          if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+          return (n / 1024 / 1024).toFixed(2) + ' MB';
+        }
+
+        /** 清空预览区并写入一段说明文字 */
+        function setPreviewText(text) {
+          previewEl.textContent = text;
+        }
+
+        log('页面加载完成，环境就绪。');
+        log('检测到当前地址协议：' + location.protocol, 'dim');
+        log('Blob 支持：' + (typeof Blob !== 'undefined') + '，File：' + (typeof File !== 'undefined') +
+          '，FileReader：' + (typeof FileReader !== 'undefined') + '，FormData：' + (typeof FormData !== 'undefined'), 'dim');
+        log('准备就绪，请点击左侧任意按钮。', 'ok');
+
+        // ------------------------------------------------------------------
+        // 1. Blob 的创建与读取
+        // ------------------------------------------------------------------
+
+        // 造一张 4x4 的纯色 PNG（这段 base64 是预先算好的最小合法 PNG 字节）
+        // 目的：让后面的 Object URL 预览真的能显示出一张图，而不依赖任何外部文件。
+        function makeTinyPngBlob() {
+          const b64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAHElEQVQI12P8z8Dwn4GB' +
+            'gYmBgYGBAQ8AAB0hAwHqQ0M1AAAAAElFTkSuQmCC';
+          const bin = atob(b64); // atob：Base64 字符串 → 二进制字符串（每个字符 1 字节）
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); // 逐字节取出
+          return new Blob([bytes], { type: 'image/png' });
+        }
+
+        const actions = {};
+
+        actions['blob-create'] = async function () {
+          section('Blob 的创建与三种读取方式');
+
+          // new Blob(parts, options)
+          //   parts  ：数组，元素可以是 字符串 / ArrayBuffer / TypedArray / Blob
+          //   options：{ type: 'MIME 类型' }
+          const blob = new Blob(['你好，Blob！', '\n第二行'], { type: 'text/plain;charset=utf-8' });
+          log('new Blob(["你好，Blob！","\\n第二行"], { type: "text/plain;charset=utf-8" })');
+          log('  blob.size = ' + blob.size + ' 字节  ← 注意 size 数的是字节，不是字符', 'ok');
+          log('  blob.type = ' + JSON.stringify(blob.type));
+          log('  "你好，Blob！" 有 ' + '你好，Blob！'.length + ' 个字符，但 UTF-8 下占 ' +
+            new TextEncoder().encode('你好，Blob！').length + ' 个字节', 'dim');
+
+          // 读取方式一：text() → Promise<string>（按 UTF-8 解码）
+          const asText = await blob.text();
+          log('[blob.text()]        → ' + JSON.stringify(asText), 'ok');
+
+          // 读取方式二：arrayBuffer() → Promise<ArrayBuffer>（原始字节）
+          const buf = await blob.arrayBuffer();
+          log('[blob.arrayBuffer()] → byteLength = ' + buf.byteLength);
+          log('  前 16 字节：' + toHex(new Uint8Array(buf), 16), 'dim');
+
+          // 读取方式三：stream() → ReadableStream，可以边读边处理，适合大文件
+          const reader = blob.stream().getReader();
+          const chunks = [];
+          while (true) {
+            const r = await reader.read(); // { value: Uint8Array, done: boolean }
+            if (r.done) break;
+            chunks.push(r.value);
+          }
+          const total = chunks.reduce(function (s, c) { return s + c.length; }, 0);
+          log('[blob.stream()]      → 分 ' + chunks.length + ' 块读到，合计 ' + total + ' 字节', 'ok');
+          log('  浏览器里这样写：const reader = blob.stream().getReader(); 然后循环 await reader.read()', 'dim');
+
+          // 混合 parts：字符串与二进制可以放在同一个 Blob 里，按顺序拼接
+          const png = makeTinyPngBlob();
+          const mixed = new Blob(['前缀-', new Uint8Array([1, 2, 3, 4]), '-后缀'], { type: 'application/octet-stream' });
+          log('');
+          log('混合 parts：[字符串, Uint8Array, 字符串] → size = ' + mixed.size +
+            '（7 + 4 + 7 字节）', 'ok');
+          log('内置的假 PNG 图片 Blob：size = ' + png.size + '，type = ' + png.type, 'dim');
+          log('提醒：Blob 不可变，没有 append / 修改方法，要"改"只能重新构造或 slice。', 'warn');
+        };
+
+        actions['blob-slice'] = function () {
+          section('slice：字节视角与切片');
+
+          const bytes = new Uint8Array(16);
+          for (let i = 0; i < bytes.length; i++) bytes[i] = i * 16 + 8; // 造一点有规律的字节
+          const blob = new Blob([bytes], { type: 'application/octet-stream' });
+
+          log('原始 Blob：size = ' + blob.size);
+          log('字节内容：' + toHex(bytes, 16), 'ok');
+
+          // slice(start, end, type)：左闭右开，语义与 String.prototype.slice 完全一致
+          const head = blob.slice(0, 8); // 前 8 字节
+          const mid = blob.slice(4, 12); // 中间 8 字节（与上一个重叠，这是允许的）
+          const tail = blob.slice(-4); // 负数表示从末尾倒数
+          log('blob.slice(0, 8)  → size = ' + head.size + '（前 8 字节）');
+          log('blob.slice(4, 12) → size = ' + mid.size + '（可以有重叠，切片无副作用）');
+          log('blob.slice(-4)    → size = ' + tail.size + '（负数从末尾倒数）', 'dim');
+
+          // 用一个 65536 字节的 Blob 来算切片方案
+          const big = new Blob([new Uint8Array(65536)], { type: 'application/octet-stream' });
+          const plan = sliceIntoChunks(big, 16384);
+          log('');
+          log('把 ' + big.size + ' 字节的 Blob 按 16384 字节切片：');
+          for (let i = 0; i < plan.length; i++) {
+            const c = plan[i];
+            log('  第 ' + i + ' 片  [' + c.start + ', ' + c.end + ')  ' + c.blob.size + ' 字节');
+          }
+          const sum = plan.reduce(function (s, c) { return s + c.blob.size; }, 0);
+          log('  分片之和 = ' + sum + '，与原文件一致：' + (sum === big.size), 'ok');
+        };
+
+        actions['blob-objecturl'] = function () {
+          section('URL.createObjectURL：给 Blob 一个临时地址');
+
+          const png = makeTinyPngBlob();
+
+          // createObjectURL 会为这个 Blob 在内存里注册一个映射，返回 blob: 开头的地址。
+          // 它不会拷贝数据，所以比 DataURL 快得多、省得多。
+          const url = URL.createObjectURL(png);
+          log('URL.createObjectURL(blob) → ' + url, 'ok');
+          log('  这个地址只在当前文档有效，关掉页面就自动失效。', 'dim');
+
+          // 真实用途：直接喂给 <img src>
+          previewEl.textContent = '';
+          const img = document.createElement('img');
+          img.alt = '由 Blob + Object URL 渲染出来的图片';
+          img.src = url; // 浏览器会去读这个 blob: 地址，从内存拿字节
+          img.onload = function () {
+            log('  <img> 已加载成功，尺寸 ' + img.naturalWidth + ' x ' + img.naturalHeight + '（数据完全来自内存，没走网络）', 'ok');
+          };
+          img.onerror = function () {
+            log('  <img> 加载失败', 'warn');
+          };
+          previewEl.appendChild(img);
+
+          // 内存管理：用完必须 revoke，否则这块 Blob 永远不会被回收
+          log('');
+          log('对比 DataURL（把字节 Base64 后塞进字符串）：', 'dim');
+          const fr = new FileReader();
+          fr.onload = function () {
+            log('  DataURL 长度 = ' + fr.result.length + ' 字符，而原 Blob 只有 ' + png.size + ' 字节', 'warn');
+            log('  Base64 会把体积膨胀约 33%，而且这个大字符串会一直占着内存。', 'warn');
+            log('  结论：预览/下载用 createObjectURL，只有"要塞进文本协议"时才用 DataURL。', 'ok');
+          };
+          fr.readAsDataURL(png); // 异步：读完触发 onload
+
+          log('');
+          log('3 秒后自动调用 URL.revokeObjectURL 释放这块内存……', 'dim');
+          setTimeout(function () {
+            URL.revokeObjectURL(url);
+            log('已 revokeObjectURL。此后那个地址就失效了（img 已经渲染完的内容不受影响）。', 'ok');
+            log('常见内存泄漏：每次生成预览都 createObjectURL，却从不 revoke。', 'warn');
+          }, 3000);
+        };
+
+        /** 把 Blob 按固定大小切片，返回 [{index, start, end, blob}] */
+        function sliceIntoChunks(blob, chunkSize) {
+          const chunks = [];
+          for (let start = 0; start < blob.size; start += chunkSize) {
+            const end = Math.min(start + chunkSize, blob.size);
+            chunks.push({ index: chunks.length, start: start, end: end, blob: blob.slice(start, end, blob.type) });
+          }
+          return chunks;
+        }
+
+        // ------------------------------------------------------------------
+        // 2. File 与 FileReader
+        // ------------------------------------------------------------------
+
+        /** 当前正在被操作的文件（来自 input，或内置假文件） */
+        let currentFile = null;
+
+        /** 把 File 的元信息渲染到左下角的小面板里 */
+        function showFileMeta(f) {
+          if (!f) {
+            fileMetaEl.textContent = '（还没选择文件）';
+            return;
+          }
+          fileMetaEl.textContent =
+            'name         = ' + f.name + '\n' +
+            'size         = ' + f.size + ' 字节（' + humanSize(f.size) + '）\n' +
+            'type         = ' + (f.type || '（空，浏览器无法识别）') + '\n' +
+            'lastModified = ' + f.lastModified + '  →  ' + new Date(f.lastModified).toLocaleString() + '\n' +
+            'instanceof Blob = ' + (f instanceof Blob) + '   （File 继承自 Blob）';
+        }
+
+        // input 的 change 事件：用户选完文件后触发
+        // 注意：选了"同一个文件"不会触发 change，因为 value 没变。
+        fileInput.addEventListener('change', function () {
+          const f = fileInput.files && fileInput.files[0];
+          if (!f) return;
+          currentFile = f;
+          section('用户选择了文件');
+          log('fileInput.files[0] → ' + f.name, 'ok');
+          log('  这是真实的 File 对象，由浏览器创建，我们只能读不能改。', 'dim');
+          log('  size = ' + f.size + '，type = ' + JSON.stringify(f.type) + '，lastModified = ' + f.lastModified);
+          showFileMeta(f);
+          log('  提示：input.value 是只读的，想清空只能写 input.value = ""。', 'dim');
+        });
+
+        actions['file-fake'] = function () {
+          section('用代码构造一个 File（不需要用户选文件）');
+
+          // new File(fileBits, fileName, options)
+          // 浏览器里 File 通常由 <input> 或拖放产生，但也可以自己 new 出来，
+          // 这在前端测试、把 Canvas 结果当文件上传时非常有用。
+          const csv = 'id,name,score\n1,张三,92\n2,李四,88\n3,王五,75\n';
+          const f = new File([csv], 'scores.csv', { type: 'text/csv', lastModified: Date.now() });
+          currentFile = f;
+
+          log('new File([csv 文本], "scores.csv", { type: "text/csv" })');
+          log('  构造成功，它和用户选出来的 File 在类型上完全一样。', 'ok');
+          showFileMeta(f);
+          log('  内容：' + JSON.stringify(csv), 'dim');
+        };
+
+        actions['fr-text'] = function () {
+          if (!requireFile()) return;
+          section('FileReader.readAsText：读成字符串');
+
+          const fr = new FileReader();
+          // FileReader 是纯事件式的，没有 Promise 版本。
+          // 想 await 就得自己包一层 new Promise(...)，这正是它被 text() 取代的原因。
+          fr.onload = function () {
+            const text = String(fr.result);
+            log('onload 触发，fr.result 是字符串，长度 ' + text.length, 'ok');
+            log('内容前 200 字符：');
+            log(JSON.stringify(text.slice(0, 200)));
+            setPreviewText('readAsText 读出的内容（前 300 字符）：\n\n' + text.slice(0, 300));
+          };
+          fr.onerror = function () {
+            log('onerror：读取失败（' + (fr.error && fr.error.name) + '）', 'warn');
+          };
+          fr.onprogress = function (e) {
+            // 大文件时 onprogress 会多次触发，可用来画进度条
+            if (e.lengthComputable) {
+              log('  onprogress：' + e.loaded + ' / ' + e.total + ' 字节', 'dim');
+            }
+          };
+          fr.readAsText(currentFile, 'utf-8'); // 第二个参数是编码，默认就是 utf-8
+          log('已调用 readAsText（异步，结果在 onload 里拿）。', 'dim');
+        };
+
+        actions['fr-dataurl'] = function () {
+          if (!requireFile()) return;
+          section('FileReader.readAsDataURL：读成 DataURL（Base64）');
+
+          const fr = new FileReader();
+          fr.onload = function () {
+            const url = String(fr.result);
+            log('fr.result 形如：' + url.slice(0, 60) + '...', 'ok');
+            log('  总长度 ' + url.length + ' 字符；原文件 ' + currentFile.size + ' 字节', 'warn');
+            log('  膨胀率约 ' + ((url.length / Math.max(currentFile.size, 1)) * 100).toFixed(0) + '%，这就是 Base64 的代价。', 'warn');
+            log('  DataURL 的唯一优势：它是一段纯文本，可以直接放进 JSON / CSS / HTML 属性里。', 'dim');
+
+            if (/^data:image\//.test(url)) {
+              previewEl.textContent = '';
+              const img = document.createElement('img');
+              img.alt = 'DataURL 渲染的图片';
+              img.src = url;
+              previewEl.appendChild(img);
+              log('  已用 DataURL 渲染预览图（可以对比 Object URL 的方式）。', 'ok');
+            } else {
+              setPreviewText('DataURL 前 300 字符：\n\n' + url.slice(0, 300));
+            }
+          };
+          fr.onerror = function () {
+            log('onerror：读取失败', 'warn');
+          };
+          fr.readAsDataURL(currentFile);
+          log('已调用 readAsDataURL。', 'dim');
+        };
+
+        actions['fr-buffer'] = function () {
+          if (!requireFile()) return;
+          section('FileReader.readAsArrayBuffer：读成原始字节');
+
+          const fr = new FileReader();
+          fr.onload = function () {
+            // fr.result 是 ArrayBuffer，要用 Uint8Array 包一层才能按下标访问
+            const bytes = new Uint8Array(fr.result);
+            log('byteLength = ' + bytes.length, 'ok');
+            log('前 48 字节（十六进制）：');
+            log('  ' + toHex(bytes, 48));
+            // 顺便演示"文件魔数"：看头几个字节就能猜出文件类型
+            log('  前 4 字节解读：' + Array.from(bytes.slice(0, 4)).join(',') +
+              '  ← 很多文件格式靠开头的"魔数"来识别（PNG 是 137 80 78 71）', 'dim');
+            setPreviewText('readAsArrayBuffer 读出的前 64 字节：\n\n' + toHex(bytes, 64));
+          };
+          fr.onerror = function () {
+            log('onerror：读取失败', 'warn');
+          };
+          fr.readAsArrayBuffer(currentFile);
+          log('已调用 readAsArrayBuffer。', 'dim');
+        };
+
+        actions['fr-abort'] = function () {
+          section('FileReader.abort()：中途取消读取');
+
+          // 造一个 8MB 的 Blob，读取过程中立刻 abort
+          const big = new Blob([new Uint8Array(8 * 1024 * 1024)], { type: 'application/octet-stream' });
+          const fr = new FileReader();
+
+          fr.onloadstart = function () { log('onloadstart：开始读取 ' + big.size + ' 字节', 'dim'); };
+          fr.onprogress = function (e) {
+            log('  onprogress：已读 ' + humanSize(e.loaded) + ' / ' + humanSize(e.total), 'dim');
+          };
+          fr.onabort = function () {
+            log('onabort：读取被取消，fr.result = ' + fr.result, 'ok');
+            log('  实际项目里，用户点了"取消上传"就该调用 abort()，及时释放内存。', 'dim');
+          };
+          fr.onload = function () {
+            log('onload：读完了（如果 abort 生效，这里不该被触发）', 'warn');
+          };
+          fr.onerror = function () {
+            log('onerror：' + (fr.error && fr.error.name), 'warn');
+          };
+
+          fr.readAsArrayBuffer(big);
+          // 立刻 abort：读大文件是异步的，此刻还没读完，可以成功取消
+          fr.abort();
+          log('已调用 abort()。', 'ok');
+        };
+
+        /** 若当前没有文件，提示用户先选一个，并返回 false */
+        function requireFile() {
+          if (currentFile) return true;
+          log('还没有文件可读。请先点「选择文件」挑一个，或点「用内置假文件」生成一个。', 'warn');
+          return false;
+        }
+
+        // ------------------------------------------------------------------
+        // 3. 大文件切片
+        // ------------------------------------------------------------------
+
+        actions['chunk-plan'] = function () {
+          section('规划分片方案');
+          // 真造 1MB 内存也还好，这里用一个 1MB 的 Blob 演示
+          const size = 1024 * 1024;
+          const blob = new Blob([new Uint8Array(size)], { type: 'application/octet-stream' });
+          const chunkSize = 256 * 1024;
+
+          log('文件大小 = ' + humanSize(blob.size) + '，分片大小 = ' + humanSize(chunkSize));
+          const plan = sliceIntoChunks(blob, chunkSize);
+          for (let i = 0; i < plan.length; i++) {
+            const c = plan[i];
+            log('  第 ' + c.index + ' 片  [' + c.start + ', ' + c.end + ')  ' + humanSize(c.blob.size));
+          }
+          const sum = plan.reduce(function (s, c) { return s + c.blob.size; }, 0);
+          log('分片数 = ' + plan.length + '，大小之和 = ' + sum + '，与原文件一致：' + (sum === blob.size), 'ok');
+          log('为什么分片？① 单请求有体积上限；② 失败只重传一片；③ 可并发提速；④ 边传边校验。', 'dim');
+        };
+
+        actions['chunk-upload'] = async function () {
+          section('模拟分片上传（串行）');
+          const blob = new Blob([new Uint8Array(1024 * 1024)], { type: 'application/octet-stream' });
+          const plan = sliceIntoChunks(blob, 256 * 1024);
+          const fileId = 'demo-' + Date.now();
+          log('开始上传 fileId = ' + fileId + '，共 ' + plan.length + ' 片', 'ok');
+
+          for (let i = 0; i < plan.length; i++) {
+            const c = plan[i];
+            // 真实代码这里会是：
+            //   const fd = new FormData();
+            //   fd.append('fileId', fileId); fd.append('index', String(c.index));
+            //   fd.append('chunk', c.blob);
+            //   await fetch('/upload/chunk', { method: 'POST', body: fd });
+            const buf = await c.blob.arrayBuffer(); // 浏览器里就是把 blob 直接塞进 body
+            const bytes = new Uint8Array(buf);
+            const checksum = bytes.subarray(0, 4).reduce(function (s, b) { return (s + b) % 100000; }, 0);
+            log('  上传第 ' + c.index + ' 片 → ' + humanSize(bytes.length) + '，校验和 ' + checksum + ' ✓');
+          }
+          log('全部分片完成，通知服务端合并 fileId = ' + fileId, 'ok');
+        };
+
+        // ------------------------------------------------------------------
+        // 4. FormData 与 multipart 编码
+        // ------------------------------------------------------------------
+
+        /** 构造一个演示用的 FormData（文本 + 文件混在一起） */
+        function buildDemoFormData() {
+          const fd = new FormData();
+          fd.append('username', '张三'); // 普通文本字段
+          fd.append('age', '28');
+          // 文件字段：第二个参数是 File/Blob，第三个参数可以覆盖文件名
+          const csv = new File(['id,name\n1,张三\n2,李四\n'], 'users.csv', { type: 'text/csv' });
+          fd.append('attachment', csv, 'renamed.csv');
+          fd.append('tags', 'vip'); // 同名 append 两次 → 两个同名字段（表单里完全合法）
+          fd.append('tags', 'new');
+          return fd;
+        }
+
+        actions['fd-build'] = function () {
+          section('构造 FormData 并遍历');
+
+          const fd = buildDemoFormData();
+          log('has("username") = ' + fd.has('username'));
+          log('get("username") = ' + JSON.stringify(fd.get('username')));
+          log('getAll("tags")  = ' + JSON.stringify(fd.getAll('tags')) + '  ← 同名多值要用 getAll', 'ok');
+          log('get("attachment") = ' + fd.get('attachment').name + '，类型 ' + fd.get('attachment').constructor.name);
+          log('');
+          log('遍历 entries()（FormData 实现了可迭代协议）：');
+          for (const entry of fd.entries()) {
+            const name = entry[0];
+            const value = entry[1];
+            const desc = typeof value === 'string'
+              ? JSON.stringify(value)
+              : 'File("' + value.name + '", ' + value.size + ' 字节, ' + value.type + ')';
+            log('  ' + name + ' = ' + desc);
+          }
+
+          // set 覆盖，append 追加；delete 删除
+          fd.set('tags', 'vvip');
+          log('');
+          log('set("tags","vvip") 之后 getAll("tags") = ' + JSON.stringify(fd.getAll('tags')) + '  ← set 覆盖同名全部', 'ok');
+          fd.delete('age');
+          log('delete("age") 之后 has("age") = ' + fd.has('age'));
+          log('');
+          log('交给 fetch 时完全不用手动编码：', 'dim');
+          log("  fetch('/api/upload', { method: 'POST', body: fd })", 'dim');
+          log('  浏览器会自动加上 Content-Type: multipart/form-data; boundary=... 并编码好字节。', 'dim');
+        };
+
+        /** 生成一个随机 boundary（浏览器内部也是这么干的） */
+        function makeBoundary() {
+          return '----WebKitFormBoundary' + Math.random().toString(36).slice(2, 18);
+        }
+
+        const encoder = new TextEncoder();
+
+        /** 把多个 Uint8Array 拼成一个 */
+        function concatBytes(chunks) {
+          let total = 0;
+          for (let i = 0; i < chunks.length; i++) total += chunks[i].length;
+          const out = new Uint8Array(total);
+          let offset = 0;
+          for (let i = 0; i < chunks.length; i++) {
+            out.set(chunks[i], offset);
+            offset += chunks[i].length;
+          }
+          return out;
+        }
+
+        /**
+         * 手写 multipart/form-data 编码。
+         * @param {Array} fields 形如 [{name, value}] 或 [{name, filename, contentType, data}]
+         * @param {string} boundary 分隔符
+         * @returns {Uint8Array} 请求体字节
+         */
+        function encodeMultipart(fields, boundary) {
+          const CRLF = '\r\n';
+          const pieces = [];
+          for (let i = 0; i < fields.length; i++) {
+            const f = fields[i];
+            // 每个字段以 "--boundary CRLF" 开头
+            pieces.push(encoder.encode('--' + boundary + CRLF));
+            if (f.filename !== undefined) {
+              // 文件字段：Content-Disposition 里多一个 filename 参数
+              pieces.push(encoder.encode('Content-Disposition: form-data; name="' + f.name +
+                '"; filename="' + f.filename + '"' + CRLF));
+              // 再带一个 Content-Type 说明这坨字节是什么
+              pieces.push(encoder.encode('Content-Type: ' + (f.contentType || 'application/octet-stream') + CRLF));
+            } else {
+              pieces.push(encoder.encode('Content-Disposition: form-data; name="' + f.name + '"' + CRLF));
+            }
+            // 头部与主体之间必须有一个空行
+            pieces.push(encoder.encode(CRLF));
+            // 主体：文本按 UTF-8 编码，文件直接放原始字节（绝不能当字符串处理）
+            pieces.push(f.data !== undefined ? f.data : encoder.encode(f.value === undefined ? '' : f.value));
+            pieces.push(encoder.encode(CRLF));
+          }
+          // 结束标记比普通分隔符多两个短横线
+          pieces.push(encoder.encode('--' + boundary + '--' + CRLF));
+          return concatBytes(pieces);
+        }
+
+        /** 把 FormData 转成上面的 fields 中间表示 */
+        async function formDataToFields(fd) {
+          const fields = [];
+          for (const entry of fd.entries()) {
+            const name = entry[0];
+            const value = entry[1];
+            if (typeof value === 'string') {
+              fields.push({ name: name, value: value });
+            } else {
+              fields.push({
+                name: name,
+                filename: value.name || 'blob',
+                contentType: value.type || 'application/octet-stream',
+                data: new Uint8Array(await value.arrayBuffer()), // File → 原始字节
+              });
+            }
+          }
+          return fields;
+        }
+
+        // 把最近一次编码的结果缓存下来，供"反向解析"按钮使用
+        let lastMultipart = null;
+
+        actions['fd-encode'] = async function () {
+          section('手写 multipart/form-data 编码');
+          const fd = buildDemoFormData();
+          const boundary = makeBoundary();
+          const fields = await formDataToFields(fd);
+          const bytes = encodeMultipart(fields, boundary);
+          lastMultipart = { bytes: bytes, boundary: boundary };
+
+          log('boundary = ' + boundary, 'ok');
+          log('对应的请求头应该是：');
+          log('  Content-Type: multipart/form-data; boundary=' + boundary);
+          log('  Content-Length: ' + bytes.length);
+          log('');
+          log('编码后的请求体共 ' + bytes.length + ' 字节。结构是：');
+          log('  --boundary CRLF');
+          log('  Content-Disposition: form-data; name="字段名"[; filename="文件名"] CRLF');
+          log('  [Content-Type: MIME 类型 CRLF]');
+          log('  CRLF                     ← 空行，分隔头部与主体');
+          log('  字段内容（文件的原始字节）CRLF');
+          log('  --boundary        ← 下一个字段');
+          log('  ...');
+          log('  --boundary--CRLF  ← 结束标记（末尾多两个短横线）');
+          log('');
+          log('前 260 字节的原文（把 CRLF 显示成 ⏎ 以便肉眼看结构）：');
+          const preview = new TextDecoder().decode(bytes.subarray(0, 260));
+          log(JSON.stringify(preview.replace(/\r\n/g, '⏎')));
+          log('');
+          log('前 64 字节的十六进制（看清真实的字节）：');
+          log('  ' + toHex(bytes, 64));
+          setPreviewText('multipart 请求体前 400 字节：\n\n' +
+            new TextDecoder().decode(bytes.subarray(0, 400)).replace(/\r\n/g, '\n'));
+        };
+
+        /** 在字节数组里查找子序列，返回下标或 -1 */
+        function indexOfBytes(haystack, needle, from) {
+          const start = from || 0;
+          outer: for (let i = start; i <= haystack.length - needle.length; i++) {
+            for (let j = 0; j < needle.length; j++) {
+              if (haystack[i + j] !== needle[j]) continue outer;
+            }
+            return i;
+          }
+          return -1;
+        }
+
+        /**
+         * 解析 multipart 字节流（服务端 multer/busboy 做的事）。
+         * 思路：按 "--boundary" 切开，每片里用 "\r\n\r\n" 分出头部与主体。
+         */
+        function parseMultipart(bytes, boundary) {
+          const delim = encoder.encode('--' + boundary);
+          const headerSep = encoder.encode('\r\n\r\n');
+          const decoderLocal = new TextDecoder('utf-8');
+          const result = [];
+          let pos = indexOfBytes(bytes, delim, 0);
+
+          while (pos !== -1) {
+            let start = pos + delim.length;
+            // "--boundary--" 表示结束
+            if (bytes[start] === 0x2d && bytes[start + 1] === 0x2d) break; // 0x2d 就是 '-'
+            // 分隔符后跟一个 CRLF
+            if (bytes[start] === 0x0d && bytes[start + 1] === 0x0a) start += 2;
+
+            const next = indexOfBytes(bytes, delim, start);
+            if (next === -1) break;
+
+            let end = next;
+            // 片尾的 CRLF 属于分隔符，不属于内容
+            if (bytes[end - 2] === 0x0d && bytes[end - 1] === 0x0a) end -= 2;
+
+            const raw = bytes.subarray(start, end);
+            const sep = indexOfBytes(raw, headerSep, 0);
+            if (sep === -1) {
+              pos = next;
+              continue;
+            }
+            result.push({
+              headers: decoderLocal.decode(raw.subarray(0, sep)).split('\r\n'),
+              body: raw.subarray(sep + headerSep.length), // subarray 是视图，不复制内存
+            });
+            pos = next;
+          }
+          return result;
+        }
+
+        actions['fd-parse'] = function () {
+          section('反向解析：把字节还原成字段');
+          if (!lastMultipart) {
+            log('还没有编码结果。请先点「手写 multipart 编码」。', 'warn');
+            return;
+          }
+
+          const parts = parseMultipart(lastMultipart.bytes, lastMultipart.boundary);
+          log('解析出 ' + parts.length + ' 个部分：', 'ok');
+          const decoderLocal = new TextDecoder('utf-8');
+
+          for (let i = 0; i < parts.length; i++) {
+            const p = parts[i];
+            log('');
+            log('[' + i + '] 头部：');
+            for (let j = 0; j < p.headers.length; j++) log('      ' + p.headers[j]);
+
+            // 从 Content-Disposition 里抠出 name 与 filename
+            let cd = '';
+            let ctype = '';
+            for (let j = 0; j < p.headers.length; j++) {
+              if (/^content-disposition:/i.test(p.headers[j])) cd = p.headers[j];
+              if (/^content-type:/i.test(p.headers[j])) ctype = p.headers[j].replace(/^content-type:\s*/i, '');
+            }
+            const mName = cd.match(/name="([^"]*)"/);
+            const mFile = cd.match(/filename="([^"]*)"/);
+            const fieldName = mName ? mName[1] : '?';
+
+            if (mFile) {
+              log('      解析：字段 "' + fieldName + '"，文件名 "' + mFile[1] + '"，类型 "' + ctype + '"');
+              log('            主体 ' + p.body.length + ' 字节，十六进制：');
+              log('            ' + toHex(p.body, 32));
+              log('            按文本读：' + JSON.stringify(decoderLocal.decode(p.body)));
+            } else {
+              log('      解析：字段 "' + fieldName + '" = ' + JSON.stringify(decoderLocal.decode(p.body)));
+            }
+          }
+          log('');
+          log('结论：所谓"上传文件"，本质就是把二进制拼进一个约定好格式的大字节流。', 'ok');
+          log('      FormData 负责构造，fetch 负责发送，服务端按 boundary 拆开还原。', 'ok');
+        };
+
+        // ------------------------------------------------------------------
+        // 5. file:// 协议下的限制
+        // ------------------------------------------------------------------
+
+        actions['file-protocol'] = async function () {
+          section('file:// 下用代码读本地文件（预期失败）');
+          try {
+            // 地址栏是 file:// 时，浏览器把每个本地文件都当作独立源，
+            // 因此 fetch 另一个本地文件会被 CORS 拦下。
+            const res = await fetch('01_dom_query.html');
+            log('居然成功了？status = ' + res.status, 'warn');
+          } catch (err) {
+            // 必须 catch，否则浏览器控制台会出现未捕获错误
+            log('预期中的失败：' + err.name + ' — ' + err.message, 'ok');
+            log('原因：file:// 下每个文件都是独立的"不透明源"，fetch 会因 CORS 被拒。', 'dim');
+            log('解决：起一个本地 HTTP 服务（如 VS Code Live Server、npx serve），', 'dim');
+            log('      或用 <input type="file"> 让用户主动选择——用户授权就不受 CORS 限制。', 'dim');
+          }
+          log('');
+          log('注意：Blob / File / FileReader / FormData / createObjectURL 在 file:// 下全部可用，', 'ok');
+          log('      受影响的只有"用代码自动读取本地文件"这一类操作。', 'ok');
+        };
+
+        actions['file-protocol2'] = function () {
+          section('当前页面的来源信息');
+          log('location.href     = ' + location.href, 'dim');
+          log('location.protocol = ' + location.protocol);
+          log('location.origin   = ' + location.origin + '（file:// 下是 "null"，即"不透明源"）');
+          log('document.origin   = ' + (document.location.origin || 'null'));
+          log('');
+          if (location.protocol === 'file:') {
+            log('当前是 file:// 协议。大部分 Web API 可用，但：', 'warn');
+            log('  × Service Worker 不可用（它要求 https 或 localhost）', 'warn');
+            log('  × fetch / XHR 读本地文件会被 CORS 拦', 'warn');
+            log('  × Clipboard API、Notification 等需要安全上下文的 API 会失败', 'warn');
+            log('  √ Blob / File / FileReader / FormData / Canvas / localStorage 可用', 'ok');
+          } else {
+            log('当前不是 file:// 协议，说明你用了本地服务器，所有能力都可用。', 'ok');
+          }
+        };
+
+        // ------------------------------------------------------------------
+        // 6. 用事件委托把按钮统一绑起来
+        // ------------------------------------------------------------------
+
+        document.addEventListener('click', function (event) {
+          const btn = event.target.closest('button[data-act]');
+          if (!btn) return;
+          const act = btn.getAttribute('data-act');
+          const fn = actions[act];
+          log('▸ 点击了按钮：' + btn.textContent);
+          if (typeof fn === 'function') {
+            // 用 try/catch 兜住所有异常，保证页面上永远不出现未捕获错误
+            try {
+              const r = fn();
+              // 如果是 async 函数，返回的是 Promise，要把它的 rejection 也接住
+              if (r && typeof r.catch === 'function') {
+                r.catch(function (err) {
+                  log('操作出错：' + err.name + ' — ' + err.message, 'warn');
+                });
+              }
+            } catch (err) {
+              log('操作出错：' + err.name + ' — ' + err.message, 'warn');
+            }
+          } else {
+            log('未实现的动作：' + act, 'warn');
+          }
+        });
+
+        log('已用事件委托在 document 上注册 1 个 click 监听器，覆盖全部按钮。', 'dim');
+      })();
+    </script>
+  </body>
+</html>

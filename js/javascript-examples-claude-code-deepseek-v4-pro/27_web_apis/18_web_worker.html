@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：浏览器 Web Worker（多线程 / postMessage / Transferable / Worker 池）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】高级
+  【前置知识】27_web_apis/13_cross_context_messaging.html（跨上下文与结构化克隆）、
+             27_web_apis/18_web_worker.js（同知识点的 Node 版：worker_threads 对照实验）、
+             27_web_apis/17_service_worker.html（另一种 Worker）
+
+  【知识点说明】
+
+  1. 是什么
+     JS 是单线程的：一个标签页只有一条主线程，它同时负责跑代码、算样式、布局、
+     绘制和事件响应。所以一段 500ms 的密集计算就会让页面"卡死"。
+     Web Worker 让你把计算搬到另一条线程上去：主线程 postMessage 派活，
+     Worker 算完再 postMessage 把结果送回来，主线程全程不卡。
+
+  2. 核心 API
+       const w = new Worker('worker.js');            // 独立脚本（必须同源）
+       const w = new Worker(url, { type: 'module' });// 模块化 Worker（可用 import）
+       w.postMessage(data, [transferList]);          // 主线程 → Worker
+       w.onmessage = (e) => e.data;                  // Worker → 主线程
+       w.onerror = (e) => e.message;                 // 捕获 Worker 里的未捕获错误
+       w.terminate();                                // 立刻终止
+       // Worker 脚本里：self.onmessage / self.postMessage / importScripts()
+
+  3. 两条数据规则
+     · 结构化克隆：消息是**深拷贝**过去的。能传 Date/RegExp/Map/Set/ArrayBuffer/
+       TypedArray/Blob/Error/BigInt/循环引用；不能传函数、Symbol、Promise、Proxy、
+       DOM 节点（抛 DataCloneError）。
+     · Transferable：ArrayBuffer 等可以"转移所有权"而不是复制，
+       postMessage(buf, [buf]) 之后原线程的 buf.byteLength 变成 0。
+
+  4. Worker 里没有 DOM
+     没有 document / window / alert / localStorage；有 self、fetch、setTimeout、
+     IndexedDB、WebSocket。所以标准姿势是：把数据传进去算，算完把结果传回来，
+     由**主线程**更新界面。
+
+  5. 本页在 file:// 下的特殊处理
+     部分浏览器（Chrome）不允许从 file:// 页面加载 Worker 脚本，连 blob: 形式的
+     Worker 也可能被拒绝。所以本页开头的第一件事就是**探测**：真的起一个 Worker
+     发一条 ping，1.5 秒内收不到回应就切换到"同线程模拟 Worker"，
+     并在横幅里说明原因，保证双击打开也零报错、可交互。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链、无 CDN、样式内联、可离线运行）。
+     想体验**真正多线程**的 Worker，请把本目录用任意静态服务器打开，例如
+       npx serve 27_web_apis
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     顶部横幅显示 Worker 探测结果；中间的"响应性仪表盘"会持续跳动。
+     左边的按钮分七组：双向通信、CPU 密集任务的阻塞对比（点"主线程算"能看到
+     仪表盘直接冻住，点"交给 Worker 算"则全程流畅）、Transferable 转移所有权、
+     结构化克隆的类型体检、Worker 里没有 DOM、importScripts 与模块化 Worker、
+     错误处理与 terminate、Worker 池的串行/并行耗时对比。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>浏览器 Web Worker</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 17px;
+        margin-top: 0;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 14px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div {
+        flex: 1 1 460px;
+        min-width: 330px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 13px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover:not(:disabled) {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      button.danger {
+        border-color: #d1242f;
+        color: #d1242f;
+      }
+
+      button.danger:hover:not(:disabled) {
+        background: #d1242f;
+        color: #fff;
+      }
+
+      input[type='text'],
+      input[type='number'] {
+        padding: 6px 9px;
+        font-size: 13px;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        font-family: inherit;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      #log {
+        margin: 0;
+        height: 380px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .log-err {
+        color: #ff7b72;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13.5px;
+        margin: 6px 0;
+      }
+
+      .banner {
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 12px 0;
+        font-size: 14px;
+        border: 1px solid;
+      }
+
+      .banner.ok {
+        background: #dafbe1;
+        border-color: #2da44e;
+        color: #116329;
+      }
+
+      .banner.warn {
+        background: #fff8c5;
+        border-color: #bf8700;
+        color: #7d4e00;
+      }
+
+      /* 响应性仪表盘：一个持续转动的转盘 + 一个持续增长的心跳计数 */
+      .meter {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .spin {
+        width: 42px;
+        height: 42px;
+        border: 5px solid #d0d7de;
+        border-top-color: #2f6feb;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .meter-num {
+        font-family: Consolas, Monaco, monospace;
+        font-size: 22px;
+        font-weight: 700;
+        color: #2f6feb;
+        min-width: 4em;
+      }
+
+      .meter-label {
+        font-size: 12.5px;
+        color: #57606a;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13px;
+      }
+
+      th,
+      td {
+        border: 1px solid #d0d7de;
+        padding: 4px 8px;
+        text-align: left;
+      }
+
+      th {
+        background: #f0f3f6;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>浏览器 Web Worker</h1>
+
+    <div id="banner" class="banner warn">正在探测 Worker 可用性（真起一个线程发 ping）……</div>
+
+    <div class="card">
+      <h2>响应性仪表盘</h2>
+      <div class="meter">
+        <div class="spin"></div>
+        <div>
+          <div class="meter-num" id="m-ticks">0</div>
+          <div class="meter-label">心跳次数（每 20ms 一次）</div>
+        </div>
+        <div>
+          <div class="meter-num" id="m-gap">0<small style="font-size: 13px">ms</small></div>
+          <div class="meter-label">最近一次"卡顿"的时长（两次心跳的最大间隔）</div>
+        </div>
+      </div>
+      <p class="hint">
+        这个转盘与计数由 <code>setInterval(…, 20)</code> 驱动。只要主线程被占住，
+        它们就会**当场停住** —— 点右边的按钮就能亲眼看到差别。
+      </p>
+    </div>
+
+    <div class="layout">
+      <!-- ==================== 左列：控制面板 ==================== -->
+      <div>
+        <div class="card">
+          <h2>① 双向通信</h2>
+          <input type="text" id="msg-input" value="你好，Worker！" size="22" />
+          <button data-act="send-text">postMessage 发给 Worker</button>
+          <button data-act="send-complex">发一个 Map / Date / 循环引用</button>
+          <button data-act="send-fn">发一个函数（应该报错）</button>
+        </div>
+
+        <div class="card">
+          <h2>② CPU 密集任务：阻塞对比（重点）</h2>
+          <p class="hint">任务：统计 <code>limit</code> 以内的质数个数。同一个任务，两种跑法。</p>
+          <label class="hint">
+            任务规模
+            <input type="number" id="limit-input" value="2000000" step="500000" style="width: 110px" />
+          </label>
+          <div>
+            <button class="danger" data-act="run-main">✗ 在主线程直接算（看转盘卡住）</button>
+            <button class="primary" data-act="run-worker">✓ 交给 Worker 算（转盘继续转）</button>
+          </div>
+          <p class="hint">
+            跑完之后看下面的日志：会打印"本次最长卡顿 = xxx ms"。
+            主线程跑时会看到几百毫秒的卡顿，Worker 跑时通常只有几毫秒。
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>③ Transferable：转移所有权</h2>
+          <button data-act="clone-buffer">克隆 32MB ArrayBuffer</button>
+          <button data-act="transfer-buffer">转移 32MB ArrayBuffer</button>
+          <p class="hint">转移之后，主线程这边的 <code>byteLength</code> 会变成 0。</p>
+        </div>
+
+        <div class="card">
+          <h2>④ Worker 里到底有什么</h2>
+          <button data-act="probe-env">问 Worker：有没有 document / window / localStorage？</button>
+        </div>
+
+        <div class="card">
+          <h2>⑤ 加载依赖：importScripts 与模块化 Worker</h2>
+          <button data-act="import-scripts">经典 Worker：importScripts(blobURL)</button>
+          <button data-act="module-worker">模块化 Worker：{ type: 'module' } + import</button>
+        </div>
+
+        <div class="card">
+          <h2>⑥ 错误处理与 terminate()</h2>
+          <button data-act="boom">让 Worker 抛一个错</button>
+          <button data-act="long-task">起一个长任务（5 秒）</button>
+          <button class="danger" data-act="terminate">立刻 terminate()</button>
+        </div>
+
+        <div class="card">
+          <h2>⑦ Worker 池</h2>
+          <button data-act="pool-serial">串行：1 个 Worker 做 6 个任务</button>
+          <button data-act="pool-parallel">并行：4 个 Worker 的池做 6 个任务</button>
+        </div>
+      </div>
+
+      <!-- ==================== 右列：日志 ==================== -->
+      <div>
+        <div class="card">
+          <h2>日志</h2>
+          <pre id="log"></pre>
+          <p class="hint">按 F12 打开开发者工具的 Console，可以看到同样的输出。</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ================================================================
+        // 0. 通用工具
+        // ================================================================
+
+        var logEl = document.getElementById('log');
+        var bannerEl = document.getElementById('banner');
+        var step = 0;
+
+        function log(text, kind) {
+          step += 1;
+          var prefix = String(step).padStart(2, '0') + ' | ';
+          var span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = prefix + text;
+          logEl.appendChild(span);
+          logEl.appendChild(document.createTextNode('\n'));
+          logEl.scrollTop = logEl.scrollHeight;
+          console.log(text);
+        }
+
+        // ================================================================
+        // 1. 响应性仪表盘：让"卡不卡"变成一个看得见的数字
+        // ================================================================
+
+        var ticks = 0;
+        var lastTick = performance.now();
+        var maxGap = 0;
+        var gapWindowStart = performance.now();
+
+        setInterval(function () {
+          var now = performance.now();
+          var gap = now - lastTick;
+          // 心跳间隔超过 50ms 才算"卡"（正常的 20ms 定时器会有几毫秒抖动）
+          if (gap > 50 && gap > maxGap) maxGap = gap;
+          lastTick = now;
+          ticks += 1;
+          document.getElementById('m-ticks').textContent = String(ticks);
+        }, 20);
+
+        /** 取一段时间的最大卡顿并复位 */
+        function takeMaxGap() {
+          var g = maxGap;
+          maxGap = 0;
+          lastTick = performance.now();
+          document.getElementById('m-gap').textContent = String(Math.round(g));
+          return g;
+        }
+        void gapWindowStart;
+
+        // ================================================================
+        // 2. Worker 代码（用 Blob URL 内联，保证"零外链"）
+        //    —— 下面这段字符串就是"worker.js"，在浏览器里它是一个独立脚本。
+        // ================================================================
+
+        var WORKER_CODE = [
+          '// 这里已经是 Worker 线程的全局作用域了，没有 document / window。',
+          'var counter = 0;',
+          'function countPrimes(limit) {',
+          '  var count = 0;',
+          '  for (var n = 2; n <= limit; n++) {',
+          '    var isPrime = true;',
+          '    for (var d = 2; d * d <= n; d++) if (n % d === 0) { isPrime = false; break; }',
+          '    if (isPrime) count += 1;',
+          '  }',
+          '  return count;',
+          '}',
+          'self.onmessage = function (e) {',
+          '  var msg = e.data;',
+          '  if (!msg || !msg.type) return;',
+          '',
+          '  if (msg.type === "ping") {',
+          '    self.postMessage({ type: "pong", threadTag: "worker-" + (self.name || "anonymous") });',
+          '    return;',
+          '  }',
+          '',
+          '  if (msg.type === "text") {',
+          '    counter += 1;',
+          '    self.postMessage({ type: "text-reply", text: msg.text, seq: counter });',
+          '    return;',
+          '  }',
+          '',
+          '  if (msg.type === "complex") {',
+          '    var p = msg.payload;',
+          '    self.postMessage({',
+          '      type: "complex-reply",',
+          '      date: p.date instanceof Date ? p.date.toISOString().slice(0, 10) : "丢了类型",',
+          '      map: p.map instanceof Map ? "Map(size=" + p.map.size + ")" : "丢了类型",',
+          '      set: p.set instanceof Set ? "Set(size=" + p.set.size + ")" : "丢了类型",',
+          '      typed: p.typed instanceof Uint8Array ? "Uint8Array([" + Array.prototype.join.call(p.typed, ",") + "])" : "丢了类型",',
+          '      loop: p.self === p,',
+          '      fnType: typeof p.fn,',
+          '    });',
+          '    return;',
+          '  }',
+          '',
+          '  if (msg.type === "primes") {',
+          '    var t0 = Date.now();',
+          '    var count = countPrimes(msg.limit);',
+          '    self.postMessage({ type: "primes-result", count: count, ms: Date.now() - t0, limit: msg.limit });',
+          '    return;',
+          '  }',
+          '',
+          '  if (msg.type === "peek") {',
+          '    // 收下这块内存，看一眼长度与首字节',
+          '    var view = new Uint8Array(msg.buffer);',
+          '    self.postMessage({ type: "peek-result", byteLength: msg.buffer.byteLength, first: view[0], mode: msg.mode });',
+          '    return;',
+          '  }',
+          '',
+          '  if (msg.type === "env") {',
+          '    self.postMessage({',
+          '      type: "env-reply",',
+          '      document: typeof document,',
+          '      window: typeof window,',
+          '      alert: typeof alert,',
+          '      localStorage: typeof localStorage,',
+          '      selfType: typeof self,',
+          '      fetchType: typeof fetch,',
+          '      indexedDBType: typeof indexedDB,',
+          '      importScriptsType: typeof importScripts,',
+          '    });',
+          '    return;',
+          '  }',
+          '',
+          '  if (msg.type === "boom") {',
+          '    throw new Error("Worker 里故意抛出的错误");',
+          '  }',
+          '',
+          '  if (msg.type === "long") {',
+          '    var deadline = Date.now() + msg.ms;',
+          '    var i = 0;',
+          '    while (Date.now() < deadline) i += 1; // 故意占住 Worker 线程',
+          '    self.postMessage({ type: "long-done", loops: i });',
+          '  }',
+          '};',
+        ].join('\n');
+
+        /** 把一个 Worker 代码字符串变成 Blob URL */
+        function blobUrlOf(code) {
+          return URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+        }
+
+        // ================================================================
+        // 3. 同线程"模拟 Worker"：在 file:// 下被拒绝时的降级方案
+        //    它保持 postMessage / onmessage / terminate 的 API 形状，
+        //    但代码跑在主线程上 —— 所以计算任务依然会卡住主线程，
+        //    这恰恰反证了"Worker 的价值就是别在主线程上算"。
+        // ================================================================
+
+        function FakeWorker(code) {
+          var selfObj = {
+            onmessage: null,
+            // Worker 侧调用 self.postMessage(...) 时，把消息送回"主线程"的 onmessage
+            postMessage: function (data) {
+              var handler = this.onmessage;
+              if (!handler) return;
+              var payload = data;
+              setTimeout(function () {
+                try {
+                  handler({ data: payload });
+                } catch (err) {
+                  console.error('模拟 Worker 的回调里抛错：', err);
+                }
+              }, 0);
+            },
+          };
+          this._self = selfObj;
+          this._terminated = false;
+          try {
+            // eslint-disable-next-line no-new-func
+            new Function('self', code)(selfObj);
+          } catch (err) {
+            this._onerror = err;
+          }
+        }
+        FakeWorker.prototype.postMessage = function (data) {
+          if (this._terminated) return;
+          if (this._onerror) {
+            if (this.onerror) this.onerror({ message: this._onerror.message });
+            return;
+          }
+          var fake = this;
+          var handler = this._self.onmessage;
+          if (!handler) return;
+          setTimeout(function () {
+            try {
+              handler({ data: data });
+            } catch (err) {
+              // 真实 Worker 里未捕获的错误会触发 worker.onerror，这里照样模拟出来，
+              // 不让它变成一个"未捕获错误"抛到页面上。
+              if (fake.onerror) fake.onerror({ message: err.message, name: err.name });
+            }
+          }, 0);
+        };
+        FakeWorker.prototype.terminate = function () {
+          this._terminated = true;
+        };
+
+        var usingFake = false;
+
+        /** 统一入口：优先真 Worker，不行就用模拟的（绝不让"没有 Worker"变成未捕获错误） */
+        function createWorker(code, options) {
+          if (usingFake || typeof Worker === 'undefined' || typeof Blob === 'undefined' || !URL.createObjectURL) {
+            usingFake = true;
+            return new FakeWorker(code);
+          }
+          try {
+            return new Worker(blobUrlOf(code), options);
+          } catch (err) {
+            usingFake = true;
+            log('创建 Worker 失败（' + err.name + '：' + err.message + '），改用同线程模拟 Worker。', 'warn');
+            return new FakeWorker(code);
+          }
+        }
+
+        /**
+         * 问一个 Worker 要回复，带超时。
+         * transferList 就是 postMessage 的第二个参数：列在这里的对象会"转移所有权"。
+         */
+        function ask(worker, message, timeoutMs, transferList) {
+          var prevMsg = worker.onmessage;
+          var prevErr = worker.onerror;
+          return new Promise(function (resolve, reject) {
+            var timer = setTimeout(function () {
+              restore();
+              reject(new Error('等待 Worker 回复超时'));
+            }, timeoutMs || 20000);
+            function restore() {
+              clearTimeout(timer);
+              // 用完把原来的处理器还回去（否则全局的 onerror 日志会被这里覆盖掉）
+              worker.onmessage = prevMsg;
+              worker.onerror = prevErr;
+            }
+            worker.onmessage = function (e) {
+              restore();
+              resolve(e.data);
+            };
+            worker.onerror = function (e) {
+              restore();
+              reject(new Error((e && e.message) || 'Worker 出错'));
+            };
+            if (transferList) worker.postMessage(message, transferList);
+            else worker.postMessage(message);
+          });
+        }
+
+        // ================================================================
+        // 4. 探测：真的能起一个 Worker 吗？
+        // ================================================================
+
+        var mainWorker = null;
+
+        function probeWorker() {
+          return new Promise(function (resolve) {
+            if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || !URL.createObjectURL) {
+              resolve({ ok: false, why: '浏览器不支持 Worker 或 Blob URL' });
+              return;
+            }
+            var w;
+            try {
+              w = new Worker(blobUrlOf('self.postMessage("probe-ok");'));
+            } catch (err) {
+              resolve({ ok: false, why: err.name + '：' + err.message });
+              return;
+            }
+            var settled = false;
+            function finish(ok, why) {
+              if (settled) return;
+              settled = true;
+              try {
+                w.terminate();
+              } catch (e) {
+                void e;
+              }
+              resolve({ ok: ok, why: why || '' });
+            }
+            w.onmessage = function () {
+              finish(true);
+            };
+            w.onerror = function (e) {
+              finish(false, 'Worker 报错：' + ((e && e.message) || '未知'));
+            };
+            setTimeout(function () {
+              finish(false, '1.5 秒内 Worker 没有任何回应');
+            }, 1500);
+          });
+        }
+
+        /**
+         * ask 的"安全版"：无论成功失败都落到日志里，绝不会产生
+         * Uncaught (in promise) —— 这是最容易漏、也最难查的一类错误。
+         */
+        function askSafe(worker, message, timeoutMs, transferList, onOk) {
+          return ask(worker, message, timeoutMs, transferList).then(onOk, function (err) {
+            log('  ✗ 出错了：' + ((err && err.message) || err), 'err');
+            log('    （可能是 Worker 抛错、被 terminate、或者回复超时 —— 主线程不受影响。）', 'dim');
+          });
+        }
+
+        // ================================================================
+        // 5. 各组功能
+        // ================================================================
+
+        function ensureMainWorker() {
+          if (mainWorker) return mainWorker;
+          mainWorker = createWorker(WORKER_CODE);
+          mainWorker.onerror = function (e) {
+            log('  ✗ Worker 抛错了：' + ((e && e.message) || '未知错误'), 'err');
+            log('    （主线程不受影响，这一行日志就是证据；此时这个 Worker 已经失效了。）', 'dim');
+          };
+          return mainWorker;
+        }
+
+        var actions = {
+          // ---------------------------------------------------- ① 双向通信
+          'send-text': function () {
+            var text = document.getElementById('msg-input').value;
+            var w = ensureMainWorker();
+            log('主线程 → Worker：postMessage({ type: "text", text: "' + text + '" })');
+            askSafe(w, { type: 'text', text: text }, 4000, null, function (r) {
+              log('Worker → 主线程：' + r.text + '（这是第 ' + r.seq + ' 条消息，计数存在 Worker 自己的闭包里）', 'ok');
+            });
+          },
+
+          'send-complex': function () {
+            var payload = {
+              date: new Date(),
+              map: new Map([['用户', '张三']]),
+              set: new Set([1, 2, 3]),
+              typed: new Uint8Array([7, 8, 9]),
+            };
+            payload.self = payload; // 循环引用
+            var w = ensureMainWorker();
+            log('主线程 → Worker：发一个带 Date / Map / Set / Uint8Array / 循环引用的对象');
+            askSafe(w, { type: 'complex', payload: payload }, 4000, null, function (r) {
+              log('  Worker 体检结果：', 'ok');
+              log('    Date       → ' + r.date);
+              log('    Map        → ' + r.map);
+              log('    Set        → ' + r.set);
+              log('    Uint8Array → ' + r.typed);
+              log('    循环引用 a.self === a → ' + r.loop);
+              log('    typeof p.fn → ' + r.fnType + '（对象里没有函数属性）');
+              log('  这就是结构化克隆：类型全部保留，连循环引用都能穿过去。', 'dim');
+            });
+          },
+
+          'send-fn': function () {
+            var w = ensureMainWorker();
+            log('主线程 → Worker：试着发一个函数……');
+            try {
+              w.postMessage({ type: 'complex', payload: { fn: function () { return 1; } } });
+              log('  居然发出去了？（此时 onmessage 收到的 payload.fn 会是 undefined）', 'warn');
+            } catch (err) {
+              log('  ✗ ' + err.name + '：' + err.message, 'err');
+              log('    → 结构化克隆不支持函数，消息直接被拒。', 'dim');
+            }
+          },
+
+          // ---------------------------------------------------- ② CPU 任务
+          'run-main': function () {
+            var limit = Number(document.getElementById('limit-input').value) || 2000000;
+            takeMaxGap();
+            log('▶ 在主线程直接算 countPrimes(' + limit + ') ……（仪表盘马上会停住）', 'warn');
+            var t0 = performance.now();
+            var count = countPrimesMain(limit);
+            var ms = performance.now() - t0;
+            // 注意：卡顿的时长要等下一次心跳跑完才量得到（心跳本身刚刚被卡住了），
+            // 所以这里必须等一小会儿再读仪表盘。
+            setTimeout(function () {
+              var gap = takeMaxGap();
+              log('  算完了：' + count + ' 个质数，耗时 ' + ms.toFixed(0) + 'ms', 'ok');
+              log('  ✗ 本次最长卡顿 = ' + gap.toFixed(0) + 'ms —— 这段时间里页面完全没有响应。', 'err');
+              log('    （你在卡住期间做的点击、滚动、动画都不会发生，事后才补上。）', 'dim');
+            }, 120);
+          },
+
+          'run-worker': function () {
+            var limit = Number(document.getElementById('limit-input').value) || 2000000;
+            takeMaxGap();
+            var w = ensureMainWorker();
+            log('▶ 把 countPrimes(' + limit + ') 交给 Worker ……（仪表盘应该继续转）');
+            askSafe(w, { type: 'primes', limit: limit }, 60000, null, function (r) {
+              setTimeout(function () {
+                var gap = takeMaxGap();
+                log('  Worker 算完了：' + r.count + ' 个质数，Worker 里耗时 ' + r.ms + 'ms', 'ok');
+                log('  ✓ 本次最长卡顿 = ' + gap.toFixed(0) + 'ms（正常抖动范围内）', 'ok');
+                log('    主线程全程可以响应点击、滚动和动画 —— 这就是 Worker 的全部价值。', 'dim');
+              }, 120);
+            });
+          },
+
+          // ---------------------------------------------------- ③ Transferable
+          'clone-buffer': function () {
+            var buffer = new ArrayBuffer(32 * 1024 * 1024);
+            new Uint8Array(buffer)[0] = 0xab;
+            var w = ensureMainWorker();
+            var t0 = performance.now();
+            askSafe(w, { type: 'peek', buffer: buffer, mode: 'clone' }, 20000, null, function (r) {
+              var ms = performance.now() - t0;
+              log('① 不转移（默认=复制一份）：往返 ' + ms.toFixed(1) + 'ms');
+              log('   主线程这边 byteLength 仍然是 ' + buffer.byteLength + '（两边各持 32MB）');
+              log('   Worker 收到的 byteLength = ' + r.byteLength + '，首字节 = 0x' + r.first.toString(16));
+              log('   内存峰值 64MB：整块内存被完整复制了一次。', 'warn');
+            });
+          },
+
+          'transfer-buffer': function () {
+            var buffer = new ArrayBuffer(32 * 1024 * 1024);
+            new Uint8Array(buffer)[0] = 0xcd;
+            var w = ensureMainWorker();
+            log('转移前：主线程这边 byteLength = ' + buffer.byteLength);
+            var t0 = performance.now();
+            // 关键就是最后这个 [buffer]：postMessage 的第二个参数 transferList
+            askSafe(w, { type: 'peek', buffer: buffer, mode: 'transfer' }, 20000, [buffer], function (r) {
+              var ms = performance.now() - t0;
+              log('② 转移所有权：往返 ' + ms.toFixed(1) + 'ms', 'ok');
+              log('   转移后：主线程这边 byteLength = ' + buffer.byteLength + ' ← 变成 0 了！');
+              log('   Worker 收到的 byteLength = ' + r.byteLength + '，首字节 = 0x' + r.first.toString(16) + ' ← 数据完好', 'ok');
+              log('   同一块内存不能两个线程同时持有，所以发送方的引用被"清零"（neutered）。', 'dim');
+              log('   内存峰值 32MB：全程只有一份，省掉了一次 32MB 的拷贝。', 'dim');
+            });
+          },
+
+          // ---------------------------------------------------- ④ 环境探测
+          'probe-env': function () {
+            var w = ensureMainWorker();
+            askSafe(w, { type: 'env' }, 4000, null, function (r) {
+              log('在 Worker 里挨个 typeof 一遍：', 'ok');
+              var rows = [
+                ['document（DOM 的入口）', r.document, '没有 —— Worker 里改不了界面'],
+                ['window', r.window, '没有 —— Worker 的全局对象是 self'],
+                ['alert', r.alert, '没有 —— 弹窗只能主线程做'],
+                ['localStorage', r.localStorage, '没有 —— 同步存储会拖慢 Worker，被刻意去掉'],
+                ['indexedDB', r.indexedDBType, '有 —— Worker 里可以访问 IndexedDB（大文件缓存常用）'],
+                ['fetch', r.fetchType, '有 —— Worker 里发请求很常见'],
+                ['self', r.selfType, '有 —— 就是 Worker 的全局对象'],
+                ['importScripts', r.importScriptsType, '有（经典 Worker 专属，模块化 Worker 里没有）'],
+              ];
+              rows.forEach(function (row) {
+                log('  ' + row[0] + ' → typeof = ' + row[1] + '　' + row[2]);
+              });
+              log('  所以正确姿势是：数据传给 Worker 算 → 结果传回来 → 主线程更新 DOM。', 'dim');
+            });
+          },
+
+          // ---------------------------------------------------- ⑤ 依赖加载
+          'import-scripts': function () {
+            if (usingFake) {
+              log('模拟模式下没有 importScripts（它是 Worker 全局特有的）。', 'warn');
+              return;
+            }
+            var libUrl = blobUrlOf('self.__libAnswer = 42; self.__libName = "mylib";');
+            var code = [
+              '// 经典 Worker：importScripts 会**同步**加载并执行脚本，',
+              '// 被加载的脚本直接往 Worker 的全局作用域里塞东西。',
+              'var loaded = "no";',
+              'try {',
+              '  importScripts(' + JSON.stringify(libUrl) + ');',
+              '  loaded = "yes, __libAnswer=" + self.__libAnswer + ", __libName=" + self.__libName;',
+              '} catch (err) {',
+              '  loaded = "失败：" + err.name + "：" + err.message;',
+              '}',
+              'self.postMessage({ type: "import-scripts-reply", loaded: loaded });',
+            ].join('\n');
+            var w = createWorker(code);
+            w.onerror = function (e) {
+              log('  Worker 报错：' + ((e && e.message) || '未知'), 'err');
+            };
+            ask(w, 'go', 5000).then(
+              function (r) {
+                log('importScripts(blobURL) 结果：' + r.loaded, 'ok');
+                log('  → 脚本加载后，它定义的全局变量在 Worker 里直接可见（靠全局作用域通信）。', 'dim');
+                w.terminate();
+              },
+              function (err) {
+                log('  失败：' + err.message, 'err');
+                log('  （有些浏览器不允许 importScripts 加载 blob: 脚本，这属于正常的限制。）', 'dim');
+                w.terminate();
+              },
+            );
+          },
+
+          'module-worker': function () {
+            if (usingFake) {
+              log('模拟模式下不支持模块化 Worker。', 'warn');
+              return;
+            }
+            // 模块化 Worker：脚本里可以直接用 import / export，且不能再用 importScripts
+            var depUrl = blobUrlOf('export const answer = 42; export const libName = "mod-lib";');
+            var code = [
+              'import { answer, libName } from ' + JSON.stringify(depUrl) + ';',
+              'self.onmessage = function () {',
+              '  self.postMessage({',
+              '    type: "module-reply",',
+              '    answer: answer,',
+              '    libName: libName,',
+              '    importScriptsType: typeof importScripts,',
+              '    moduleType: typeof module,',
+              '  });',
+              '};',
+            ].join('\n');
+            var w;
+            try {
+              w = new Worker(blobUrlOf(code), { type: 'module' });
+            } catch (err) {
+              log('  模块化 Worker 创建失败：' + err.name + '：' + err.message, 'err');
+              return;
+            }
+            w.onerror = function (e) {
+              log('  ✗ 模块化 Worker 报错：' + ((e && e.message) || '未知'), 'err');
+              log('    （从 blob: 加载模块依赖在部分浏览器上是被禁止的，这是正常的限制。）', 'dim');
+            };
+            ask(w, 'go', 5000).then(
+              function (r) {
+                log('模块化 Worker 返回：import 成功，answer = ' + r.answer + '，libName = ' + r.libName, 'ok');
+                log('  typeof importScripts = ' + r.importScriptsType + '（模块化 Worker 里它不存在）');
+                log('  → 模块化 Worker 用 import 加载依赖，作用域干净、可被打包工具分析。', 'dim');
+                w.terminate();
+              },
+              function (err) {
+                log('  失败：' + err.message, 'err');
+                log('  （浏览器对 blob: 模块 Worker 的限制较多，真实项目请用独立 .js 文件。）', 'dim');
+                w.terminate();
+              },
+            );
+          },
+
+          // ---------------------------------------------------- ⑥ 错误与终止
+          boom: function () {
+            var w = ensureMainWorker();
+            log('让 Worker 抛一个未捕获错误……');
+            log('  （错误会触发 worker.onerror，主线程不会崩，但这个 Worker 实例随之失效）', 'dim');
+            w.postMessage({ type: 'boom' });
+          },
+
+          'long-task': function () {
+            var w = ensureMainWorker();
+            log('发一个 5000ms 的长任务给 Worker，主线程这边完全不受影响。');
+            log('  （此时点「立刻 terminate()」就能把它掐断。）', 'dim');
+            ask(w, { type: 'long', ms: 5000 }, 6000).then(
+              function (r) {
+                log('  长任务跑完了，循环了 ' + r.loops + ' 次。', 'ok');
+              },
+              function (err) {
+                log('  长任务没有正常返回：' + err.message, 'warn');
+                log('  （如果刚才点了 terminate()，这是预期结果。）', 'dim');
+              },
+            );
+          },
+
+          terminate: function () {
+            if (!mainWorker) {
+              log('还没有创建 Worker。', 'warn');
+              return;
+            }
+            mainWorker.terminate();
+            log('已调用 mainWorker.terminate()：线程被立刻销毁。', 'warn');
+            log('  → 正在进行的计算被丢弃，不会再有任何消息回来；', 'dim');
+            log('  → 下次使用时会重新创建一个 Worker。', 'dim');
+            mainWorker = null;
+          },
+
+          // ---------------------------------------------------- ⑦ Worker 池
+          'pool-serial': function () {
+            runPool(1);
+          },
+
+          'pool-parallel': function () {
+            runPool(4);
+          },
+        };
+
+        /** 主线程版本的质数统计（用于对比） */
+        function countPrimesMain(limit) {
+          var count = 0;
+          for (var n = 2; n <= limit; n++) {
+            var isPrime = true;
+            for (var d = 2; d * d <= n; d++) {
+              if (n % d === 0) {
+                isPrime = false;
+                break;
+              }
+            }
+            if (isPrime) count += 1;
+          }
+          return count;
+        }
+
+        /** 用 size 个 Worker 处理 6 个任务 */
+        function runPool(size) {
+          var TASKS = [1, 2, 3, 4, 5, 6];
+          var LIMIT = 1500000;
+          log('▶ 用 ' + size + ' 个 Worker 处理 ' + TASKS.length + ' 个任务（每个 countPrimes(' + LIMIT + ')）');
+          var pool = [];
+          for (var i = 0; i < size; i++) pool.push(createWorker(WORKER_CODE));
+          pool.forEach(function (w) {
+            w.onerror = function (e) {
+              log('  池里的 Worker 报错：' + ((e && e.message) || '未知'), 'err');
+            };
+          });
+
+          var t0 = performance.now();
+          var pending = TASKS.length;
+          var results = [];
+
+          return new Promise(function (resolve) {
+            function dispatch(worker, task) {
+              worker.onmessage = function (e) {
+                var r = e.data;
+                results.push(r);
+                pending -= 1;
+                if (pending === 0) {
+                  var wall = performance.now() - t0;
+                  log('  全部完成，墙钟时间 = ' + wall.toFixed(0) + 'ms', 'ok');
+                  log('  各任务耗时：' + results.map(function (x) { return x.ms + 'ms'; }).join(', '));
+                  if (size > 1) {
+                    log('  → 池把任务分给了多个线程同时算，所以总时间接近"一个任务的时间"而不是"所有任务之和"。', 'dim');
+                  } else {
+                    log('  → 只有一个 Worker，任务只能排队一个个做，总时间 = 各任务之和。', 'dim');
+                  }
+                  if (usingFake) {
+                    log('  ⚠ 模拟模式下所有"Worker"都在主线程上跑，因此看不到任何加速，反而全程卡顿。', 'warn');
+                  }
+                  pool.forEach(function (w) {
+                    w.terminate();
+                  });
+                  resolve();
+                } else {
+                  var next = TASKS.pop();
+                  if (next !== undefined) dispatch(worker, next);
+                }
+              };
+              worker.postMessage({ type: 'primes', limit: LIMIT });
+            }
+
+            // 初始给每个 Worker 派一个任务（TASKS 从后往前取，无所谓顺序）
+            for (var k = 0; k < Math.min(size, TASKS.length); k++) {
+              dispatch(pool[k], TASKS.pop());
+            }
+          });
+        }
+
+        // ================================================================
+        // 6. 事件绑定
+        // ================================================================
+
+        var busy = false;
+
+        document.addEventListener('click', function (event) {
+          var btn = event.target.closest ? event.target.closest('button[data-act]') : null;
+          if (!btn) return;
+          var act = btn.getAttribute('data-act');
+          var fn = actions[act];
+          if (typeof fn !== 'function') {
+            log('未实现的动作：' + act, 'warn');
+            return;
+          }
+          if (busy) {
+            log('上一个操作还没结束，稍等一下……', 'warn');
+            return;
+          }
+          busy = true;
+          try {
+            var r = fn();
+            if (r && typeof r.then === 'function') {
+              r.catch(function (err) {
+                log('操作出错（已兜住）：' + ((err && err.message) || err), 'err');
+              }).then(function () {
+                busy = false;
+              });
+            } else {
+              busy = false;
+            }
+          } catch (err) {
+            log('操作出错（已兜住）：' + ((err && err.message) || err), 'err');
+            busy = false;
+          }
+        });
+
+        // ================================================================
+        // 7. 启动
+        // ================================================================
+
+        log('本页演示：Blob URL 内联 Worker、双向通信、结构化克隆、Transferable、', 'dim');
+        log('主线程阻塞对比、importScripts 与模块化 Worker、错误处理、Worker 池。', 'dim');
+        log('正在探测 Worker 可用性（真起一个线程发 ping，1.5 秒超时）……');
+
+        probeWorker().then(function (result) {
+          if (result.ok) {
+            bannerEl.className = 'banner ok';
+            bannerEl.textContent = '✓ 探测成功：当前环境支持真正的 Web Worker（多线程）。下面的"卡顿对比"是真实测量。';
+            log('探测成功：可以使用真正的 Web Worker。', 'ok');
+          } else {
+            usingFake = true;
+            bannerEl.className = 'banner warn';
+            bannerEl.textContent =
+              '⚠ 无法创建真正的 Worker（' +
+              result.why +
+              '）。正在使用内置的「同线程模拟 Worker」：API 形状完全一致，但代码跑在主线程上，' +
+              '所以计算任务依然会卡住界面 —— 这反过来证明了 Worker 的价值。' +
+              '想体验真多线程，请把本目录用 HTTP 服务器打开（例如 npx serve 27_web_apis）。';
+            log('探测失败：' + result.why, 'warn');
+            log('已切换到同线程模拟 Worker（API 一致，但不具备并行能力）。', 'warn');
+          }
+          log('准备就绪。建议先点「② 交给 Worker 算」和「② 在主线程直接算」各一次，对比仪表盘。', 'ok');
+        });
+      })();
+    </script>
+  </body>
+</html>

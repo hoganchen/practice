@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：画布绘制（canvas 2D：图形 / 文字 / 动画 requestAnimationFrame）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】进阶
+  【前置知识】27_web_apis/07_canvas_basics.js（同知识点的字符画模拟版）
+
+  【知识点说明】
+
+  1. 是什么
+     <canvas> 是 HTML 里的一块位图画布，通过 canvas.getContext('2d') 拿到
+     2D 绘图上下文后，就能用 JS 画矩形、路径、圆、文字、图片、渐变。
+     canvas 是"立即模式"绘图：它只保存最终的一堆像素，不记得你画过哪些图形
+     （这点和 SVG 的"保留模式"正好相反）。
+
+  2. 为什么需要
+     图表、数据可视化、图片裁剪与压缩、小游戏、粒子动画、手写签名板、
+     视频弹幕……凡是需要"逐像素"控制的场景，都离不开 canvas。
+
+  3. 核心语法要点
+     - 坐标系：原点 (0,0) 在左上角，x 向右、y 向下，单位是 CSS 像素。
+     - 矩形：fillRect / strokeRect / clearRect。
+     - 路径：beginPath() → moveTo / lineTo / arc / quadraticCurveTo / closePath
+             → fill() 或 stroke()。beginPath 会清空当前路径。
+     - 样式：fillStyle / strokeStyle（支持颜色、渐变、图案）、lineWidth、
+             lineCap、lineJoin、globalAlpha、shadowBlur / shadowColor。
+     - 文字：ctx.font = '20px sans-serif'，fillText(text, x, y)、
+             strokeText、measureText(text).width、textAlign、textBaseline。
+     - 变换：save() / restore() 成对使用；translate / rotate / scale。
+     - 动画：requestAnimationFrame(cb) 在下次重绘前调用 cb（约 60fps），
+             自动与屏幕刷新同步，切到后台会暂停，比 setInterval 更省电。
+     - 尺寸：canvas.width / canvas.height 是"位图尺寸"，
+             CSS 的 width/height 是"显示尺寸"，两者不一致会拉伸模糊。
+
+  4. 常见陷阱
+     - 只改 CSS 尺寸不设 attribute，画面会模糊；高分屏要用 devicePixelRatio
+       放大位图再 ctx.scale 缩回来。
+     - 忘记 beginPath()，新旧路径会连成一条莫名其妙的线。
+     - 每帧动画开始时必须 clearRect（或用背景色 fillRect）清掉上一帧。
+     - canvas 上的图形不是 DOM 节点，不能绑事件，点击检测要自己算坐标。
+     - 改 canvas.width 会清空画布并重置所有绘图状态。
+     - getImageData 读取被跨域图片污染的画布会抛 SecurityError。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链，可离线运行）。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     一块 640×320 的画布，可以用鼠标在上面随手涂鸦；
+     按钮可以绘制各种示例图形、播放/暂停小球动画、显示 canvas 尺寸信息。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>canvas 2D 绘图与动画</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 16px;
+        margin: 0 0 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 12px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div:first-child {
+        flex: 1 1 680px;
+        min-width: 320px;
+      }
+
+      .layout > div:last-child {
+        flex: 0 1 320px;
+        min-width: 280px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 13px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      /* canvas 一定要显式给宽高，否则默认是 300×150 */
+      canvas {
+        display: block;
+        width: 100%;
+        max-width: 640px;
+        height: auto;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        background: #fff;
+        cursor: crosshair;
+        touch-action: none;
+      }
+
+      pre {
+        margin: 0;
+        height: 300px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-err {
+        color: #ff7b72;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13px;
+        margin: 4px 0;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>canvas 2D 绘图与动画</h1>
+
+    <p class="hint">
+      用鼠标在画布上拖动可以随手涂鸦；点击下面的按钮可以绘制示例图形、
+      播放小球动画、查看画布尺寸信息。
+    </p>
+
+    <div class="layout">
+      <div>
+        <div class="card">
+          <h2>画布</h2>
+          <!--
+            canvas 的位图尺寸由 width / height 属性决定（默认 300×150）。
+            这里设成 640×320，CSS 里再用 width:100% 让它自适应容器宽度。
+          -->
+          <canvas id="stage" width="640" height="320"></canvas>
+
+          <p style="margin-top: 12px">
+            <button data-act="draw-shapes">绘制示例图形</button>
+            <button data-act="draw-text">绘制文字与渐变</button>
+            <button data-act="toggle-anim">播放 / 暂停动画</button>
+            <button data-act="clear">clearRect 清空</button>
+            <button data-act="info">输出画布信息</button>
+            <button data-act="bigger">把位图尺寸改成 320×160（看模糊效果）</button>
+          </p>
+          <p class="hint">
+            提示：鼠标按下并拖动能画线。鼠标坐标需要减去
+            <code>getBoundingClientRect()</code> 的偏移并乘以缩放比，
+            否则画出来的位置会偏。
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>输出</h2>
+          <pre id="out"></pre>
+        </div>
+        <div class="card">
+          <h2>速查</h2>
+          <p class="hint">
+            矩形 <code>fillRect/strokeRect/clearRect</code><br />
+            路径 <code>beginPath/moveTo/lineTo/arc/fill/stroke</code><br />
+            样式 <code>fillStyle/strokeStyle/lineWidth/globalAlpha</code><br />
+            文字 <code>font/fillText/measureText</code><br />
+            变换 <code>save/restore/translate/rotate/scale</code><br />
+            动画 <code>requestAnimationFrame</code>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 输出工具
+        // ------------------------------------------------------------------
+
+        const outEl = document.getElementById('out');
+
+        function out(text, kind) {
+          const span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = text;
+          outEl.appendChild(span);
+          outEl.appendChild(document.createTextNode('\n'));
+          outEl.scrollTop = outEl.scrollHeight;
+          console.log(text);
+        }
+
+        // ------------------------------------------------------------------
+        // 1. 拿到画布与 2D 上下文
+        // ------------------------------------------------------------------
+
+        const canvas = document.getElementById('stage');
+        // getContext('2d') 返回绘图上下文；传 'webgl' 会拿到 3D 上下文（本示例不用）
+        const ctx = canvas.getContext('2d');
+
+        out('画布已就绪，位图尺寸 = ' + canvas.width + ' × ' + canvas.height, 'ok');
+        out('  设备像素比 devicePixelRatio = ' + window.devicePixelRatio);
+        out('  CSS 显示尺寸 = ' + canvas.clientWidth + ' × ' + canvas.clientHeight + '（由 CSS 决定）');
+        out('  两者不一致时画面会被拉伸，所以高分屏下要让位图尺寸 = CSS 尺寸 × dpr。', 'dim');
+        out('');
+
+        /** 清空画布。等价于"擦掉上一帧"，动画里每帧都要做 */
+        function clearCanvas() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        /** 画一层浅色背景（方便看清内容） */
+        function paintBackground() {
+          ctx.fillStyle = '#fbfcfd';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // ------------------------------------------------------------------
+        // 2. 各种绘图 API 的演示
+        // ------------------------------------------------------------------
+
+        /** 示例一：矩形、路径、圆 */
+        function drawShapes() {
+          clearCanvas();
+          paintBackground();
+
+          // ---- 1) 矩形 ----
+          ctx.fillStyle = '#2f6feb'; // 填充色
+          ctx.fillRect(20, 20, 120, 70); // 实心矩形
+
+          ctx.strokeStyle = '#d1242f'; // 描边色
+          ctx.lineWidth = 3; // 线宽
+          ctx.strokeRect(160, 20, 120, 70); // 空心矩形
+
+          // ---- 2) 路径：三角形 ----
+          ctx.beginPath(); // 开始一条新路径（不清空的话会把上一段也重绘）
+          ctx.moveTo(320, 90); // 抬起笔，移到起点
+          ctx.lineTo(380, 20); // 画一条线到目标点
+          ctx.lineTo(440, 90);
+          ctx.closePath(); // 闭合回起点
+          ctx.fillStyle = 'rgba(26, 127, 55, 0.8)'; // 半透明绿
+          ctx.fill(); // 填充整条路径
+          ctx.strokeStyle = '#1a7f37';
+          ctx.lineWidth = 2;
+          ctx.stroke(); // 再描一遍边
+
+          // ---- 3) 圆与弧 ----
+          ctx.beginPath();
+          ctx.arc(100, 210, 50, 0, Math.PI * 2); // 整圆：0 → 2π
+          ctx.fillStyle = '#f0883e';
+          ctx.fill();
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = '#9a4600';
+          ctx.stroke();
+
+          // 半圆：0 → π（因为 y 轴向下，正角度是顺时针，所以画出来是下半圆）
+          ctx.beginPath();
+          ctx.arc(250, 210, 50, 0, Math.PI);
+          ctx.strokeStyle = '#8250df';
+          ctx.lineWidth = 6;
+          ctx.lineCap = 'round'; // 线端圆角
+          ctx.stroke();
+
+          // ---- 4) 贝塞尔曲线 ----
+          ctx.beginPath();
+          ctx.moveTo(340, 240);
+          // quadraticCurveTo(控制点x, 控制点y, 终点x, 终点y)
+          ctx.quadraticCurveTo(420, 130, 500, 240);
+          ctx.strokeStyle = '#0969da';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+
+          // ---- 5) 虚线 ----
+          ctx.beginPath();
+          ctx.setLineDash([10, 6]); // 实线 10px、间隔 6px
+          ctx.moveTo(20, 300);
+          ctx.lineTo(620, 300);
+          ctx.strokeStyle = '#57606a';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.setLineDash([]); // 恢复实线（不改回来会影响后面的绘制）
+
+          out('已绘制：矩形 / 三角形路径 / 整圆 / 半圆 / 贝塞尔曲线 / 虚线', 'ok');
+        }
+
+        /** 示例二：文字与渐变 */
+        function drawText() {
+          clearCanvas();
+          paintBackground();
+
+          // ---- 1) 线性渐变 ----
+          // 渐变坐标是"画布坐标系"里的绝对位置，不是相对某个图形
+          const grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+          grad.addColorStop(0, '#2f6feb'); // 0 位置的颜色
+          grad.addColorStop(0.5, '#8250df');
+          grad.addColorStop(1, '#d1242f');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, canvas.width, 90);
+
+          // ---- 2) 文字 ----
+          ctx.font = 'bold 36px system-ui, "Microsoft YaHei", sans-serif';
+          ctx.textAlign = 'center'; // 让 x 坐标位于文字水平中心
+          ctx.textBaseline = 'middle'; // 让 y 坐标位于文字垂直中心
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText('canvas 2D 绘图', canvas.width / 2, 45);
+
+          // measureText 用来测量宽度，做居中/换行时需要它
+          const width = ctx.measureText('canvas 2D 绘图').width;
+          out('measureText("canvas 2D 绘图").width = ' + width.toFixed(1) + 'px');
+
+          // ---- 3) 描边文字 ----
+          ctx.font = '30px system-ui, "Microsoft YaHei", sans-serif';
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#0969da';
+          ctx.strokeText('strokeText 只描边不填充', canvas.width / 2, 130);
+
+          // ---- 4) 阴影 ----
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+          ctx.shadowBlur = 12;
+          ctx.shadowOffsetX = 4;
+          ctx.shadowOffsetY = 4;
+          ctx.fillStyle = '#1a7f37';
+          ctx.font = '24px system-ui, "Microsoft YaHei", sans-serif';
+          ctx.fillText('阴影效果 shadowBlur', canvas.width / 2, 185);
+          // 阴影是"状态"的一种，用完必须清掉，否则后面画的每个图形都带阴影
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+
+          // ---- 5) 径向渐变圆 ----
+          const radial = ctx.createRadialGradient(150, 260, 5, 150, 260, 50);
+          radial.addColorStop(0, '#fff8f0');
+          radial.addColorStop(1, '#f0883e');
+          ctx.beginPath();
+          ctx.arc(150, 260, 50, 0, Math.PI * 2);
+          ctx.fillStyle = radial;
+          ctx.fill();
+
+          // ---- 6) globalAlpha：整体透明度 ----
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = '#2f6feb';
+          ctx.fillRect(240, 220, 80, 80);
+          ctx.fillStyle = '#d1242f';
+          ctx.fillRect(280, 240, 80, 80); // 与上一块重叠，能看到半透明叠加效果
+          ctx.globalAlpha = 1; // 记得还原
+
+          out('已绘制：线性渐变 / 文字 / 描边文字 / 阴影 / 径向渐变 / 半透明叠加', 'ok');
+          out('注意：shadow* 和 globalAlpha 都是"状态"，用完要还原，否则会影响后续绘制。', 'warn');
+        }
+
+        // ------------------------------------------------------------------
+        // 3. 动画：requestAnimationFrame
+        // ------------------------------------------------------------------
+
+        let rafId = null; // 保存动画句柄，用于取消
+        let startTime = 0;
+        let frameCount = 0;
+
+        /** 静态背景（每帧都要重画，所以单独抽出来） */
+        function drawStaticScene() {
+          paintBackground();
+          ctx.fillStyle = '#e6e9ee';
+          ctx.fillRect(0, canvas.height - 30, canvas.width, 30); // 地面
+          ctx.fillStyle = '#57606a';
+          ctx.font = '13px system-ui, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'alphabetic';
+          ctx.fillText('每帧：clearRect → 计算位置 → 重画 → 预约下一帧', 12, 24);
+        }
+
+        /**
+         * 动画主循环。
+         * timestamp 由浏览器传入，是"页面加载至今的高精度毫秒数"，
+         * 用它算时间差可以让动画速度与帧率无关（帧率低时走得更远，而不是更慢）。
+         */
+        function animate(timestamp) {
+          if (!startTime) startTime = timestamp;
+          const elapsed = (timestamp - startTime) / 1000; // 已过去的秒数
+
+          drawStaticScene();
+
+          // 小球 1：匀速水平移动，碰到边界就反弹
+          const period = 3; // 一个来回的秒数
+          const phase = (elapsed % period) / period;
+          const x1 = 40 + (canvas.width - 80) * (phase < 0.5 ? phase * 2 : 2 - phase * 2);
+          ctx.beginPath();
+          ctx.arc(x1, canvas.height - 60, 18, 0, Math.PI * 2);
+          ctx.fillStyle = '#2f6feb';
+          ctx.fill();
+
+          // 小球 2：正弦上下浮动 + 旋转的方块，用时间和三角函数驱动
+          const x2 = canvas.width * 0.5 + Math.cos(elapsed * 2) * 120;
+          const y2 = canvas.height * 0.5 + Math.sin(elapsed * 4) * 40;
+          ctx.beginPath();
+          ctx.arc(x2, y2, 12, 0, Math.PI * 2);
+          ctx.fillStyle = '#d1242f';
+          ctx.fill();
+
+          // 旋转的正方形：save → translate → rotate → 绘制 → restore
+          ctx.save(); // 存档：保护当前的坐标系和样式
+          ctx.translate(canvas.width * 0.8, canvas.height * 0.5);
+          ctx.rotate(elapsed * 1.5); // 弧度制，每秒转 1.5 弧度
+          ctx.fillStyle = '#1a7f37';
+          ctx.fillRect(-20, -20, 40, 40);
+          ctx.restore(); // 读档：坐标系复原，不会影响后面的绘制
+
+          frameCount += 1;
+          if (frameCount % 60 === 0) {
+            out('  动画已运行 ' + frameCount + ' 帧，约 ' + elapsed.toFixed(1) + ' 秒', 'dim');
+          }
+
+          rafId = requestAnimationFrame(animate); // 预约下一帧，形成循环
+        }
+
+        function startAnimation() {
+          if (rafId !== null) return;
+          startTime = 0;
+          frameCount = 0;
+          // requestAnimationFrame 返回一个 id，可以传给 cancelAnimationFrame 取消
+          rafId = requestAnimationFrame(animate);
+          out('动画已启动（requestAnimationFrame 循环）', 'ok');
+          out('  浏览器会把它排在"下一次重绘之前"，通常每秒 60 次；', 'dim');
+          out('  切到其它标签页时浏览器会自动暂停它，不浪费 CPU。', 'dim');
+          out('');
+        }
+
+        function stopAnimation() {
+          if (rafId === null) return;
+          cancelAnimationFrame(rafId); // 不取消的话回调会一直排队，永远停不下来
+          rafId = null;
+          out('动画已暂停（cancelAnimationFrame），共绘制 ' + frameCount + ' 帧', 'ok');
+          out('');
+        }
+
+        // ------------------------------------------------------------------
+        // 4. 鼠标涂鸦：canvas 上的坐标系换算
+        // ------------------------------------------------------------------
+
+        let drawing = false;
+        let lastPoint = null;
+
+        /** 把鼠标事件的屏幕坐标换算成 canvas 位图坐标 */
+        function toCanvasPoint(event) {
+          // getBoundingClientRect 给出元素在视口中的位置和**显示**尺寸
+          const rect = canvas.getBoundingClientRect();
+          // 位图尺寸 / 显示尺寸 = 缩放比（CSS 把 640 宽显示成了别的宽度）
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          return {
+            x: (event.clientX - rect.left) * scaleX,
+            y: (event.clientY - rect.top) * scaleY,
+          };
+        }
+
+        canvas.addEventListener('pointerdown', function (e) {
+          drawing = true;
+          lastPoint = toCanvasPoint(e);
+          // capture：即使指针移出 canvas 也能继续收到 move 事件，涂鸦更顺滑
+          canvas.setPointerCapture(e.pointerId);
+        });
+
+        canvas.addEventListener('pointermove', function (e) {
+          if (!drawing) return;
+          const p = toCanvasPoint(e);
+          // 用路径画线，lineCap/lineJoin 设成 round 更接近真实笔触
+          ctx.beginPath();
+          ctx.moveTo(lastPoint.x, lastPoint.y);
+          ctx.lineTo(p.x, p.y);
+          ctx.strokeStyle = '#d1242f';
+          ctx.lineWidth = 3;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.stroke();
+          lastPoint = p;
+        });
+
+        canvas.addEventListener('pointerup', function (e) {
+          drawing = false;
+          lastPoint = null;
+          canvas.releasePointerCapture(e.pointerId);
+        });
+
+        out('提示：每次 beginPath() 之后只画一段，是为了避免路径越积越长导致重复描边。', 'dim');
+        out('');
+
+        // ------------------------------------------------------------------
+        // 5. 按钮动作
+        // ------------------------------------------------------------------
+
+        const actions = {
+          'draw-shapes': function () {
+            stopAnimation();
+            drawShapes();
+            out('');
+          },
+
+          'draw-text': function () {
+            stopAnimation();
+            drawText();
+            out('');
+          },
+
+          'toggle-anim': function () {
+            if (rafId === null) startAnimation();
+            else stopAnimation();
+          },
+
+          clear: function () {
+            clearCanvas();
+            // clearRect 之后画布是完全透明的，视觉上会露出 CSS 的白色背景
+            out('clearRect(0, 0, ' + canvas.width + ', ' + canvas.height + ') 已执行', 'ok');
+            out('  注意：clearRect 只是把像素的 alpha 置 0，画布本身还在。', 'dim');
+            out('');
+          },
+
+          info: function () {
+            out('=== 画布信息 ===');
+            out('  canvas.width / height（位图尺寸）= ' + canvas.width + ' × ' + canvas.height);
+            const rect = canvas.getBoundingClientRect();
+            out('  getBoundingClientRect()（显示尺寸）= ' + rect.width.toFixed(1) + ' × ' + rect.height.toFixed(1));
+            out('  缩放比 = ' + (canvas.width / rect.width).toFixed(3));
+            out('  devicePixelRatio（设备像素比）= ' + window.devicePixelRatio);
+            out('  当前变换矩阵 = ' + JSON.stringify(ctx.getTransform()));
+            out('  支持的上下文类型检查：');
+            out('    getContext("2d") 可用吗？' + (canvas.getContext('2d') !== null));
+            // 重复调用 getContext 传不同类型会返回 null（同一个 canvas 只能有一种上下文）
+            out('    getContext("webgl") 可用吗？' + (canvas.getContext('webgl') !== null), 'warn');
+            out('  说明：同一个 canvas 只能用一种上下文，先取了 2d 之后再要 webgl 会得到 null。', 'warn');
+            out('');
+          },
+
+          bigger: function () {
+            stopAnimation();
+            // 只改位图尺寸，CSS 的显示尺寸不变 → 位图被拉伸放大，看起来会模糊
+            canvas.width = 320;
+            canvas.height = 160;
+            out('已把 canvas.width/height 改成 320 × 160', 'ok');
+            out('  CSS 显示宽度没变，所以画面被放大了约 ' + (canvas.clientWidth / canvas.width).toFixed(2) + ' 倍 —— 看起来明显变模糊。', 'warn');
+            out('  这就是"位图尺寸"和"显示尺寸"不一致的后果。', 'warn');
+            out('  另外：修改 canvas.width 会清空画布并重置所有绘图状态（线宽、颜色等）。', 'warn');
+            out('  真实项目里的做法：位图尺寸 = CSS 尺寸 × devicePixelRatio，再用 ctx.scale 缩回逻辑坐标。', 'ok');
+            out('');
+            // 演示"重置状态"：刚才设过的 lineWidth 已经回到默认的 1
+            out('  验证一下状态被重置：ctx.lineWidth = ' + ctx.lineWidth + '（默认值 1）', 'dim');
+            drawShapes();
+          },
+        };
+
+        document.addEventListener('click', function (e) {
+          const btn = e.target.closest('button[data-act]');
+          if (!btn) return;
+          const fn = actions[btn.getAttribute('data-act')];
+          if (typeof fn !== 'function') return;
+          out('▸ ' + btn.textContent.trim(), 'dim');
+          try {
+            fn();
+          } catch (err) {
+            out('  ✗ 出错了：' + err.name + ': ' + err.message, 'err');
+          }
+        });
+
+        // 页面离开时停掉动画（良好的习惯）
+        window.addEventListener('pagehide', stopAnimation);
+
+        // 初始画面
+        drawShapes();
+        out('试试用鼠标在画布上拖动涂鸦。', 'ok');
+      })();
+    </script>
+  </body>
+</html>

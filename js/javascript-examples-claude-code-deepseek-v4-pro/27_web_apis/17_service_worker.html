@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：Service Worker 与离线能力（生命周期 / 缓存策略 / 版本管理 / 离线兜底）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】高级
+  【前置知识】27_web_apis/04_fetch_api.html（fetch / Request / Response）、
+             27_web_apis/17_service_worker.js（同知识点的 Node 版：真实 HTTP 服务 +
+             手写缓存策略决策器）、27_web_apis/05_web_storage.html（各类存储的取舍）
+
+  【知识点说明】
+
+  1. 是什么
+     Service Worker（SW）是运行在浏览器后台、独立于页面的脚本，相当于一个
+     "可编程的网络代理"：页面发出的每个请求都会先经过它，它可以
+       · 直接返回缓存里的响应 → 离线也能用；
+       · 放行到网络，或者"先给缓存、后台偷偷更新"；
+       · 把响应写进 Cache Storage 供下次使用。
+     它还能在页面全部关闭后继续运行（推送通知、后台同步），这是它与 Web Worker
+     最大的区别 —— Web Worker 属于某个页面，页面关了它就没了。
+
+  2. 生命周期（90% 的坑都在这里）
+       register → install（预缓存）→ installed（若有旧页面开着则停在 waiting）
+                → activating（清理旧缓存）→ activated（开始拦截 fetch）
+     两个关键开关：
+       · skipWaiting()：让 waiting 的版本立刻激活，不必等所有页面关闭；
+       · clients.claim()：让已打开的页面立刻改由新 SW 控制。
+
+  3. "用户要刷新两次才生效"的成因
+     v2 装好后停在 waiting，此时用户当前页面里的 HTML/CSS/JS 早已加载完毕（还是 v1）。
+     即便 skipWaiting + claim 让它立刻激活，**这一次导航**用的仍然是旧文件，
+     必须再刷新一次才会经过新 SW 的 fetch 处理器。正确做法是监听到新版本后
+     主动提示用户点击刷新，而不是让用户自己反复按 F5。
+
+  4. 三种最常用的缓存策略
+     · cache-first：缓存优先，命中即返回。适合带哈希的静态资源，最省流量最快。
+     · network-first：网络优先，失败回退缓存。适合 HTML 文档与要尽量新鲜的接口。
+     · stale-while-revalidate：先给缓存（快），同时后台更新缓存（下次是新的）。
+       实践中最常用的折中方案。
+
+  5. 硬性限制（本页首先就要检测这条）
+     · **只能在 HTTPS 或 localhost 下注册**。http:// 的普通站点直接报错。
+     · **file:// 下完全不可用**：navigator.serviceWorker 根本不存在。
+       所以本页的第一步就是特性检测，检测不到时给出明确提示并切换到内置模拟器，
+       保证双击打开也**零报错、可交互**。
+     · SW 里没有 DOM：不能访问 window / document / localStorage。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链、无 CDN、样式内联、可离线运行）。
+     由于 SW 在 file:// 下不可用，本页会用内置的**模拟器**完整演示生命周期与缓存策略；
+     想跑真实的 SW，需要把本目录用 HTTPS 或 localhost 的 HTTP 服务器打开，
+     并把下面"真实注册代码"里的 sw.js 保存到同目录（本页为满足"零外链"约束没有附带）。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     顶部横幅显示环境检测结果；下面依次是生命周期状态机（可点按钮部署 v1/v2、
+     增删页面、切 skipWaiting / clients.claim）、缓存仓库面板、请求模拟器
+     （三种策略 × 四种网络状况）、以及"刷新两次才生效"的时间线日志。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Service Worker 与离线能力</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 17px;
+        margin-top: 0;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 14px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div {
+        flex: 1 1 440px;
+        min-width: 330px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 13px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      button.primary {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      label.chk {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        margin-right: 16px;
+        color: #1f2328;
+      }
+
+      select {
+        padding: 5px 8px;
+        font-size: 13px;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        font-family: inherit;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      pre.code {
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        overflow: auto;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      #log {
+        margin: 0;
+        height: 330px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .log-err {
+        color: #ff7b72;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13.5px;
+        margin: 6px 0;
+      }
+
+      .banner {
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 12px 0;
+        font-size: 14px;
+        border: 1px solid;
+      }
+
+      .banner.ok {
+        background: #dafbe1;
+        border-color: #2da44e;
+        color: #116329;
+      }
+
+      .banner.warn {
+        background: #fff8c5;
+        border-color: #bf8700;
+        color: #7d4e00;
+      }
+
+      /* 生命周期状态机 */
+      .states {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 8px 0 4px;
+      }
+
+      .state {
+        border: 1px solid #d0d7de;
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: 12.5px;
+        background: #f6f8fa;
+        color: #57606a;
+      }
+
+      .state.on {
+        background: #ddf4ff;
+        border-color: #2f6feb;
+        color: #0a3069;
+        font-weight: 700;
+      }
+
+      .state.wait {
+        background: #fff8c5;
+        border-color: #bf8700;
+        color: #7d4e00;
+        font-weight: 700;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13px;
+      }
+
+      th,
+      td {
+        border: 1px solid #d0d7de;
+        padding: 4px 8px;
+        text-align: left;
+      }
+
+      th {
+        background: #f0f3f6;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        background: #eaeef2;
+        color: #57606a;
+        margin-right: 6px;
+      }
+
+      .pill.hit {
+        background: #dafbe1;
+        color: #116329;
+      }
+
+      .pill.net {
+        background: #ddf4ff;
+        color: #0a3069;
+      }
+
+      .pill.off {
+        background: #fff1e5;
+        color: #953800;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Service Worker 与离线能力</h1>
+
+    <div id="banner" class="banner warn">正在检测 Service Worker 可用性……</div>
+
+    <p class="hint">
+      本页把 SW 的生命周期、缓存仓库与三种缓存策略做成了一个**可交互的模拟器**，
+      点左侧按钮就能看到每一步发生了什么。真实的 <code>sw.js</code> 代码见页面底部。
+    </p>
+
+    <div class="layout">
+      <!-- ==================== 左列 ==================== -->
+      <div>
+        <div class="card">
+          <h2>① 生命周期状态机</h2>
+          <div class="states" id="states"></div>
+          <p class="hint" id="lifecycle-info">当前状态：尚未注册</p>
+
+          <label class="chk"><input type="checkbox" id="chk-skip" /> skipWaiting()</label>
+          <label class="chk"><input type="checkbox" id="chk-claim" /> clients.claim()</label>
+
+          <div style="margin-top: 8px">
+            <button class="primary" data-act="deploy">部署新版本（v1 → v2 → v3）</button>
+            <button data-act="open-client">打开一个新标签页</button>
+            <button data-act="reload">刷新当前标签页</button>
+            <button data-act="close-clients">关闭所有标签页</button>
+            <button data-act="reset">重置演示</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>② 客户端（标签页）</h2>
+          <div id="clients"></div>
+        </div>
+
+        <div class="card">
+          <h2>③ Cache Storage（缓存仓库）</h2>
+          <div id="caches"></div>
+          <p class="hint">
+            真实 API：<code>caches.open(name)</code> / <code>caches.keys()</code> /
+            <code>caches.delete(name)</code>；<code>cache.addAll([...])</code> /
+            <code>match</code> / <code>put</code> / <code>delete</code> / <code>keys</code>。
+          </p>
+        </div>
+      </div>
+
+      <!-- ==================== 右列 ==================== -->
+      <div>
+        <div class="card">
+          <h2>④ 请求模拟器（三种缓存策略 × 四种网络状况）</h2>
+          <p class="hint">策略与网络状况由下面的选择框控制，点"发起请求"看决策过程。</p>
+          <div>
+            <label class="chk">
+              策略
+              <select id="sel-strategy">
+                <option value="cache-first">cache-first</option>
+                <option value="network-first">network-first</option>
+                <option value="stale-while-revalidate">stale-while-revalidate</option>
+              </select>
+            </label>
+            <label class="chk">
+              网络
+              <select id="sel-net">
+                <option value="fast">在线（快）</option>
+                <option value="slow">在线（慢 300ms）</option>
+                <option value="error">服务器 500</option>
+                <option value="offline">完全断网</option>
+              </select>
+            </label>
+          </div>
+          <div style="margin-top: 8px">
+            <button class="primary" data-act="request-style">请求 /style.css（静态资源）</button>
+            <button data-act="request-html">请求 /index.html（文档）</button>
+            <button data-act="request-api">请求 /api/now（接口，不该被缓存）</button>
+            <button data-act="clear-cache">清空所有缓存（模拟"缓存被清掉"）</button>
+          </div>
+          <div id="last-result"></div>
+        </div>
+
+        <div class="card">
+          <h2>⑤ 时间线日志</h2>
+          <pre id="log"></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>⑥ 真实浏览器里的代码（需要 HTTPS / localhost，本页为"零外链"未附带 sw.js）</h2>
+      <pre class="code">
+/* ---------- 页面里：注册与更新提示 ---------- */
+if ('serviceWorker' in navigator) {                 // ① 一定要特性检测
+  window.addEventListener('load', async () =&gt; {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      reg.addEventListener('updatefound', () =&gt; {
+        const sw = reg.installing;
+        sw.addEventListener('statechange', () =&gt; {
+          // ② 新版本装好了，而且当前页面已被旧 SW 控制 → 提示用户刷新
+          if (sw.state === 'installed' &amp;&amp; navigator.serviceWorker.controller) {
+            showUpdateBar(() =&gt; sw.postMessage({ type: 'SKIP_WAITING' }));
+          }
+        });
+      });
+      // ③ 控制器换了 → 刷新一次，彻底切到新版本
+      navigator.serviceWorker.addEventListener('controllerchange', () =&gt; location.reload());
+    } catch (err) {
+      console.warn('SW 注册失败（file:// 或非 HTTPS 下是正常的）：', err.name, err.message);
+    }
+  });
+}
+
+/* ---------- sw.js：预缓存 / 清理 / 拦截 ---------- */
+const STATIC  = 'static-v3';
+const OFFLINE = 'offline-v1';
+const KEEP    = [STATIC, OFFLINE];                  // 白名单：别把离线兜底页删了
+
+self.addEventListener('install', (e) =&gt; {
+  e.waitUntil(caches.open(STATIC).then((c) =&gt; c.addAll(['/', '/index.html', '/style.css', '/app.js'])));
+});
+
+self.addEventListener('activate', (e) =&gt; {
+  e.waitUntil((async () =&gt; {
+    for (const n of await caches.keys()) if (!KEEP.includes(n)) await caches.delete(n);
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener('fetch', (e) =&gt; {
+  e.respondWith(handleFetch(e.request));            // 决策器挂在这里
+});
+
+self.addEventListener('message', (e) =&gt; {
+  if (e.data &amp;&amp; e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
+async function handleFetch(request) {
+  const url = new URL(request.url);
+  if (request.method !== 'GET' || url.origin !== location.origin) return fetch(request);
+  if (url.pathname.startsWith('/api/')) return networkFirst(request);   // 接口走网络优先
+  if (/\.(css|js|png|woff2)$/.test(url.pathname)) return cacheFirst(request);
+  return staleWhileRevalidate(request);
+}
+      </pre>
+      <p class="hint">
+        三条硬性限制：① 只能在 <strong>HTTPS 或 localhost</strong> 下注册；
+        ② <strong>file:// 下完全不可用</strong>（<code>navigator.serviceWorker</code> 都不存在）；
+        ③ SW 脚本必须同源，作用域默认不能超出脚本所在目录。
+      </p>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ================================================================
+        // 0. 通用工具
+        // ================================================================
+
+        var logEl = document.getElementById('log');
+        var bannerEl = document.getElementById('banner');
+        var step = 0;
+
+        function log(text, kind) {
+          step += 1;
+          var prefix = String(step).padStart(2, '0') + ' | ';
+          var span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = prefix + text;
+          logEl.appendChild(span);
+          logEl.appendChild(document.createTextNode('\n'));
+          logEl.scrollTop = logEl.scrollHeight;
+          console.log(text);
+        }
+
+        // ================================================================
+        // 1. 环境检测 —— SW 到底能不能用？
+        //    file:// 下 navigator.serviceWorker 直接不存在，必须优雅降级。
+        // ================================================================
+
+        var swSupported = false;
+        var swReason = '';
+
+        if (location.protocol === 'file:') {
+          swReason = '当前页面是以 file:// 打开的。Service Worker 在 file:// 下完全不可用' +
+            '（浏览器不给不透明源注册 SW 的机会，navigator.serviceWorker 都不存在）。';
+        } else if (!window.isSecureContext) {
+          swReason = '当前不是安全上下文（协议 ' + location.protocol + '）。' +
+            'Service Worker 只能在 HTTPS 或 http://localhost 下注册。';
+        } else if (!('serviceWorker' in navigator)) {
+          swReason = '当前浏览器不提供 navigator.serviceWorker。';
+        } else {
+          swSupported = true;
+        }
+
+        try {
+          if (swSupported) {
+            bannerEl.className = 'banner ok';
+            bannerEl.textContent =
+              '✓ 当前环境满足 Service Worker 的注册条件（安全上下文 + navigator.serviceWorker 存在）。' +
+              '不过本页为了满足"零外链、双击可开"的约束没有附带独立的 sw.js，所以下面继续用内置模拟器演示。';
+            log('环境检测通过：可以使用真实的 Service Worker。', 'ok');
+            log('真实注册需要同源的 sw.js 文件（见页面底部代码），本页只用模拟器演示。', 'dim');
+          } else {
+            bannerEl.className = 'banner warn';
+            bannerEl.textContent =
+              '⚠ ' + swReason + ' 下面用内置的「模拟器」完整演示 SW 的生命周期与缓存策略 —— ' +
+              '它不会真的拦截网络，但每一步的状态与决策逻辑与真实 SW 一致。' +
+              '想跑真实 SW，请用 HTTPS 或 localhost 的服务器打开本页。';
+            log('环境检测未通过：' + swReason, 'warn');
+            log('已切换到模拟器模式（生命周期、缓存、策略决策全部照常演示）。', 'warn');
+          }
+        } catch (err) {
+          // 双保险：任何意外都不允许把未捕获错误抛给用户
+          bannerEl.className = 'banner warn';
+          bannerEl.textContent = '⚠ 环境检测时出现异常：' + err.name + '：' + err.message + ' 已切换到模拟器模式。';
+          log('环境检测异常（已兜住）：' + err.name + '：' + err.message, 'err');
+        }
+
+        // ================================================================
+        // 2. 模拟器：Cache Storage
+        // ================================================================
+
+        function SimCache(name) {
+          this.name = name;
+          this.entries = []; // { url, body, version }
+        }
+        SimCache.prototype.put = function (url, body, version) {
+          this.entries = this.entries.filter(function (e) {
+            return e.url !== url;
+          });
+          this.entries.push({ url: url, body: body, version: version });
+        };
+        SimCache.prototype.match = function (url) {
+          for (var i = 0; i < this.entries.length; i++) if (this.entries[i].url === url) return this.entries[i];
+          return null;
+        };
+
+        var cacheStorage = {
+          caches: new Map(),
+          open: function (name) {
+            if (!this.caches.has(name)) this.caches.set(name, new SimCache(name));
+            return this.caches.get(name);
+          },
+          keys: function () {
+            return Array.from(this.caches.keys());
+          },
+          delete: function (name) {
+            return this.caches.delete(name);
+          },
+        };
+
+        // ================================================================
+        // 3. 模拟器：虚拟服务器 + 网络状况
+        // ================================================================
+
+        var net = { mode: 'fast', version: 1, hits: 0 };
+
+        function serverAsset(path) {
+          net.hits += 1;
+          if (path === '/style.css') return '/* v' + net.version + ' */ body{font-family:system-ui}';
+          if (path === '/app.js') return '// v' + net.version + " console.log('app');";
+          if (path === '/index.html') return '<!DOCTYPE html><h1>示例站点 v' + net.version + '</h1>';
+          if (path === '/offline.html') return '<h1>你离线了</h1><p>这是离线兜底页</p>';
+          if (path === '/api/now') return '{"version":' + net.version + '}';
+          return null;
+        }
+
+        /** 模拟一次网络请求：resolve 出 { ok, status, body } 或 reject */
+        function networkFetch(path) {
+          return new Promise(function (resolve, reject) {
+            var delay = net.mode === 'slow' ? 300 : 0;
+            setTimeout(function () {
+              if (net.mode === 'offline') {
+                reject(new TypeError('Failed to fetch（网络不可达）'));
+                return;
+              }
+              if (net.mode === 'error') {
+                resolve({ ok: false, status: 500, body: '服务器内部错误' });
+                return;
+              }
+              var body = serverAsset(path);
+              if (body === null) resolve({ ok: false, status: 404, body: 'Not Found' });
+              else resolve({ ok: true, status: 200, body: body });
+            }, delay);
+          });
+        }
+
+        // ================================================================
+        // 4. 模拟器：Service Worker 生命周期状态机
+        // ================================================================
+
+        var sim = {
+          swVersion: null, // 服务器上 sw.js 的版本（部署时 +1）
+          active: null, // 已激活的 SW：{ version }
+          waiting: null, // 停等待的 SW
+          installing: null,
+          clients: [], // { id, name, controller, loaded }
+          nextClientId: 1,
+          timeline: [], // 记录"刷新两次"的证据
+          skipWaiting: false,
+          claim: false,
+        };
+
+        var ASSETS = ['/index.html', '/style.css', '/app.js'];
+
+        function currentState() {
+          if (sim.installing) return 'installing';
+          if (sim.active) return 'activated';
+          if (sim.waiting) return 'installed';
+          return sim.swVersion ? 'parsed' : 'none';
+        }
+
+        function renderStates() {
+          var wrap = document.getElementById('states');
+          var order = ['parsed', 'installing', 'installed', 'activating', 'activated', 'redundant'];
+          var labels = {
+            parsed: 'parsed',
+            installing: 'installing',
+            installed: 'installed / waiting',
+            activating: 'activating',
+            activated: 'activated',
+            redundant: 'redundant',
+          };
+          wrap.textContent = '';
+          order.forEach(function (s) {
+            var d = document.createElement('span');
+            d.className = 'state';
+            var cur = currentState();
+            if (s === cur) d.className = 'state ' + (s === 'installed' ? 'wait' : 'on');
+            d.textContent = labels[s];
+            wrap.appendChild(d);
+          });
+          var info = document.getElementById('lifecycle-info');
+          info.textContent =
+            '当前：active=' +
+            (sim.active ? 'sw-v' + sim.active.version : '无') +
+            '，waiting=' +
+            (sim.waiting ? 'sw-v' + sim.waiting.version : '无') +
+            '，skipWaiting=' +
+            (sim.skipWaiting ? '开' : '关') +
+            '，clients.claim=' +
+            (sim.claim ? '开' : '关');
+        }
+
+        function renderClients() {
+          var wrap = document.getElementById('clients');
+          wrap.textContent = '';
+          if (!sim.clients.length) {
+            var p = document.createElement('p');
+            p.className = 'hint';
+            p.textContent = '当前没有任何标签页。';
+            wrap.appendChild(p);
+            return;
+          }
+          var t = document.createElement('table');
+          t.innerHTML = '<tr><th>标签页</th><th>控制器</th><th>本次加载到的资源</th></tr>';
+          sim.clients.forEach(function (c) {
+            var tr = document.createElement('tr');
+            var td1 = document.createElement('td');
+            td1.textContent = c.name;
+            var td2 = document.createElement('td');
+            td2.textContent = c.controller ? 'sw-v' + c.controller.version : '（不受控）';
+            var td3 = document.createElement('td');
+            td3.textContent = c.loaded.length ? c.loaded.join(', ') : '（还没加载过）';
+            tr.appendChild(td1);
+            tr.appendChild(td2);
+            tr.appendChild(td3);
+            t.appendChild(tr);
+          });
+          wrap.appendChild(t);
+        }
+
+        function renderCaches() {
+          var wrap = document.getElementById('caches');
+          wrap.textContent = '';
+          var names = cacheStorage.keys();
+          if (!names.length) {
+            var p = document.createElement('p');
+            p.className = 'hint';
+            p.textContent = '缓存仓库是空的。';
+            wrap.appendChild(p);
+            return;
+          }
+          names.forEach(function (n) {
+            var cache = cacheStorage.open(n);
+            var h = document.createElement('p');
+            h.className = 'hint';
+            h.textContent = n + '（' + cache.entries.length + ' 条）';
+            wrap.appendChild(h);
+            var t = document.createElement('table');
+            t.innerHTML = '<tr><th>请求</th><th>内容</th></tr>';
+            cache.entries.forEach(function (e) {
+              var tr = document.createElement('tr');
+              var a = document.createElement('td');
+              a.textContent = e.url;
+              var b = document.createElement('td');
+              b.textContent = e.body.slice(0, 46);
+              tr.appendChild(a);
+              tr.appendChild(b);
+              t.appendChild(tr);
+            });
+            wrap.appendChild(t);
+          });
+        }
+
+        function renderAll() {
+          renderStates();
+          renderClients();
+          renderCaches();
+        }
+
+        /** 部署一个新版本的 sw.js */
+        function deploy() {
+          if (!sim.swVersion) sim.swVersion = 0;
+          sim.swVersion += 1;
+          net.version = sim.swVersion;
+          var v = sim.swVersion;
+          log('▶ 服务器上的 sw.js 变成了 v' + v + '（站点资源也一起变成 v' + v + '）', 'ok');
+
+          if (sim.active && sim.active.version === v) {
+            log('  已经是最新版本，什么都不做。', 'dim');
+            return;
+          }
+
+          sim.installing = { version: v };
+          log('  [sw-v' + v + '] install：caches.open("static-sw-v' + v + '").addAll([' + ASSETS.join(', ') + '])', 'dim');
+          var cache = cacheStorage.open('static-sw-v' + v);
+          ASSETS.forEach(function (u) {
+            cache.put(u, serverAsset(u), v);
+          });
+          sim.installing = null;
+          log('  [sw-v' + v + '] installed：资源预缓存完成');
+
+          var controlled = sim.clients.filter(function (c) {
+            return c.controller && c.controller.version !== v;
+          });
+          if (sim.active && controlled.length > 0 && !sim.skipWaiting) {
+            sim.waiting = { version: v };
+            log('  → 还有 ' + controlled.length + ' 个标签页被旧版本控制着，新版本停在 waiting', 'warn');
+            log('  → 用户必须关掉所有标签页，或者代码里调用 skipWaiting()', 'warn');
+          } else {
+            activate(v);
+          }
+          renderAll();
+        }
+
+        function activate(v) {
+          if (sim.skipWaiting) log('  → skipWaiting 已开启：跳过 waiting，直接激活');
+          sim.waiting = null;
+          if (sim.active) log('  [sw-v' + sim.active.version + '] redundant：被新版本取代');
+          sim.active = { version: v };
+          log('  [sw-v' + v + '] activating：清理旧缓存');
+          // 注意：这里故意演示"清理得太狠"的坑 —— offline 缓存不在白名单里就会一起没
+          var keep = ['static-sw-v' + v, 'offline-v1'];
+          cacheStorage.keys().forEach(function (n) {
+            if (keep.indexOf(n) === -1) {
+              cacheStorage.delete(n);
+              log('    删除缓存：' + n, 'dim');
+            }
+          });
+          log('  [sw-v' + v + '] activated：开始拦截 fetch 事件', 'ok');
+          if (sim.claim) {
+            sim.clients.forEach(function (c) {
+              c.controller = sim.active;
+            });
+            log('  → clients.claim() 已开启：现有标签页立刻改由新版本控制（controllerchange 事件）', 'ok');
+          }
+        }
+
+        /** 打开一个新标签页 */
+        function openClient(fromReload) {
+          if (!sim.swVersion) {
+            log('先点「部署新版本」，服务器上得先有 sw.js 才行。', 'warn');
+            return null;
+          }
+          var id = sim.nextClientId++;
+          var c = {
+            id: id,
+            name: '标签页-' + id,
+            controller: sim.active,
+            loaded: [],
+          };
+          // 页面加载时，受控的客户端会从 SW 的缓存里取资源
+          if (c.controller) {
+            var cache = cacheStorage.open('static-sw-v' + c.controller.version);
+            ASSETS.forEach(function (u) {
+              var hit = cache.match(u);
+              c.loaded.push(u.replace('/', '') + '(v' + (hit ? hit.version : net.version) + ')');
+            });
+          } else {
+            ASSETS.forEach(function (u) {
+              c.loaded.push(u.replace('/', '') + '(v' + net.version + ')');
+            });
+          }
+          sim.clients.push(c);
+          log('  ▶ 打开了 ' + c.name + '，控制器=' + (c.controller ? 'sw-v' + c.controller.version : '无'), 'dim');
+          if (!fromReload) {
+            // 新页面打开时，浏览器会检查 sw.js 是否需要更新
+            if (sim.swVersion && (!sim.active || sim.active.version !== sim.swVersion) && !sim.waiting && !sim.installing) {
+              log('    （浏览器此时发现 sw.js 有新版本，触发更新流程）');
+              deploy();
+            }
+          }
+          renderAll();
+          return c;
+        }
+
+        /** 刷新当前（最后一个）标签页 */
+        function reloadClient() {
+          if (!sim.clients.length) {
+            log('还没有标签页，先点「打开一个新标签页」。', 'warn');
+            return;
+          }
+          var c = sim.clients[sim.clients.length - 1];
+          c.controller = sim.active;
+          c.loaded = [];
+          ASSETS.forEach(function (u) {
+            var v = net.version;
+            if (c.controller) {
+              var cache = cacheStorage.open('static-sw-v' + c.controller.version);
+              var hit = cache.match(u);
+              if (hit) v = hit.version;
+            }
+            c.loaded.push(u.replace('/', '') + '(v' + v + ')');
+          });
+          log('  ▶ ' + c.name + ' 刷新了一次，本次加载到：' + c.loaded.join(', '), 'ok');
+          if (sim.active && sim.active.version !== net.version) {
+            log('    ⚠ SW 是 v' + sim.active.version + '，站点是 v' + net.version + ' —— 两者不一致时最容易出怪问题。', 'warn');
+          }
+          renderAll();
+        }
+
+        // ================================================================
+        // 5. 模拟器：缓存策略决策器
+        // ================================================================
+
+        function shouldIntercept(path, method) {
+          if (method !== 'GET') return { ok: false, why: '非 GET 请求不拦截' };
+          if (path.indexOf('/api/') === 0) return { ok: false, why: '接口请求走 network-first，不进静态缓存' };
+          if (path === '/sw.js') return { ok: false, why: 'SW 脚本自身永远走网络（浏览器强制）' };
+          return { ok: true, why: '同源静态资源，可以拦截' };
+        }
+
+        function cacheNameFor() {
+          return sim.active ? 'static-sw-v' + sim.active.version : 'static-sw-v1';
+        }
+
+        function putIfOk(cache, url, res) {
+          if (res.ok) cache.put(url, res.body, net.version);
+        }
+
+        function showResult(source, ms, body, note) {
+          var cls = source.indexOf('cache') === 0 ? 'hit' : source.indexOf('offline') === 0 ? 'off' : 'net';
+          var wrap = document.getElementById('last-result');
+          wrap.textContent = '';
+          var p = document.createElement('p');
+          p.className = 'hint';
+          var pill = document.createElement('span');
+          pill.className = 'pill ' + cls;
+          pill.textContent = source;
+          p.appendChild(pill);
+          p.appendChild(document.createTextNode(ms + 'ms · ' + note + ' · 内容：' + String(body).slice(0, 40)));
+          wrap.appendChild(p);
+        }
+
+        function handleFetch(strategy, path) {
+          var gate = shouldIntercept(path, 'GET');
+          if (!gate.ok) {
+            log('  拦截决策：不拦截（' + gate.why + '）', 'dim');
+            return networkFetch(path).then(function (res) {
+              log('  → 直接走网络：' + res.status, 'dim');
+              showResult('network', 0, res.body, '未拦截，直接走网络');
+            });
+          }
+          var cache = cacheStorage.open(cacheNameFor());
+          var t0 = performance.now();
+
+          function done(source, res, note) {
+            var ms = Math.round(performance.now() - t0);
+            log('  → 结果来源：' + source + '（' + ms + 'ms）' + (note ? ' ' + note : ''));
+            showResult(source, ms, res ? res.body : '(无响应)', note || '');
+            return res;
+          }
+
+          if (strategy === 'cache-first') {
+            var hit = cache.match(path);
+            if (hit) {
+              log('  cache-first：match("' + path + '") 命中缓存 v' + hit.version, 'ok');
+              return Promise.resolve(done('cache', hit, '缓存命中，完全不碰网络'));
+            }
+            log('  cache-first：缓存未命中 → 走网络');
+            return networkFetch(path).then(
+              function (res) {
+                putIfOk(cache, path, res);
+                return done('network', res, '已顺手写入缓存');
+              },
+              function () {
+                var fb = cache.match('/offline.html');
+                return done('offline-fallback', fb, '网络失败 → 离线兜底页');
+              },
+            );
+          }
+
+          if (strategy === 'network-first') {
+            log('  network-first：先走网络');
+            return networkFetch(path).then(
+              function (res) {
+                if (res.ok) {
+                  putIfOk(cache, path, res);
+                  return done('network', res, '返回最新内容并更新缓存');
+                }
+                log('  network-first：服务器返回 ' + res.status + '，按失败处理', 'warn');
+                var h = cache.match(path);
+                return done(h ? 'cache' : 'network', h || res, h ? '回退到缓存' : '没有缓存可用');
+              },
+              function () {
+                var h = cache.match(path);
+                if (h) {
+                  log('  network-first：网络失败 → 回退缓存 v' + h.version, 'warn');
+                  return done('cache', h, '网络失败 → 回退缓存');
+                }
+                return done('offline-fallback', cache.match('/offline.html'), '网络失败且无缓存 → 离线兜底页');
+              },
+            );
+          }
+
+          // stale-while-revalidate
+          var stale = cache.match(path);
+          if (stale) {
+            log('  stale-while-revalidate：立刻返回缓存 v' + stale.version + '，同时后台更新', 'ok');
+            networkFetch(path).then(
+              function (res) {
+                if (res.ok) {
+                  putIfOk(cache, path, res);
+                  log('    （后台更新完成：缓存里现在是 v' + net.version + '，下次请求就是新的）', 'dim');
+                  renderCaches();
+                }
+              },
+              function () {
+                log('    （后台更新失败，保留旧缓存）', 'dim');
+              },
+            );
+            return Promise.resolve(done('cache(+后台更新)', stale, '先给旧的，后台换新的'));
+          }
+          log('  stale-while-revalidate：没有缓存 → 走网络');
+          return networkFetch(path).then(
+            function (res) {
+              putIfOk(cache, path, res);
+              return done('network', res, '写入缓存，下次就有旧内容可用了');
+            },
+            function () {
+              return done('offline-fallback', cache.match('/offline.html'), '网络失败 → 离线兜底页');
+            },
+          );
+        }
+
+        // ================================================================
+        // 6. 按钮绑定
+        // ================================================================
+
+        var actions = {
+          deploy: function () {
+            deploy();
+          },
+
+          'open-client': function () {
+            openClient(false);
+          },
+
+          reload: function () {
+            reloadClient();
+          },
+
+          'close-clients': function () {
+            var n = sim.clients.length;
+            sim.clients = [];
+            log('  ▶ 关闭了 ' + n + ' 个标签页', 'dim');
+            if (sim.waiting) {
+              log('  → 没有页面在用旧版本了，waiting 的 sw-v' + sim.waiting.version + ' 立刻激活', 'ok');
+              activate(sim.waiting.version);
+            } else {
+              log('  → 没有等待中的版本。', 'dim');
+            }
+            renderAll();
+          },
+
+          reset: function () {
+            sim.swVersion = null;
+            sim.active = null;
+            sim.waiting = null;
+            sim.installing = null;
+            sim.clients = [];
+            sim.nextClientId = 1;
+            net.version = 1;
+            net.mode = 'fast';
+            cacheStorage.caches.clear();
+            document.getElementById('last-result').textContent = '';
+            logEl.textContent = '';
+            step = 0;
+            log('已重置：缓存、标签页、SW 状态全部清空。', 'warn');
+            renderAll();
+          },
+
+          'request-style': function () {
+            doRequest('/style.css');
+          },
+
+          'request-html': function () {
+            doRequest('/index.html');
+          },
+
+          'request-api': function () {
+            doRequest('/api/now');
+          },
+
+          'clear-cache': function () {
+            cacheStorage.caches.clear();
+            log('▶ 已清空所有缓存（模拟用户手动清理 / 浏览器回收存储空间）', 'warn');
+            renderCaches();
+          },
+        };
+
+        function doRequest(path) {
+          // 加个兜底：万一某个 select 意外没有值，也不要让 net.mode 变成 undefined
+          var strategy = document.getElementById('sel-strategy').value || 'cache-first';
+          net.mode = document.getElementById('sel-net').value || 'fast';
+          log('▶ 请求 ' + path + '：策略=' + strategy + '，网络=' + net.mode);
+          return handleFetch(strategy, path);
+        }
+
+        document.addEventListener('click', function (event) {
+          var btn = event.target.closest ? event.target.closest('button[data-act]') : null;
+          if (!btn) return;
+          var act = btn.getAttribute('data-act');
+          var fn = actions[act];
+          if (typeof fn === 'function') {
+            try {
+              var r = fn();
+              if (r && typeof r.catch === 'function') {
+                r.catch(function (err) {
+                  log('操作出错（已兜住）：' + err.name + '：' + err.message, 'err');
+                });
+              }
+            } catch (err) {
+              log('操作出错（已兜住）：' + err.name + '：' + err.message, 'err');
+            }
+          }
+        });
+
+        document.getElementById('chk-skip').addEventListener('change', function (e) {
+          sim.skipWaiting = e.target.checked;
+          log('skipWaiting 开关：' + (sim.skipWaiting ? '开' : '关'), sim.skipWaiting ? 'ok' : 'dim');
+          renderStates();
+        });
+
+        document.getElementById('chk-claim').addEventListener('change', function (e) {
+          sim.claim = e.target.checked;
+          log('clients.claim 开关：' + (sim.claim ? '开' : '关'), sim.claim ? 'ok' : 'dim');
+          renderStates();
+        });
+
+        // ================================================================
+        // 7. 开场：预置离线兜底页 + 指引
+        // ================================================================
+
+        cacheStorage.open('offline-v1').put('/offline.html', serverAsset('/offline.html'), 1);
+        renderAll();
+
+        log('建议的演示顺序：', 'ok');
+        log('  1) 点「部署新版本」→ 再点「打开一个新标签页」→ 看它被 sw-v1 控制；');
+        log('  2) 再点一次「部署新版本」→ 新版本会停在 waiting（因为旧标签页还开着）；');
+        log('  3) 勾上 skipWaiting + clients.claim，再部署一次 → 立刻激活，但页面里还是旧资源；');
+        log('  4) 点「刷新当前标签页」→ 这次才真正拿到新版本 —— 这就是"刷新两次才生效"。');
+        log('  5) 最后玩请求模拟器：换策略、换网络状况，观察结果来源的变化。', 'dim');
+      })();
+    </script>
+  </body>
+</html>

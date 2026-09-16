@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：Web Components 三件套（自定义元素 / Shadow DOM / template + slot）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】高级
+  【前置知识】27_web_apis/01_dom_query.html（DOM 树与查询）、
+             27_web_apis/02_dom_events.html（事件冒泡）、
+             27_web_apis/16_web_components.js（同知识点的 Node 版：手写迷你 DOM 与注册表）
+
+  【知识点说明】
+
+  1. 是什么
+     Web Components 是四个浏览器标准的合称，一起提供"原生组件"能力：
+       · Custom Elements：customElements.define('my-tag', class extends HTMLElement {...})
+       · Shadow DOM：el.attachShadow({ mode }) —— 给元素挂一棵与外界隔离的子树
+       · <template> + <slot>：可复用的结构模板 + 内容分发（插槽）
+       · ES Modules：把上面三样打包成可发布的组件文件
+
+  2. 为什么需要
+     框架组件化解决的三件事（结构封装、样式封装、行为封装），Web Components 用
+     浏览器原生能力做到了：不需要框架、不需要构建、不需要运行时，
+     而且写出来的组件在 React / Vue / Angular / 老页面里都能直接用。
+
+  3. 核心语法要点
+     · 生命周期：constructor → attributeChangedCallback → connectedCallback
+                  → disconnectedCallback（→ adoptedCallback）
+     · static get observedAttributes() 声明"哪些属性的变化要通知我"
+     · attachShadow({ mode: 'open' | 'closed' })；open 时 el.shadowRoot 可访问
+     · :host 给宿主写样式；::slotted(...) 给插槽投影进来的内容写样式
+     · 自定义事件要跨出组件必须带 composed: true；想让祖先收到还要 bubbles: true
+     · 事件重定向（retargeting）：外部看到的 event.target 是宿主元素
+
+  4. 常见陷阱（本页都有对应的按钮可以现场验证）
+     · 事件没写 composed: true → 组件里发了，页面永远收不到。
+     · 在 constructor 里读属性 / 操作子节点：此时元素可能还没连上文档，
+       应该放到 connectedCallback。
+     · 以为 Shadow DOM 是"沙箱"：mode: 'open' 时页面照样能拿到 shadowRoot。
+     · 插槽投影进来的内容**属于 light DOM**，仍然受页面 CSS 影响 ——
+       很多人以为"放进组件就被隔离了"，其实没有。
+     · 标签名必须含短横线，且同名只能定义一次。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链、无 CDN、样式内联、可离线运行）。
+     Web Components 在 file:// 下同样可用（不像 Service Worker 那样受限）。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     页面上有三个活组件：可以点击加减的计数器、带具名插槽的卡片、
+     以及用来实证样式隔离的探针组件。页面故意写了一条很霸道的 CSS
+     （p 变红色大号、button 变红底方块），但组件内部的 p / button 完全不受影响；
+     而通过插槽投影进来的 p 却会被染红 —— 直观展示"Shadow DOM 隔离的是 shadow 树，
+     不是被投影进来的 light DOM 节点"。右侧面板可以改属性、增删组件实例、
+     用 composed 开关派发事件，日志区打印每一次生命周期回调与事件投递结果。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Components 三件套</title>
+
+    <style>
+      /* ============================================================
+         页面自己的样式。注意下面这两条是**故意写得很霸道**的：
+         p 一律红色大号加粗、button 一律红底方块。
+         稍后你会看到：组件内部（Shadow DOM）的 p / button 完全不受影响，
+         而通过插槽投影进来的 p 会被染红 —— 这就是本页要实证的核心差别。
+         ============================================================ */
+      p {
+        color: #d1242f;
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.5;
+      }
+
+      button {
+        background: #d1242f;
+        color: #fff;
+        border: 0;
+        border-radius: 0;
+        padding: 10px 16px;
+        font-size: 14px;
+      }
+
+      /* 卡片里的说明文字单独还原一下，免得整页都被上面那条 p 规则搞得没法读 */
+      .hint,
+      .card > p {
+        color: #57606a;
+        font-size: 13.5px;
+        font-weight: 400;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 17px;
+        margin-top: 0;
+        color: #1f2328;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 14px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div {
+        flex: 1 1 460px;
+        min-width: 340px;
+      }
+
+      /* 只作用于控制面板里的按钮，别把组件内部的按钮也影响了 */
+      .panel button {
+        margin: 0 8px 8px 0;
+        padding: 7px 13px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      .panel button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      #log {
+        margin: 0;
+        height: 420px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .log-err {
+        color: #ff7b72;
+      }
+
+      .banner {
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 12px 0;
+        font-size: 14px;
+        border: 1px solid;
+      }
+
+      .banner.ok {
+        background: #dafbe1;
+        border-color: #2da44e;
+        color: #116329;
+      }
+
+      .banner.warn {
+        background: #fff8c5;
+        border-color: #bf8700;
+        color: #7d4e00;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Web Components 三件套</h1>
+
+    <div id="banner" class="banner ok">
+      ✓ 正在检测浏览器对 Custom Elements / Shadow DOM 的支持……
+    </div>
+
+    <p class="hint">
+      本页故意写了一条霸道的全局 CSS：<code>p { color:#d1242f; font-size:20px; font-weight:700 }</code> 与
+      <code>button { background:#d1242f; border-radius:0 }</code>。请对比"页面上的 p"和"组件内部的 p"。
+    </p>
+
+    <div class="layout">
+      <!-- ================= 左列：三个活组件 ================= -->
+      <div id="components">
+        <div class="card">
+          <h2>① 计数器组件 &lt;my-counter&gt;</h2>
+          <!-- 注意：这个标签写在脚本之前，脚本里 define() 的那一刻它会被"升级" -->
+          <my-counter id="c1" start="0" step="1"></my-counter>
+          <p class="hint">
+            组件内部是 Shadow DOM（三个按钮 + 一个数字）。外部只能通过 <code>setAttribute</code>
+            改属性、通过监听 <code>count-changed</code> 事件拿结果，完全碰不到内部结构。
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>② 插槽卡片 &lt;user-card&gt;</h2>
+          <user-card id="card1">
+            <span slot="avatar" class="avatar">😀</span>
+            <b slot="name">张三</b>
+            <p class="slotted">我是被插槽投影进来的 p（属于 light DOM，所以被页面的 CSS 染成了红色大号）</p>
+          </user-card>
+          <p class="hint">
+            具名插槽用 <code>slot="name"</code> 指定，没有 slot 属性的进默认插槽；
+            插槽里写的文字是<strong>后备内容</strong>，只有没内容分配进来时才显示。
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>③ 样式隔离实证 &lt;my-probe&gt;</h2>
+          <p class="inner-probe">我是页面上的 p.inner-probe（红色、20px、加粗）</p>
+          <my-probe></my-probe>
+          <p class="hint">
+            上面一条是页面的 p，下面组件内部的 p 也是 <code>p.inner-probe</code>，
+            但页面的规则选不中 shadow 树里的元素，所以它保持组件自己的样式。
+          </p>
+        </div>
+      </div>
+
+      <!-- ================= 右列：控制面板与日志 ================= -->
+      <div>
+        <div class="card panel">
+          <h2>控制面板</h2>
+
+          <p class="hint">第 1 组：属性与生命周期（看日志里的 attributeChangedCallback）</p>
+          <button data-act="attr-start">setAttribute('start', '10')</button>
+          <button data-act="attr-step">setAttribute('step', '5')</button>
+          <button data-act="attr-remove">removeAttribute('start')</button>
+          <button data-act="attr-unknown">setAttribute('title', '未观察的属性')</button>
+          <button data-act="add">再插入一个 &lt;my-counter&gt;</button>
+          <button data-act="remove">移除最后一个 &lt;my-counter&gt;</button>
+
+          <p class="hint">第 2 组：事件跨 shadow 边界</p>
+          <button data-act="evt-composed">派发 composed: true 的事件</button>
+          <button data-act="evt-plain">派发 composed: false 的事件</button>
+
+          <p class="hint">第 3 组：样式隔离与封装</p>
+          <button data-act="probe">打印选择器匹配统计</button>
+          <button data-act="open-mode">对比 open / closed 模式</button>
+          <button data-act="reset">重置演示</button>
+        </div>
+
+        <div class="card">
+          <h2>日志（生命周期 / 属性 / 事件）</h2>
+          <pre id="log"></pre>
+          <p class="hint">按 F12 打开开发者工具，在 Elements 面板里可以看到 #shadow-root 标记。</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ================================================================
+        // 0. 通用工具
+        // ================================================================
+
+        var logEl = document.getElementById('log');
+        var bannerEl = document.getElementById('banner');
+        var step = 0;
+
+        function log(text, kind) {
+          step += 1;
+          var prefix = String(step).padStart(2, '0') + ' | ';
+          var span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = prefix + text;
+          logEl.appendChild(span);
+          logEl.appendChild(document.createTextNode('\n'));
+          logEl.scrollTop = logEl.scrollHeight;
+          console.log(text);
+        }
+
+        // ================================================================
+        // 1. 能力检测（老浏览器可能没有 Custom Elements）
+        // ================================================================
+
+        var supported = 'customElements' in window && 'attachShadow' in Element.prototype;
+
+        if (!supported) {
+          bannerEl.className = 'banner warn';
+          bannerEl.textContent =
+            '⚠ 当前浏览器不支持 Custom Elements v1 或 Shadow DOM：本页会退化成普通元素' +
+            '（标签仍然显示，但没有行为、也没有隔离）。请换用较新的 Chrome / Edge / Firefox / Safari。';
+          log('环境不支持 Web Components，后面的注册会全部跳过。', 'warn');
+        } else {
+          bannerEl.className = 'banner ok';
+          bannerEl.textContent = '✓ 当前浏览器支持 Custom Elements v1 + Shadow DOM，下面全部是真实生效的组件。';
+        }
+
+        // ================================================================
+        // 2. <template>：把结构先写好，用的时候克隆一份
+        //    注意它们写在 shadow 根里，页面的 CSS 一条都进不去。
+        // ================================================================
+
+        var counterTpl = document.createElement('template');
+        counterTpl.innerHTML =
+          '<style>' +
+          '  :host { display:block; padding:10px 14px; border:1px solid #d0d7de; border-radius:8px; background:#fbfcfd; }' +
+          '  :host([active]) { border-color:#2da44e; box-shadow:0 0 0 3px rgba(45,164,78,.2); }' +
+          /* 下面这两条是对着页面的霸道 CSS 写的：组件内部自己说了算 */
+          '  p { color:#1f6feb; font-size:13px; font-weight:400; margin:0 0 8px; }' +
+          '  button { background:#2da44e; color:#fff; border:0; border-radius:999px; padding:4px 12px; font-size:13px; cursor:pointer; margin-right:6px; }' +
+          '  .num { display:inline-block; min-width:2.5em; text-align:center; font-size:24px; font-weight:700; color:#1f6feb; }' +
+          '  .row { display:flex; align-items:center; }' +
+          '</style>' +
+          '<p>我是组件内部的 p：页面的 p{红色大号} 规则选不中 Shadow DOM 里的我。</p>' +
+          '<div class="row">' +
+          '  <button data-op="dec">−</button>' +
+          '  <span class="num">0</span>' +
+          '  <button data-op="inc">+</button>' +
+          '  <button data-op="reset">reset</button>' +
+          '</div>';
+
+        var cardTpl = document.createElement('template');
+        cardTpl.innerHTML =
+          '<style>' +
+          '  :host { display:block; border:1px solid #d0d7de; border-radius:10px; padding:14px; background:#fff; }' +
+          '  .head { display:flex; align-items:center; gap:10px; margin-bottom:8px; }' +
+          '  .avatar-box { width:36px; height:36px; border-radius:50%; background:#ddf4ff; display:grid; place-items:center; font-size:20px; }' +
+          '  .name { font-weight:700; color:#1f2328; font-size:15px; }' +
+          '  .body { border-top:1px dashed #d0d7de; padding-top:8px; }' +
+          /* ::slotted 是唯一能给"投影进来的内容"加样式的方式（而且只能选中顶层节点） */
+          '  ::slotted(.slotted) { color:#6639ba; font-size:13px; font-weight:400; margin:0; }' +
+          '</style>' +
+          '<div class="head">' +
+          '  <div class="avatar-box"><slot name="avatar">🐣</slot></div>' +
+          '  <span class="name"><slot name="name">匿名用户</slot></span>' +
+          '</div>' +
+          '<div class="body"><slot>（没有提供正文）</slot></div>';
+
+        var probeTpl = document.createElement('template');
+        probeTpl.innerHTML =
+          '<style>' +
+          '  p { color:#1a7f37; font-size:13px; font-weight:400; background:#dafbe1; padding:6px 8px; border-radius:6px; margin:0; }' +
+          '</style>' +
+          '<p class="inner-probe">我是组件内部的 p.inner-probe（绿色小号，页面的规则进不来）</p>';
+
+        // ================================================================
+        // 3. 定义三个自定义元素
+        // ================================================================
+
+        /* ---------------------------------------------------------------
+           MyCounter —— 演示生命周期、观察属性、内部事件与对外事件
+           --------------------------------------------------------------- */
+        var MyCounter = class extends HTMLElement {
+          // 只有列在这里的属性，变化时才会触发 attributeChangedCallback
+          static get observedAttributes() {
+            return ['start', 'step', 'active'];
+          }
+
+          constructor() {
+            super();
+            // constructor 里只做"与外部无关"的初始化：挂 shadow、克隆结构
+            this.shadow = this.attachShadow({ mode: 'open' });
+            this.shadow.appendChild(counterTpl.content.cloneNode(true));
+            this.value = 0;
+            log('[MyCounter] constructor()　元素被创建（还没有属性，也不在文档里）', 'dim');
+          }
+
+          // 连上文档之后才能安全地读属性、操作内部节点
+          connectedCallback() {
+            if (this.value === 0) this.value = this.start;
+            var shadow = this.shadowRoot;
+            log(
+              '[MyCounter] connectedCallback()　已插入文档，start=' + this.start + ' step=' + this.step,
+              'ok',
+            );
+            this._render();
+            // 组件内部用事件委托处理自己的按钮：外部完全不知道这些按钮的存在
+            shadow.addEventListener('click', (e) => {
+              var op = e.target && e.target.getAttribute && e.target.getAttribute('data-op');
+              if (!op) return;
+              if (op === 'inc') this.value += this.step;
+              if (op === 'dec') this.value -= this.step;
+              if (op === 'reset') this.value = this.start;
+              this._render();
+              // 对外广播：bubbles 让祖先收得到，composed 让它能穿过 shadow 边界
+              this.dispatchEvent(
+                new CustomEvent('count-changed', {
+                  detail: { value: this.value, from: this.id || '(匿名)' },
+                  bubbles: true,
+                  composed: true,
+                }),
+              );
+            });
+          }
+
+          disconnectedCallback() {
+            log('[MyCounter] disconnectedCallback()　已从文档移除，这里适合清理定时器 / 取消订阅', 'warn');
+          }
+
+          attributeChangedCallback(name, oldValue, newValue) {
+            log(
+              "[MyCounter] attributeChangedCallback('" +
+                name +
+                "', " +
+                JSON.stringify(oldValue) +
+                ', ' +
+                JSON.stringify(newValue) +
+                ')',
+            );
+            if (name === 'start' && oldValue !== null && this.shadowRoot) this._render();
+          }
+
+          // 属性只是字符串，用 getter 转成数字，读起来才顺手
+          get start() {
+            return Number(this.getAttribute('start') || 0);
+          }
+
+          get step() {
+            return Number(this.getAttribute('step') || 1);
+          }
+
+          _render() {
+            var num = this.shadowRoot && this.shadowRoot.querySelector('.num');
+            if (num) num.textContent = String(this.value);
+          }
+
+          /** 供页面按钮调用：从组件**内部**的元素上派发一个事件 */
+          fireProbeEvent(composed) {
+            var inner = this.shadowRoot.querySelector('button');
+            inner.dispatchEvent(
+              new CustomEvent('probe-event', {
+                detail: { composed: composed },
+                bubbles: true,
+                composed: composed,
+              }),
+            );
+            return inner;
+          }
+        };
+
+        /* ---------------------------------------------------------------
+           UserCard —— 演示 template + 具名插槽 / 默认插槽 / 后备内容
+           --------------------------------------------------------------- */
+        var UserCard = class extends HTMLElement {
+          constructor() {
+            super();
+            this.attachShadow({ mode: 'open' }).appendChild(cardTpl.content.cloneNode(true));
+          }
+
+          connectedCallback() {
+            log('[UserCard] connectedCallback()　插槽卡片已就绪', 'ok');
+          }
+        };
+
+        /* ---------------------------------------------------------------
+           MyProbe —— 只用来实证样式隔离
+           --------------------------------------------------------------- */
+        var MyProbe = class extends HTMLElement {
+          constructor() {
+            super();
+            this.attachShadow({ mode: 'open' }).appendChild(probeTpl.content.cloneNode(true));
+          }
+        };
+
+        if (supported) {
+          log('页面解析到这里才执行 define()，所以上面的 <my-counter> 此刻才被"升级"。', 'dim');
+          customElements.define('my-counter', MyCounter);
+          customElements.define('user-card', UserCard);
+          customElements.define('my-probe', MyProbe);
+          log('已定义：my-counter / user-card / my-probe', 'ok');
+          log('', 'dim');
+        }
+
+        // ================================================================
+        // 4. 页面级事件监听：验证事件到底有没有穿出 shadow 边界
+        // ================================================================
+
+        document.addEventListener('count-changed', function (e) {
+          log(
+            "页面收到 count-changed：detail=" + JSON.stringify(e.detail) + '，event.target=<' + e.target.tagName.toLowerCase() + '>',
+            'ok',
+          );
+          log(
+            '  ↑ 注意 target 是 <my-counter> 而不是组件内部那个被点的 button —— 这就是事件重定向。',
+            'dim',
+          );
+        });
+
+        document.addEventListener('probe-event', function (e) {
+          log('页面收到 probe-event：detail=' + JSON.stringify(e.detail) + '（composed 生效了）', 'ok');
+        });
+
+        // ================================================================
+        // 5. 控制面板的动作
+        // ================================================================
+
+        function counters() {
+          return Array.prototype.slice.call(document.querySelectorAll('my-counter'));
+        }
+
+        var actions = {
+          'attr-start': function () {
+            counters()[0].setAttribute('start', '10');
+            log('（start 是 observedAttributes 里的属性，所以会触发回调）', 'dim');
+          },
+
+          'attr-step': function () {
+            counters()[0].setAttribute('step', '5');
+          },
+
+          'attr-remove': function () {
+            counters()[0].removeAttribute('start');
+            log('（removeAttribute 也会触发 attributeChangedCallback，newValue 是 null）', 'dim');
+          },
+
+          'attr-unknown': function () {
+            counters()[0].setAttribute('title', '未观察的属性');
+            log('（title 不在 observedAttributes 里，所以没有任何回调 —— 这是性能设计，不是 bug）', 'dim');
+          },
+
+          add: function () {
+            var el = document.createElement('my-counter');
+            el.id = 'c' + (counters().length + 1);
+            el.setAttribute('start', String(100 * counters().length));
+            el.setAttribute('step', '2');
+            el.setAttribute('active', '');
+            // 注意：insertBefore 的第二个参数必须是**同一个父节点下的**子节点，
+            // 传别的节点会抛 NotFoundError。这里直接 appendChild 最省事。
+            document.getElementById('components').appendChild(el);
+            log('已插入一个新的 <my-counter>（createElement 时还没有属性，插入后才连上文档）', 'ok');
+          },
+
+          remove: function () {
+            var list = counters();
+            if (list.length <= 1) {
+              log('至少留一个吧，不然没得演示了。', 'warn');
+              return;
+            }
+            list[list.length - 1].remove();
+          },
+
+          'evt-composed': function () {
+            log('从组件内部那个 button 上派发 probe-event，composed: true ……');
+            counters()[0].fireProbeEvent(true);
+          },
+
+          'evt-plain': function () {
+            log('从组件内部那个 button 上派发 probe-event，composed: false ……');
+            counters()[0].fireProbeEvent(false);
+            log('  → 页面（document）那边什么都没收到：事件到 #shadow-root 就到头了。', 'warn');
+            log('  → 这就是"组件里明明发了事件，外面却监听不到"的头号原因。', 'warn');
+          },
+
+          probe: function () {
+            var panel = document.getElementById('card1');
+            var pagePs = document.querySelectorAll('p');
+            var innerPs = panel.shadowRoot.querySelectorAll('p');
+            log('页面（light DOM）里的 p 数量：' + pagePs.length + ' 个');
+            log('user-card 的 shadow 树里的 p 数量：' + innerPs.length + ' 个（只有组件自己的）');
+            log('my-counter 的 shadow 树里的 button 数量：' + counters()[0].shadowRoot.querySelectorAll('button').length + ' 个');
+            log('document.querySelectorAll("button") 只数得到页面的那些：' + document.querySelectorAll('button').length + ' 个', 'ok');
+            log('结论：两个树互不可见 —— 页面的 CSS 与 JS 都"选不中"组件内部。', 'ok');
+          },
+
+          'open-mode': function () {
+            // <my-probe> 的构造里已经 attachShadow({mode:'open'})，所以这里换个普通元素来对比
+            var opened = document.createElement('div');
+            opened.attachShadow({ mode: 'open' }).innerHTML = '<p>我是 open 模式里的内容</p>';
+            var closed = document.createElement('div');
+            closed.attachShadow({ mode: 'closed' }).innerHTML = '<p>我是 closed 模式里的内容</p>';
+            document.body.appendChild(opened);
+            document.body.appendChild(closed);
+            log('open  模式：el.shadowRoot = ' + (opened.shadowRoot ? '可以访问 ✓' : 'null'));
+            log('closed 模式：el.shadowRoot = ' + closed.shadowRoot + '（对外不可见）', 'warn');
+            log('  但 closed 只是"不给你看"，不是安全边界：构造函数里留个引用照样能拿到。', 'dim');
+          },
+
+          reset: function () {
+            location.reload();
+          },
+        };
+
+        // 事件委托：面板里所有按钮统一处理
+        document.addEventListener('click', function (event) {
+          var btn = event.target.closest ? event.target.closest('.panel button[data-act]') : null;
+          if (!btn) return;
+          var act = btn.getAttribute('data-act');
+          var fn = actions[act];
+          log('▸ 点击了：' + btn.textContent);
+          if (typeof fn === 'function') fn();
+          else log('未实现的动作：' + act, 'warn');
+        });
+
+        // ================================================================
+        // 6. 启动日志
+        // ================================================================
+
+        if (supported) {
+          log('页面加载完成。上面三条 connectedCallback 的出现顺序，' +
+            '就是浏览器"解析到标签 → 定义类 → 升级元素"的真实顺序。', 'dim');
+          log('提示：在开发者工具的 Elements 面板里展开 <my-counter>，能看到 #shadow-root。', 'dim');
+        }
+      })();
+    </script>
+  </body>
+</html>

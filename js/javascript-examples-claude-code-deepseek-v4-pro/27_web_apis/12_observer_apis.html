@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：三大观察者 —— IntersectionObserver / MutationObserver / ResizeObserver
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】进阶
+  【前置知识】27_web_apis/02_dom_events.html（事件与异步回调）、
+             27_web_apis/01_dom_query.html（DOM 查询与操作）、
+             27_web_apis/12_observer_apis.js（同知识点的 Node 模拟版）
+
+  【知识点说明】
+
+  1. 是什么
+     "观察者模式"在浏览器里被做成了三个原生 API。它们的共同点是：
+     你把一个回调注册给浏览器，浏览器在合适的时机替你去检查，你不需要自己轮询。
+       - IntersectionObserver：观察元素与视口（或某个祖先容器）的相交情况。
+       - MutationObserver：观察 DOM 树本身的变化（节点增删、属性改动、文本改动）。
+       - ResizeObserver：观察元素盒子尺寸的变化。
+
+  2. 为什么需要（不用它们有多痛）
+     - 懒加载 / 无限滚动：老办法是监听 scroll，每次滚动都读 getBoundingClientRect()。
+       读 rect 会强制浏览器立刻重新布局（layout thrashing），滚动一秒上百次事件 ×
+       几十个元素 = 一秒几千次布局计算，页面直接卡死。IntersectionObserver 把这些
+       计算搬进了渲染管线内部，只在"相交状态真的变了"时回调一次。
+     - 监听 DOM 变化：老办法是 Mutation Events（DOMNodeInserted 等），同步执行、
+       严重拖慢每次 DOM 操作，已被标准废弃。MutationObserver 是异步批量投递的替代品。
+     - 监听尺寸变化：老办法是 window.onresize + 轮询，既抓不到非窗口引起的变化
+       （比如内容变多把盒子撑大），又浪费性能。
+
+  3. 核心语法（三者几乎一样）
+       const ob = new XxxObserver(callback, options?);
+       ob.observe(target);
+       ob.unobserve(target);
+       ob.disconnect();
+       ob.takeRecords();      // 取走尚未投递的记录
+
+     - IntersectionObserver 回调 (entries, observer)，entry 有：
+       target / isIntersecting / intersectionRatio / boundingClientRect /
+       intersectionRect / rootBounds / time
+       options: { root, rootMargin, threshold }
+     - MutationObserver 回调 (records, observer)，record 有：
+       type（'childList' | 'attributes' | 'characterData'）/ target /
+       addedNodes / removedNodes / attributeName / oldValue
+       options: { childList, attributes, characterData, subtree,
+                  attributeOldValue, characterDataOldValue, attributeFilter }
+     - ResizeObserver 回调 (entries, observer)，entry 有：
+       target / contentRect / borderBoxSize / contentBoxSize
+
+  4. 投递时机（最容易搞错的地方）
+     - MutationObserver：微任务，当前同步代码一跑完就回调，比 setTimeout 早。
+     - IntersectionObserver / ResizeObserver：渲染前的"更新渲染"步骤，
+       同一帧里的多次变化会合并成一次回调。所以"滚动后立刻读结果"读不到。
+
+  5. 常见陷阱
+     - 在回调里同步修改被观察的东西 → 死循环，或报
+       "ResizeObserver loop completed with undelivered notifications"。
+     - subtree:true 会观察整棵子树，改动频繁时必须自己节流。
+     - 组件销毁时忘记 disconnect，观察者会一直持有元素引用 → 内存泄漏。
+     - 改 element.textContent 产生的是 childList 记录（清空 + 插入文本节点），
+       不是 characterData，这点非常容易误解。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（零外链、零 CDN、可离线运行）。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     页面分三大块，每块都是"可交互的演示 + 实时日志"：
+       1) 一个可滚动的列表，滚动时可见项会被标绿并实时打印相交比例；
+          底部的哨兵元素进入视口时自动"加载"下一页（无限滚动）。
+       2) 一块被 MutationObserver 观察的区域，点按钮改它，日志实时打印变更记录。
+       3) 一个可拖动改变大小的盒子，ResizeObserver 实时汇报 contentRect。
+
+  【file:// 协议说明】
+     IntersectionObserver / MutationObserver / ResizeObserver 在 file:// 下**全部可用**，
+     本页所有演示都能正常工作。真正受 file:// 限制的是 fetch 本地文件、Service Worker、
+     Clipboard 等，与本页无关。页面里凡是有可能失败的操作都包了 try/catch，
+     不会在控制台留下未捕获错误。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IntersectionObserver / MutationObserver / ResizeObserver</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 18px;
+        margin-top: 0;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 14px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div {
+        flex: 1 1 420px;
+        min-width: 340px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 13px;
+      }
+
+      #log {
+        margin: 0;
+        height: 420px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .log-io {
+        color: #79c0ff;
+      }
+
+      .log-mo {
+        color: #d2a8ff;
+      }
+
+      .log-ro {
+        color: #ffa657;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13.5px;
+      }
+
+      /* ---------- 演示 1：可滚动列表 ---------- */
+      #scrollBox {
+        height: 240px;
+        overflow-y: auto;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        background: #fbfcfd;
+        padding: 8px;
+      }
+
+      .item {
+        height: 70px;
+        margin-bottom: 8px;
+        border: 1px dashed #d0d7de;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        background: #fff;
+        font-size: 13px;
+        transition: background 0.2s, border-color 0.2s;
+      }
+
+      /* 可见时由 IntersectionObserver 加上这个类 */
+      .item.visible {
+        background: #eaf7ee;
+        border: 1px solid #2da44e;
+      }
+
+      .item .ratio {
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12px;
+        color: #57606a;
+      }
+
+      #sentinel {
+        height: 40px;
+        border: 1px dashed #f0883e;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #f0883e;
+        font-size: 12.5px;
+        background: #fff8f0;
+      }
+
+      /* ---------- 演示 2：被观察的 DOM 区域 ---------- */
+      #watchArea {
+        border: 1px dashed #d0d7de;
+        border-radius: 8px;
+        padding: 10px 14px;
+        background: #fbfcfd;
+        min-height: 70px;
+      }
+
+      #watchArea h3 {
+        margin: 0 0 6px;
+        font-size: 15px;
+      }
+
+      #watchArea ul {
+        margin: 4px 0;
+        padding-left: 22px;
+      }
+
+      .hot {
+        color: #cf222e;
+        font-weight: bold;
+      }
+
+      /* ---------- 演示 3：可改尺寸的盒子 ---------- */
+      #resizeBox {
+        width: 200px;
+        height: 90px;
+        min-width: 80px;
+        min-height: 50px;
+        overflow: auto;
+        resize: both; /* 让用户能拖右下角改变大小，从而触发 ResizeObserver */
+        border: 2px solid #2f6feb;
+        border-radius: 8px;
+        background: #eef4ff;
+        padding: 6px 10px;
+        font-size: 12.5px;
+        font-family: Consolas, Monaco, monospace;
+      }
+
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      input[type='range'] {
+        width: 200px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>三大观察者：IntersectionObserver / MutationObserver / ResizeObserver</h1>
+
+    <p class="hint">
+      页面左侧是三个可以真实交互的演示，右侧日志区实时打印每个观察者回调收到的内容。
+      请一边操作一边看日志，特别留意「回调是在什么时候被触发的」。
+    </p>
+
+    <div class="layout">
+      <!-- ================= 左侧：三个演示 ================= -->
+      <div>
+        <div class="card">
+          <h2>1. IntersectionObserver —— 可见性监测</h2>
+          <p class="hint">
+            下面是个可滚动容器（高 240px）。每个条目被观察：一旦有 30% 进入容器可视区，
+            就会被标绿并打印相交比例。滚到底部的橙色哨兵会触发"加载下一页"。
+          </p>
+          <div id="scrollBox">
+            <!-- 条目由 JS 动态生成 -->
+            <div id="sentinel">↓ 哨兵：我进入可视区就加载下一页</div>
+          </div>
+          <p class="hint" style="margin-top: 10px">
+            <button data-act="io-scroll">自动滚动到底（观察回调时机）</button>
+            <button data-act="io-scroll-top">回到顶部</button>
+            <button data-act="io-status">打印当前状态</button>
+            <button data-act="io-disconnect">disconnect 后停止观察</button>
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>2. MutationObserver —— DOM 变化监测</h2>
+          <p class="hint">
+            下面的虚线框被观察，开关全开（childList / attributes / characterData /
+            subtree / 记旧值）。用按钮改它，日志里会看到**一次性批量**投递的记录。
+          </p>
+          <div id="watchArea">
+            <h3 id="waTitle">被观察的标题</h3>
+            <ul id="waList">
+              <li class="wa-item">条目 A</li>
+              <li class="wa-item">条目 B</li>
+            </ul>
+          </div>
+          <p class="hint" style="margin-top: 10px">
+            <button data-act="mo-add">appendChild 新增 li（childList）</button>
+            <button data-act="mo-remove">删除最后一个 li（childList）</button>
+            <button data-act="mo-class">改 class（attributes，在 filter 内）</button>
+            <button data-act="mo-data">改 data-state（attributes，在 filter 内）</button>
+            <button data-act="mo-id">改 id（attributes，不在 filter 内 → 被忽略）</button>
+            <button data-act="mo-text">改文本节点 .data（characterData）</button>
+            <button data-act="mo-textcontent">改 textContent（其实是 childList！）</button>
+            <button data-act="mo-batch">一口气做 4 处改动（看批量投递）</button>
+            <button data-act="mo-take">takeRecords 抢先取走</button>
+            <button data-act="mo-reset">重置被观察区域</button>
+          </p>
+          <p class="hint">
+            当前记录条数：<code id="moCount">0</code>
+            提示：改动前先点「takeRecords 抢先取走」，能看到记录被"劫走"后回调不再触发。
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>3. ResizeObserver —— 尺寸变化监测</h2>
+          <p class="hint">
+            下面这个蓝色盒子可以拖动右下角改变大小（CSS <code>resize: both</code>），
+            也可以用滑块改宽度。每一次尺寸变化都会触发回调。
+          </p>
+          <div class="row">
+            <div id="resizeBox">拖动我的右下角<br />或者用右边的滑块<br />改变宽度</div>
+            <div>
+              <input type="range" id="widthRange" min="80" max="420" value="200" />
+              <div class="hint">滑块改宽度：<span id="rangeLabel">200</span> px</div>
+              <button data-act="ro-taller">高度 +30</button>
+              <button data-act="ro-disconnect">disconnect</button>
+            </div>
+          </div>
+          <p class="hint" style="margin-top: 10px">
+            观察到的 contentRect：<code id="roSize">（等待首次回调）</code>
+          </p>
+        </div>
+      </div>
+
+      <!-- ================= 右侧：日志 ================= -->
+      <div>
+        <div class="card">
+          <h2>观察者回调日志</h2>
+          <pre id="log"></pre>
+          <p class="hint">
+            按 F12 打开开发者工具的 Console，可以看到同样的输出。
+            留意每行前面的 <code>[IO]</code>/<code>[MO]</code>/<code>[RO]</code> 标记。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // 用 IIFE 造出私有作用域，避免变量污染到 window 上。
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 通用工具
+        // ------------------------------------------------------------------
+
+        const logEl = document.getElementById('log');
+        let step = 0;
+
+        /**
+         * 往日志区追加一行。
+         * @param {string} text 要打印的内容
+         * @param {'ok'|'warn'|'dim'|'io'|'mo'|'ro'} [kind] 颜色分类
+         */
+        function log(text, kind) {
+          step += 1;
+          const prefix = String(step).padStart(2, '0') + ' | ';
+          const span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = prefix + text; // 用 textContent，避免把内容当 HTML 解析
+          logEl.appendChild(span);
+          logEl.appendChild(document.createTextNode('\n'));
+          logEl.scrollTop = logEl.scrollHeight;
+          console.log(text);
+        }
+
+        /** 打印一条分节标题 */
+        function section(title) {
+          log('');
+          log('=== ' + title + ' ===', 'dim');
+        }
+
+        log('页面加载完成。开始创建三个观察者……');
+        log('环境检查：IntersectionObserver=' + (typeof IntersectionObserver) +
+          '，MutationObserver=' + (typeof MutationObserver) +
+          '，ResizeObserver=' + (typeof ResizeObserver), 'dim');
+        log('当前协议：' + location.protocol + '（file:// 下这三个 API 都可用）', 'dim');
+
+        // ==================================================================
+        // 演示 1：IntersectionObserver
+        // ==================================================================
+
+        section('演示 1：IntersectionObserver');
+
+        const scrollBox = document.getElementById('scrollBox');
+        const sentinel = document.getElementById('sentinel');
+        const WA_ITEM_COUNT = 8;
+
+        /** 生成第 n 个待观察条目，并插到哨兵前面 */
+        function addScrollItem(n) {
+          const div = document.createElement('div');
+          div.className = 'item';
+          div.dataset.index = String(n);
+
+          const name = document.createElement('span');
+          name.textContent = '条目 #' + n + '（data-src="pic-' + n + '.jpg"）';
+
+          const ratioEl = document.createElement('span');
+          ratioEl.className = 'ratio';
+          ratioEl.textContent = 'ratio = —';
+
+          div.appendChild(name);
+          div.appendChild(ratioEl);
+          // insertBefore：插到哨兵之前，保证哨兵永远在最后
+          scrollBox.insertBefore(div, sentinel);
+          return div;
+        }
+
+        for (let i = 1; i <= WA_ITEM_COUNT; i++) addScrollItem(i);
+        log('已生成 ' + WA_ITEM_COUNT + ' 个条目，稍后会逐个 observe。', 'dim');
+
+        // 已经"加载"过的条目（真实项目里就是 img.src 已经从 data-src 赋过值了）
+        const loadedIndexes = new Set();
+
+        // root 指定为 scrollBox，表示"相对这个可滚动容器"判断相交，
+        // 而不是相对浏览器视口。threshold: 0.3 表示露出 30% 才算可见。
+        const io = new IntersectionObserver(
+          function (entries, observer) {
+            // 关键：回调是**批量**的，一次可能带来多条记录
+            log('[IO] 回调触发，本次收到 ' + entries.length + ' 条记录（同一帧的变化被合并）', 'io');
+            for (const entry of entries) {
+              const idx = Number(entry.target.dataset.index);
+              const ratioText = 'ratio = ' + entry.intersectionRatio.toFixed(2);
+              // 更新条目右侧显示的相交比例
+              const ratioEl = entry.target.querySelector('.ratio');
+              if (ratioEl) ratioEl.textContent = ratioText;
+
+              log('[IO]   #' + idx + ' isIntersecting=' + entry.isIntersecting +
+                '，' + ratioText +
+                '，可见高度=' + Math.round(entry.intersectionRect.height) + 'px', 'io');
+
+              if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                if (!loadedIndexes.has(idx)) {
+                  loadedIndexes.add(idx);
+                  log('[IO]     → 触发懒加载：把 data-src 赋给 src（本演示只打印）', 'ok');
+                  // 加载完就可以停止观察这个元素了，省资源
+                  observer.unobserve(entry.target);
+                }
+              } else {
+                entry.target.classList.remove('visible');
+              }
+            }
+          },
+          { root: scrollBox, threshold: 0.3 },
+        );
+
+        // 注意：observe 之后不会立刻回调，浏览器会在下一次"更新渲染"时统一处理
+        const items = scrollBox.querySelectorAll('.item');
+        for (const el of items) io.observe(el);
+        log('已 observe ' + items.length + ' 个条目（root=scrollBox, threshold=0.3）。', 'dim');
+        log('此刻回调还没触发——观察者永远是异步的。', 'dim');
+
+        // ---- 无限滚动：用哨兵触发"加载下一页" ----
+        let page = 1;
+        let totalItems = WA_ITEM_COUNT;
+        let isLoading = false;
+
+        // 哨兵也需要一个观察者，用 threshold 0（碰到就算）
+        const sentinelIO = new IntersectionObserver(
+          function (entries) {
+            for (const entry of entries) {
+              log('[IO] 哨兵 isIntersecting=' + entry.isIntersecting +
+                '，ratio=' + entry.intersectionRatio.toFixed(2), 'io');
+              if (entry.isIntersecting && !isLoading) {
+                loadNextPage();
+              }
+            }
+          },
+          { root: scrollBox, threshold: 0 },
+        );
+        sentinelIO.observe(sentinel);
+
+        /** 加载下一页：追加 5 个条目并 observe 它们 */
+        function loadNextPage() {
+          isLoading = true; // 防止一次滚动里重复触发
+          page += 1;
+          log('[IO]   → 加载第 ' + page + ' 页……', 'ok');
+          // 真实项目这里会 await fetch(...)，本演示用 setTimeout 模拟网络延迟
+          setTimeout(function () {
+            for (let i = 0; i < 5; i++) {
+              totalItems += 1;
+              const el = addScrollItem(totalItems);
+              io.observe(el); // 新加的元素也要观察
+            }
+            log('[IO]   → 第 ' + page + ' 页加载完成，现在共 ' + totalItems + ' 条', 'ok');
+            if (page >= 4) {
+              sentinelIO.disconnect();
+              sentinel.textContent = '没有更多了（已加载 4 页，sentinelIO.disconnect()）';
+              log('[IO] 已加载满 4 页，disconnect 掉哨兵观察者。', 'dim');
+            }
+            isLoading = false;
+          }, 400);
+        }
+
+        // ==================================================================
+        // 演示 2：MutationObserver
+        // ==================================================================
+
+        section('演示 2：MutationObserver');
+
+        const watchArea = document.getElementById('watchArea');
+        // 用 let 而不是 const：重置功能会用 innerHTML 整块替换，元素引用必须换新
+        let waTitle = document.getElementById('waTitle');
+        let waList = document.getElementById('waList');
+        const moCountEl = document.getElementById('moCount');
+        let moTotal = 0; // 累计收到的记录条数
+
+        const mo = new MutationObserver(function (records, observer) {
+          moTotal += records.length;
+          moCountEl.textContent = String(moTotal);
+          log('[MO] 回调触发！本次一次性收到 ' + records.length +
+            ' 条记录（同步代码里做的所有改动被合并到这一次）', 'mo');
+          for (const r of records) {
+            if (r.type === 'childList') {
+              const added = Array.prototype.map.call(r.addedNodes, function (n) {
+                return n.nodeName;
+              }).join(',') || '无';
+              const removed = Array.prototype.map.call(r.removedNodes, function (n) {
+                return n.nodeName;
+              }).join(',') || '无';
+              log('[MO]   childList   目标=' + describeNode(r.target) +
+                ' 新增=[' + added + '] 移除=[' + removed + ']', 'mo');
+            } else if (r.type === 'attributes') {
+              log('[MO]   attributes  目标=' + describeNode(r.target) +
+                ' 属性=' + r.attributeName + ' 旧值=' + JSON.stringify(r.oldValue), 'mo');
+            } else {
+              log('[MO]   characterData 目标=' + r.target.nodeName +
+                ' 旧值=' + JSON.stringify(r.oldValue), 'mo');
+            }
+          }
+          log('[MO]   （第二个参数是观察者本身：observer === mo → ' + (observer === mo) + '）', 'dim');
+        });
+
+        mo.observe(watchArea, {
+          childList: true, // 子节点增删
+          attributes: true, // 属性变化
+          attributeOldValue: true, // 记下属性旧值
+          attributeFilter: ['class', 'data-state'], // 只关心这两个属性
+          characterData: true, // 文本节点内容变化
+          characterDataOldValue: true, // 记下文本旧值
+          subtree: true, // 整棵子树都观察
+        });
+        log('已 observe(watchArea, { childList, attributes, attributesOldValue, ' +
+          'attributeFilter:[class,data-state], characterData, subtree })', 'dim');
+
+        /** 把节点描述成 "tag#id.class" 的形式 */
+        function describeNode(node) {
+          if (!node) return String(node);
+          if (node.nodeType === 3) return '#text';
+          const id = node.id ? '#' + node.id : '';
+          const cls = node.className ? '.' + String(node.className).trim().split(/\s+/).join('.') : '';
+          return node.tagName.toLowerCase() + id + cls;
+        }
+
+        /** 生成一个新的 li 节点 */
+        let liSeq = 0;
+        function makeLi() {
+          liSeq += 1;
+          const li = document.createElement('li');
+          li.className = 'wa-item';
+          li.textContent = '新条目 ' + liSeq;
+          return li;
+        }
+
+        // ==================================================================
+        // 演示 3：ResizeObserver
+        // ==================================================================
+
+        section('演示 3：ResizeObserver');
+
+        const resizeBox = document.getElementById('resizeBox');
+        const roSizeEl = document.getElementById('roSize');
+        const widthRange = document.getElementById('widthRange');
+        const rangeLabel = document.getElementById('rangeLabel');
+        let roCount = 0;
+
+        const ro = new ResizeObserver(function (entries, observer) {
+          roCount += 1;
+          log('[RO] 回调触发（第 ' + roCount + ' 次），收到 ' + entries.length + ' 条记录', 'ro');
+          for (const entry of entries) {
+            const r = entry.contentRect; // content box：不含 padding 和 border
+            const text = Math.round(r.width) + ' x ' + Math.round(r.height);
+            roSizeEl.textContent = text + ' px（content box）';
+            log('[RO]   contentRect = ' + text +
+              '，borderBox = ' + Math.round(entry.borderBoxSize[0].inlineSize) + ' x ' +
+              Math.round(entry.borderBoxSize[0].blockSize), 'ro');
+          }
+          log('[RO]   （第二个参数是观察者本身：observer === ro → ' + (observer === ro) + '）', 'dim');
+        });
+
+        ro.observe(resizeBox);
+        log('已 observe(resizeBox)。注意：observe 之后会立刻收到一条"初始尺寸"记录。', 'dim');
+
+        // 滑块改宽度 —— 注意这里改的是 style.width，会真的引起布局变化
+        widthRange.addEventListener('input', function () {
+          rangeLabel.textContent = widthRange.value;
+          resizeBox.style.width = widthRange.value + 'px';
+        });
+
+        // ==================================================================
+        // 按钮动作表
+        // ==================================================================
+
+        const actions = {};
+
+        // ---- 演示 1 相关 ----
+
+        actions['io-scroll'] = function () {
+          log('▸ 开始自动滚动：每 300ms 往下滚 120px，观察回调在什么时刻触发');
+          let n = 0;
+          const timer = setInterval(function () {
+            n += 1;
+            scrollBox.scrollTop += 120;
+            log('  （已滚到 scrollTop=' + scrollBox.scrollTop + '）', 'dim');
+            if (n >= 12 || scrollBox.scrollTop + scrollBox.clientHeight >= scrollBox.scrollHeight - 1) {
+              clearInterval(timer);
+              log('滚动结束。可以看到：回调次数远少于滚动次数——只有相交状态变化时才触发。', 'ok');
+            }
+          }, 300);
+        };
+
+        actions['io-scroll-top'] = function () {
+          scrollBox.scrollTop = 0;
+          log('已滚回顶部。已经 unobserve 过的条目不会再有回调（它们的观察已解除）。', 'ok');
+        };
+
+        actions['io-status'] = function () {
+          section('IntersectionObserver 当前状态');
+          const all = scrollBox.querySelectorAll('.item');
+          log('条目总数 = ' + all.length + '，其中已加载 = ' + loadedIndexes.size +
+            '，当前带 .visible 类的 = ' + scrollBox.querySelectorAll('.item.visible').length);
+          log('scrollTop = ' + scrollBox.scrollTop +
+            '，可视高度 = ' + scrollBox.clientHeight +
+            '，可滚动总高 = ' + scrollBox.scrollHeight);
+          log('已加载的序号：[' + Array.from(loadedIndexes).join(', ') + ']', 'dim');
+          log('提醒：observe / unobserve 是成对的，加载完就 unobserve 可以显著减少观察者维护的开销。', 'dim');
+        };
+
+        actions['io-disconnect'] = function () {
+          io.disconnect();
+          sentinelIO.disconnect();
+          log('已调用 io.disconnect() 与 sentinelIO.disconnect()，之后不再有任何 IO 回调。', 'ok');
+          log('disconnect 会清空所有目标，页面上的 .visible 类也不会再更新。', 'warn');
+        };
+
+        // ---- 演示 2 相关 ----
+
+        actions['mo-add'] = function () {
+          log('▸ 执行 waList.appendChild(新 li)');
+          waList.appendChild(makeLi()); // ① childList
+          log('（同步代码结束，等待微任务投递回调……）', 'dim');
+        };
+
+        actions['mo-remove'] = function () {
+          const last = waList.lastElementChild;
+          if (!last) {
+            log('已经没有 li 可以删了。', 'warn');
+            return;
+          }
+          log('▸ 执行 waList.removeChild(最后一个 li)');
+          waList.removeChild(last); // ① childList（removedNodes）
+        };
+
+        actions['mo-class'] = function () {
+          log('▸ 执行 waTitle.setAttribute("class", ...)  ← 在 attributeFilter 里，会被记录');
+          waTitle.setAttribute('class', waTitle.className === 'hot' ? '' : 'hot');
+        };
+
+        actions['mo-data'] = function () {
+          log('▸ 执行 waTitle.setAttribute("data-state", ...)  ← 在 attributeFilter 里，会被记录');
+          waTitle.setAttribute('data-state', 'state-' + Date.now().toString().slice(-4));
+        };
+
+        actions['mo-id'] = function () {
+          log('▸ 执行 waTitle.setAttribute("id", "waTitle")  ← 不在 attributeFilter 里');
+          waTitle.setAttribute('id', 'waTitle');
+          log('  这条改动**不会**产生记录，因为 attributeFilter 只放行了 class 和 data-state。', 'warn');
+          log('  （浏览器确实执行了这次修改，只是观察者按规定忽略了它。）', 'dim');
+        };
+
+        actions['mo-text'] = function () {
+          // 直接改文本节点的 data，这才是真正的 characterData 变化
+          let textNode = null;
+          for (const n of waTitle.childNodes) {
+            if (n.nodeType === 3) textNode = n;
+          }
+          if (!textNode) {
+            log('标题下面没有文本节点，先点「重置被观察区域」。', 'warn');
+            return;
+          }
+          log('▸ 执行 textNode.data = "..."  ← 真正的 characterData 变化');
+          textNode.data = '标题被改于 ' + new Date().toLocaleTimeString();
+        };
+
+        actions['mo-textcontent'] = function () {
+          log('▸ 执行 waTitle.textContent = "..."');
+          waTitle.textContent = '用 textContent 改的标题 ' + Date.now().toString().slice(-4);
+          log('  注意：这产生的记录类型是 childList（清空子节点 + 插入一个文本节点），', 'warn');
+          log('  而不是 characterData。这是最常见的误解之一。', 'warn');
+        };
+
+        actions['mo-batch'] = function () {
+          log('▸ 一口气做 4 处改动，全部在同一个同步代码块里');
+          waList.appendChild(makeLi()); // ① childList
+          waTitle.setAttribute('class', 'hot'); // ② attributes（在 filter 内）
+          waTitle.setAttribute('data-state', 'batched'); // ③ attributes（在 filter 内）
+          const tn = waList.firstElementChild && waList.firstElementChild.firstChild;
+          if (tn) tn.data = '这次是批量改的 ' + Date.now().toString().slice(-4); // ④ characterData
+          log('4 处改动已经做完，但回调只会触发 1 次，且会一次带来 4 条记录。', 'ok');
+        };
+
+        actions['mo-take'] = function () {
+          const records = mo.takeRecords();
+          log('▸ 调用 mo.takeRecords()，抢到 ' + records.length + ' 条尚未投递的记录', 'ok');
+          for (const r of records) {
+            log('   抢到的记录：type=' + r.type + '，目标=' + describeNode(r.target), 'dim');
+          }
+          if (records.length === 0) {
+            log('  队列是空的——说明上一批改动已经被投递过了。', 'dim');
+          }
+          log('takeRecords 的用途：组件销毁前把待投递的变更捞出来，避免"销毁后回调还在跑"。', 'dim');
+        };
+
+        actions['mo-reset'] = function () {
+          log('▸ 重置被观察区域');
+          // 注意：这里直接改 innerHTML 会在 watchArea 上产生一串 childList 记录，
+          // 我们先用 takeRecords 把它们丢掉，避免日志被刷屏。
+          watchArea.innerHTML =
+            '<h3 id="waTitle">被观察的标题</h3>' +
+            '<ul id="waList"><li class="wa-item">条目 A</li><li class="wa-item">条目 B</li></ul>';
+          const dropped = mo.takeRecords();
+          waTitle = document.getElementById('waTitle');
+          waList = document.getElementById('waList');
+          liSeq = 0;
+          log('  已重置（顺手用 takeRecords 丢掉了 ' + dropped.length + ' 条 innerHTML 造成的记录）', 'dim');
+        };
+
+        // ---- 演示 3 相关 ----
+
+        actions['ro-taller'] = function () {
+          const h = parseInt(getComputedStyle(resizeBox).height, 10) || 90;
+          log('▸ 把盒子高度从 ' + h + 'px 改成 ' + (h + 30) + 'px');
+          resizeBox.style.height = h + 30 + 'px';
+          log('  尺寸改动会在下一次渲染前被 ResizeObserver 捕获并回调。', 'dim');
+        };
+
+        actions['ro-disconnect'] = function () {
+          ro.disconnect();
+          log('已 ro.disconnect()，之后再改盒子大小都不会有回调了。', 'ok');
+        };
+
+        // ------------------------------------------------------------------
+        // 统一的事件委托
+        // ------------------------------------------------------------------
+
+        document.addEventListener('click', function (event) {
+          const btn = event.target.closest('button[data-act]');
+          if (!btn) return;
+          const act = btn.getAttribute('data-act');
+          const fn = actions[act];
+          log('▸ 点击了按钮：' + btn.textContent.trim());
+          if (typeof fn === 'function') {
+            // 用 try/catch 兜住所有异常，保证页面上不出现未捕获错误
+            try {
+              fn();
+            } catch (err) {
+              log('操作出错：' + err.name + ' — ' + err.message, 'warn');
+            }
+          } else {
+            log('未实现的动作：' + act, 'warn');
+          }
+        });
+
+        log('');
+        log('准备就绪。建议的操作顺序：', 'ok');
+        log('  1) 先滚动左边的列表，看 [IO] 的批量回调；', 'ok');
+        log('  2) 依次点 MutationObserver 的各个按钮，对比记录类型；', 'ok');
+        log('  3) 拖动蓝色盒子右下角，看 [RO] 的实时尺寸。', 'ok');
+      })();
+    </script>
+  </body>
+</html>

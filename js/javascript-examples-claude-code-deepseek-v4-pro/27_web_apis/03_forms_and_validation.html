@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：表单与校验（表单元素读写 / submit / 必填与自定义校验）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】进阶
+  【前置知识】27_web_apis/03_forms_and_validation.js（同知识点的 Node 纯函数版）
+
+  【知识点说明】
+
+  1. 是什么
+     表单是网页收集用户输入的标准方式：input、select、textarea、checkbox、radio。
+     校验是判断输入是否合法的过程：必填有没有填、邮箱格式对不对、两次密码是否一致。
+     浏览器内置了一套"约束校验（Constraint Validation）"引擎，用 HTML 属性就能
+     声明大部分规则，不用自己写 if。
+
+  2. 为什么需要
+     用户输入永远不可信。校验分两层：
+       a) 前端校验（本文件重点）：即时反馈，体验好，省一次服务器往返；
+       b) 后端校验：真正的安全防线（前端校验可以被绕过）。
+     前端的最佳实践是"原生属性优先 + 少量自定义校验兜底"。
+
+  3. 核心语法要点
+     - 读取值：input.value、checkbox.checked、radio 用
+       form.querySelector('input[name=x]:checked').value
+     - form.elements：表单内所有控件的集合（类数组），可用 elements['name'] 取。
+     - form.addEventListener('submit', e => { e.preventDefault(); ... })：
+       必须阻止默认提交，否则页面会真的提交并重新加载。
+     - 原生校验属性：required、minlength/maxlength、min/max、pattern、type="email"。
+     - 校验 API：
+         el.checkValidity()        只检查，返回布尔值（不提示）
+         el.reportValidity()       检查并在不通过时弹出浏览器原生提示气泡
+         el.validity               细项对象：valueMissing / patternMismatch /
+                                   tooShort / tooLong / typeMismatch / rangeUnderflow /
+                                   rangeOverflow / customError
+         el.validationMessage      当前第一条错误信息文本
+         form.checkValidity()      整个表单是否全部通过
+     - 自定义校验：el.setCustomValidity('错误信息')，通过时必须传空字符串清除。
+     - new FormData(form)：一次性取出所有字段；form.elements 配合循环可以手动序列化。
+     - 事件时机：'input' 每次输入都触发，'blur' 失去焦点时触发。
+       最佳体验是"输入时不打扰、离开时提示"，所以常在 blur 校验、input 时清除错误。
+
+  4. 常见陷阱
+     - 表单控件的 value 永远是字符串：'0'、'false' 都是 truthy，比较前要转换。
+     - 没勾选的 checkbox 不会出现在 FormData 里（是"不存在"，不是 false）。
+     - setCustomValidity 是"粘性"的：只写不擦，表单就永远提交不了。
+     - pattern 是隐式全匹配（相当于 ^(?:...)$），不要再手写 ^ 和 $。
+     - 一定要给 input 加 name 属性，否则 FormData 里没有这个字段。
+     - 自定义错误提示文字时，别把浏览器的原生提示和自定义提示同时显示，会重复。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链，可离线运行）。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     一个完整的注册表单。输入不合法的内容并离开输入框，会看到红色错误提示；
+     点「提交」会显示校验结果和收集到的表单数据 JSON；
+     点「原生提示」会调用 reportValidity() 弹出浏览器自带的提示气泡。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>表单与校验</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 17px;
+        margin: 0 0 10px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin: 14px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div {
+        flex: 1 1 420px;
+        min-width: 320px;
+      }
+
+      .field {
+        margin-bottom: 14px;
+      }
+
+      .field > label {
+        display: block;
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+
+      .field input[type='text'],
+      .field input[type='password'],
+      .field input[type='number'],
+      .field input[type='email'],
+      .field select,
+      .field textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 7px 10px;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        font-size: 14px;
+        font-family: inherit;
+      }
+
+      /* 用 :invalid 伪类做样式区分——注意浏览器只会在"用户交互过"之后才应用它 */
+      .field input:invalid:not(:placeholder-shown) {
+        border-color: #d1242f;
+      }
+
+      .field input:valid:not(:placeholder-shown) {
+        border-color: #1a7f37;
+      }
+
+      /* 自定义错误提示，默认隐藏，有 .show 类时才显示 */
+      .err {
+        display: none;
+        color: #d1242f;
+        font-size: 13px;
+      }
+
+      .err.show {
+        display: block;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13px;
+        margin: 2px 0 0;
+      }
+
+      .req {
+        color: #d1242f;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 8px 16px;
+        font-size: 14px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      button.primary {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      button.primary:hover {
+        background: #1f54b8;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      pre {
+        margin: 0;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 380px;
+        overflow: auto;
+      }
+
+      .row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .row > .field {
+        flex: 1 1 180px;
+      }
+
+      .inline {
+        font-weight: 400;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>表单与校验</h1>
+
+    <p class="hint">
+      这个表单演示：如何读写各类表单控件、如何用原生属性做声明式校验、
+      如何写自定义校验，以及 submit 事件里必须做的事。
+    </p>
+
+    <div class="layout">
+      <!-- ==================== 左侧：表单本体 ==================== -->
+      <div>
+        <div class="card">
+          <h2>用户注册</h2>
+
+          <!--
+            novalidate 属性：关掉浏览器"提交时自动拦截"的默认行为，
+            这样我们能完全掌控提交逻辑，自己在 submit 里检查并展示结果。
+            （去掉 novalidate，浏览器会在 checkValidity 失败时直接阻止提交并弹提示）
+          -->
+          <form id="reg-form" novalidate>
+            <div class="field">
+              <label for="username">用户名 <span class="req">*</span></label>
+              <!--
+                required      必填
+                minlength     最少 3 个字符 → validity.tooShort
+                maxlength     最多 12 个字符
+                pattern       正则，隐式全匹配（无需写 ^ $）
+                placeholder   让 :placeholder-shown 伪类可用，便于控制初始样式
+              -->
+              <input
+                type="text"
+                id="username"
+                name="username"
+                required
+                minlength="3"
+                maxlength="12"
+                pattern="[A-Za-z0-9_]+"
+                placeholder="3-12 位字母、数字或下划线"
+              />
+              <p class="err" id="err-username"></p>
+              <p class="hint">提示：输入 admin 会命中"异步校验：已被占用"的场景。</p>
+            </div>
+
+            <div class="field">
+              <label for="email">邮箱 <span class="req">*</span></label>
+              <!-- type="email" 让浏览器自带格式检查 → validity.typeMismatch -->
+              <input type="email" id="email" name="email" required placeholder="user@example.com" />
+              <p class="err" id="err-email"></p>
+            </div>
+
+            <div class="row">
+              <div class="field">
+                <label for="age">年龄 <span class="req">*</span></label>
+                <!-- type="number" 配合 min/max → validity.rangeUnderflow / rangeOverflow -->
+                <input type="number" id="age" name="age" required min="18" max="120" placeholder="18-120" />
+                <p class="err" id="err-age"></p>
+              </div>
+
+              <div class="field">
+                <label for="city">城市</label>
+                <!-- select 用 .value 读写，取到的是选中 option 的 value -->
+                <select id="city" name="city">
+                  <option value="beijing">北京</option>
+                  <option value="shanghai">上海</option>
+                  <option value="guangzhou">广州</option>
+                  <option value="shenzhen">深圳</option>
+                </select>
+                <p class="hint">下拉框也可以校验，但这里演示"可选字段"。</p>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="field">
+                <label for="password">密码 <span class="req">*</span></label>
+                <input type="password" id="password" name="password" required minlength="8" placeholder="至少 8 位，含字母和数字" />
+                <p class="err" id="err-password"></p>
+              </div>
+
+              <div class="field">
+                <label for="confirm">确认密码 <span class="req">*</span></label>
+                <input type="password" id="confirm" name="confirm" required placeholder="再输一次" />
+                <p class="err" id="err-confirm"></p>
+                <p class="hint">这里用 setCustomValidity 做"两次密码是否一致"的联动校验。</p>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>性别 <span class="inline hint">（radio 组：同一 name 互斥）</span></label>
+              <label class="inline"><input type="radio" name="gender" value="female" checked /> 女</label>
+              <label class="inline"><input type="radio" name="gender" value="male" /> 男</label>
+              <p class="hint">
+                读取方式：<code>form.querySelector('input[name=gender]:checked').value</code>
+              </p>
+            </div>
+
+            <div class="field">
+              <label>兴趣爱好 <span class="inline hint">（checkbox：不勾选就不出现在数据里）</span></label>
+              <label class="inline"><input type="checkbox" name="hobby" value="reading" /> 阅读</label>
+              <label class="inline"><input type="checkbox" name="hobby" value="coding" checked /> 编程</label>
+              <label class="inline"><input type="checkbox" name="hobby" value="sports" /> 运动</label>
+            </div>
+
+            <div class="field">
+              <label for="bio">个人简介 <span class="inline hint">（textarea）</span></label>
+              <textarea id="bio" name="bio" rows="3" placeholder="随便写点什么"></textarea>
+              <p class="hint" id="bio-count">已输入 0 个字符</p>
+            </div>
+
+            <div class="field">
+              <label class="inline">
+                <input type="checkbox" id="agree" name="agree" required />
+                我已阅读并同意用户协议 <span class="req">*</span>
+              </label>
+              <p class="err" id="err-agree"></p>
+            </div>
+
+            <button type="submit" class="primary">提交（submit 事件）</button>
+            <button type="button" id="btn-native">用 reportValidity() 弹原生提示</button>
+            <button type="button" id="btn-dump">打印 form.elements 全部控件值</button>
+            <button type="reset">reset 重置表单</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- ==================== 右侧：输出区 ==================== -->
+      <div>
+        <div class="card">
+          <h2>输出</h2>
+          <pre id="out">（点击左侧按钮后，这里会显示结果）</pre>
+        </div>
+        <div class="card">
+          <h2>知识点速查</h2>
+          <p class="hint">
+            <code>validity.valueMissing</code> 必填为空 ·
+            <code>validity.patternMismatch</code> 正则不匹配 ·
+            <code>validity.tooShort</code> 太短 ·
+            <code>validity.typeMismatch</code> 类型不符（如 email） ·
+            <code>validity.rangeUnderflow</code> 小于 min ·
+            <code>validity.customError</code> 自定义错误
+          </p>
+          <p class="hint">
+            方法：<code>checkValidity()</code> 只判断 ·
+            <code>reportValidity()</code> 判断并弹提示 ·
+            <code>setCustomValidity(msg)</code> 写入自定义错误（传空串清除）
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 通用工具
+        // ------------------------------------------------------------------
+
+        const outEl = document.getElementById('out');
+
+        /** 往输出区追加一行 */
+        function out(text) {
+          outEl.textContent += text + '\n';
+          outEl.scrollTop = outEl.scrollHeight;
+          console.log(text);
+        }
+
+        /** 清空输出区 */
+        function clearOut() {
+          outEl.textContent = '';
+        }
+
+        // ------------------------------------------------------------------
+        // 1. 拿到表单和各个控件
+        // ------------------------------------------------------------------
+
+        const form = document.getElementById('reg-form');
+
+        // form.elements 是一个"活集合"，包含表单内所有控件（input/select/textarea/button）
+        // 可以用 name 或 id 当键来取，也可以按下标取。
+        const username = form.elements['username'];
+        const email = form.elements['email'];
+        const age = form.elements['age'];
+        const password = form.elements['password'];
+        const confirmInput = form.elements['confirm'];
+        const agree = form.elements['agree'];
+        const bio = form.elements['bio'];
+
+        console.log('form.elements 中共有控件', form.elements.length, '个');
+
+        /**
+         * 显示 / 清除某个字段的错误提示。
+         * @param {string} fieldId 字段 id（错误提示 <p id="err-xxx">）
+         * @param {string} message 错误信息，空字符串表示清除
+         */
+        function showError(fieldId, message) {
+          const errEl = document.getElementById('err-' + fieldId);
+          if (!errEl) return;
+          errEl.textContent = message;
+          if (message) errEl.classList.add('show');
+          else errEl.classList.remove('show');
+        }
+
+        /**
+         * 把浏览器原生 validity 的细项翻译成中文提示。
+         * 这比自己重写一遍正则要省事得多——浏览器已经算好了。
+         */
+        function nativeMessage(el) {
+          const v = el.validity;
+          if (v.valueMissing) return '这一项是必填的';
+          if (v.typeMismatch && el.type === 'email') return '邮箱格式不正确（应形如 user@example.com）';
+          if (v.patternMismatch) return '只能包含字母、数字和下划线';
+          if (v.tooShort) return '至少需要 ' + el.minLength + ' 个字符（当前 ' + el.value.length + ' 个）';
+          if (v.tooLong) return '最多 ' + el.maxLength + ' 个字符';
+          if (v.rangeUnderflow) return '不能小于 ' + el.min;
+          if (v.rangeOverflow) return '不能大于 ' + el.max;
+          if (v.customError) return el.validationMessage; // 自定义错误，直接用写入的信息
+          return '';
+        }
+
+        /**
+         * 校验单个字段并刷新提示。
+         * 返回 true 表示通过。
+         */
+        function validateField(el, fieldId) {
+          // 先让浏览器把原生规则算一遍
+          const ok = el.checkValidity();
+          showError(fieldId, ok ? '' : nativeMessage(el));
+          return ok;
+        }
+
+        // ------------------------------------------------------------------
+        // 2. 自定义校验：两次密码必须一致
+        // ------------------------------------------------------------------
+
+        // 关键点：setCustomValidity 是"粘性"的，必须在每次输入时重新计算并清除，
+        // 否则用户改对了也提交不了。
+        function checkPasswordMatch() {
+          const same = password.value === confirmInput.value;
+          // 通过时传空字符串 = 清除自定义错误
+          confirmInput.setCustomValidity(same ? '' : '两次输入的密码必须一致');
+          return same;
+        }
+
+        // 'input' 事件——每次输入都重新计算，保证状态是"最新"的
+        password.addEventListener('input', function () {
+          checkPasswordMatch();
+          // 输入过程中不打扰用户，只把上一次的错误提示清掉
+          showError('password', '');
+          showError('confirm', '');
+        });
+
+        confirmInput.addEventListener('input', function () {
+          checkPasswordMatch();
+          showError('confirm', '');
+        });
+
+        // ------------------------------------------------------------------
+        // 3. 失焦时校验（blur）：用户离开某个输入框时给出反馈
+        // ------------------------------------------------------------------
+
+        const blurTargets = [
+          [username, 'username'],
+          [email, 'email'],
+          [age, 'age'],
+          [password, 'password'],
+          [confirmInput, 'confirm'],
+        ];
+
+        for (const [el, id] of blurTargets) {
+          el.addEventListener('blur', function () {
+            validateField(el, id);
+          });
+          // 复选框没有 blur 的语义，单独处理
+        }
+
+        // 复选框用 change 事件校验
+        agree.addEventListener('change', function () {
+          showError('agree', agree.checked ? '' : '必须同意用户协议才能注册');
+        });
+
+        // ------------------------------------------------------------------
+        // 4. 一个"异步校验"的示例：用户名是否已被占用
+        // ------------------------------------------------------------------
+
+        // 真实项目中这里会 fetch 到服务器，本示例用本地名单模拟。
+        const TAKEN_NAMES = ['admin', 'root', 'test'];
+
+        username.addEventListener('blur', function () {
+          const value = username.value.trim();
+          // 先让原生校验通过，再跑异步规则（否则提示会互相覆盖）
+          if (!username.checkValidity()) return;
+          out('▸ 异步校验用户名「' + value + '」...');
+          // 用 setTimeout 模拟一次网络往返
+          setTimeout(function () {
+            if (TAKEN_NAMES.includes(value.toLowerCase())) {
+              // 把异步结果写回控件，之后 form.checkValidity() 就会带上这条错误
+              username.setCustomValidity('用户名「' + value + '」已被占用，换一个吧');
+              showError('username', '用户名「' + value + '」已被占用，换一个吧');
+              out('  ✗ 该用户名已被占用，已通过 setCustomValidity 写回控件');
+            } else {
+              username.setCustomValidity(''); // 清除自定义错误
+              showError('username', '');
+              out('  ✓ 用户名可用');
+            }
+          }, 300);
+        });
+
+        // 用户一改内容就立刻清掉"已被占用"的自定义错误，否则会一直卡住
+        username.addEventListener('input', function () {
+          username.setCustomValidity('');
+          showError('username', '');
+        });
+
+        // ------------------------------------------------------------------
+        // 5. 其它控件：textarea 字数统计、select 变化监听
+        // ------------------------------------------------------------------
+
+        bio.addEventListener('input', function () {
+          document.getElementById('bio-count').textContent = '已输入 ' + bio.value.length + ' 个字符';
+        });
+
+        form.elements['city'].addEventListener('change', function (e) {
+          out('▸ select 的 value 变成了：' + e.target.value + '（选中项文本：' + e.target.selectedOptions[0].text + '）');
+        });
+
+        // ------------------------------------------------------------------
+        // 6. 读取整个表单：手动序列化 vs FormData
+        // ------------------------------------------------------------------
+
+        /** 手动遍历 form.elements 收集数据（能看清每一步） */
+        function collectManually() {
+          const data = {};
+          for (const el of form.elements) {
+            // 没有 name 的控件（比如按钮）不参与提交
+            if (!el.name) continue;
+            if (el.type === 'checkbox') {
+              // 复选框：没勾选就不写进数据（与 FormData 行为一致）
+              if (el.checked) {
+                if (data[el.name] === undefined) data[el.name] = [];
+                data[el.name].push(el.value);
+              }
+              continue;
+            }
+            if (el.type === 'radio') {
+              if (el.checked) data[el.name] = el.value;
+              continue;
+            }
+            if (el.type === 'submit' || el.type === 'button' || el.type === 'reset') continue;
+            data[el.name] = el.value; // 注意：永远是字符串
+          }
+          return data;
+        }
+
+        /** 用 FormData 一行搞定（浏览器原生 API） */
+        function collectWithFormData() {
+          const fd = new FormData(form);
+          const result = {};
+          // FormData 用 forEach 遍历（同名多值时会分别出现）
+          fd.forEach(function (value, key) {
+            if (key in result) {
+              // 已经是数组就追加，否则先转成数组
+              if (Array.isArray(result[key])) result[key].push(value);
+              else result[key] = [result[key], value];
+            } else {
+              result[key] = value;
+            }
+          });
+          return result;
+        }
+
+        // ------------------------------------------------------------------
+        // 7. 提交：submit 事件里必须 preventDefault
+        // ------------------------------------------------------------------
+
+        form.addEventListener('submit', function (e) {
+          // 第一步永远是阻止默认行为。否则浏览器会真的提交表单并重新加载页面。
+          e.preventDefault();
+
+          clearOut();
+          out('=== submit 事件被触发 ===');
+
+          // 提交前把每个字段都校验一遍并显示提示（blur 才校验的话，用户可能没碰过某些字段）
+          let allOk = true;
+          for (const [el, id] of blurTargets) {
+            if (!validateField(el, id)) allOk = false;
+          }
+          // 自定义联动校验也要再跑一次
+          if (!checkPasswordMatch()) {
+            showError('confirm', '两次输入的密码必须一致');
+            allOk = false;
+          }
+          if (!agree.checked) {
+            showError('agree', '必须同意用户协议才能注册');
+            allOk = false;
+          }
+
+          // form.checkValidity() 会用上所有原生规则 + 自定义错误，是最权威的判断
+          out('form.checkValidity() = ' + form.checkValidity());
+
+          if (!allOk) {
+            out('❌ 校验未通过，已阻止提交。请修正红色提示的字段。');
+            // 把焦点移到第一个出错的控件上，这是很好的无障碍实践
+            const firstBad = form.querySelector(':invalid');
+            if (firstBad) {
+              firstBad.focus();
+              out('   已自动聚焦到第一个出错的控件：' + (firstBad.name || firstBad.id));
+            }
+            return;
+          }
+
+          out('✅ 校验通过，下面是收集到的数据：');
+          const data = collectManually();
+          out(JSON.stringify(data, null, 2));
+
+          out('');
+          out('用 FormData 收集的结果（对比一下）：');
+          out(JSON.stringify(collectWithFormData(), null, 2));
+
+          out('');
+          out('注意 age 是字符串 "' + data.age + '"，类型是 ' + typeof data.age + '。');
+          out('真实项目中这里会 fetch(...) 把数据发给服务器。本示例不联网，到此为止。');
+        });
+
+        // ------------------------------------------------------------------
+        // 8. 按钮：reportValidity 与手动 dump
+        // ------------------------------------------------------------------
+
+        document.getElementById('btn-native').addEventListener('click', function () {
+          clearOut();
+          out('=== 调用 form.reportValidity() ===');
+          const ok = form.reportValidity(); // 不通过时会弹出浏览器原生提示气泡
+          out('返回值 = ' + ok);
+          out(ok ? '表单全部合法，没有弹出提示。' : '浏览器已弹出原生提示气泡，指向第一个不合法的控件。');
+          out('');
+          out('注意：本表单加了 novalidate 属性，所以点"提交"时浏览器不会自动拦截；');
+          out('      但 reportValidity() 是手动调用，依然会弹提示。');
+        });
+
+        document.getElementById('btn-dump').addEventListener('click', function () {
+          clearOut();
+          out('=== 遍历 form.elements（共 ' + form.elements.length + ' 个控件）===');
+          for (const el of form.elements) {
+            if (!el.name) {
+              out('  [' + el.tagName.toLowerCase() + '] 没有 name 属性，提交时会被忽略');
+              continue;
+            }
+            const value = el.type === 'checkbox' || el.type === 'radio' ? String(el.checked) : el.value;
+            out(
+              '  ' +
+                el.tagName.toLowerCase() +
+                ' name="' +
+                el.name +
+                '" type="' +
+                el.type +
+                '" value=' +
+                JSON.stringify(value) +
+                ' valid=' +
+                el.checkValidity(),
+            );
+          }
+          out('');
+          out('说明：复选框/单选框看的是 checked，其余控件看 value；');
+          out('      value 的类型永远是字符串。');
+        });
+
+        // 表单 reset 之后，自定义校验状态也要一起清理，否则残留的 customError 会卡住表单
+        form.addEventListener('reset', function () {
+          setTimeout(function () {
+            // 等一下让浏览器先把默认值恢复，再清自定义错误
+            username.setCustomValidity('');
+            confirmInput.setCustomValidity('');
+            const errs = form.querySelectorAll('.err');
+            for (const el of errs) el.classList.remove('show');
+            document.getElementById('bio-count').textContent = '已输入 0 个字符';
+            clearOut();
+            out('表单已重置，自定义校验状态也已清除。');
+          }, 0);
+        });
+
+        console.log('表单示例初始化完成，form.elements.length =', form.elements.length);
+      })();
+    </script>
+  </body>
+</html>

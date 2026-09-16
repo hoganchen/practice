@@ -1,0 +1,16 @@
+{
+  "name": "javascript-examples",
+  "version": "1.0.0",
+  "keywords": ["javascript", "esm", "modules", "tutorial"],
+  "author": {
+    "name": "示例作者",
+    "email": "demo@example.com"
+  },
+  "features": [
+    { "id": 1, "title": "具名导出", "done": true },
+    { "id": 2, "title": "默认导出", "done": true },
+    { "id": 3, "title": "动态 import()", "done": false }
+  ],
+  "meta": null,
+  "count": 3
+}

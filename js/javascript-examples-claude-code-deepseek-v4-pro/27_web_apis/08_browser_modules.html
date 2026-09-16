@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：浏览器端 ES 模块（type="module" 的导入导出、模块作用域）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】进阶
+  【前置知识】27_web_apis/08_browser_modules.js（同知识点的 Node ESM 版）
+
+  【知识点说明】
+
+  1. 是什么
+     ES 模块（ESM）是 JavaScript 语言层面的标准模块系统：用 export 导出、
+     用 import 导入，每个文件是一个独立模块，有自己的作用域。
+     浏览器里用 <script type="module"> 启用它。
+
+  2. 为什么需要
+     在 ESM 之前，浏览器只能靠一堆 <script> 标签拼代码，所有顶层变量都挤在
+     全局作用域里，命名冲突和加载顺序全靠人肉维护。ESM 解决了三件事：
+       a) 作用域隔离：模块内的变量不会污染 window；
+       b) 显式依赖：import 一行行写清楚"我依赖谁"；
+       c) 静态可分析：import/export 只能写在顶层、名字是字面量，
+          打包工具因此能在不运行代码的情况下画出依赖图、做 tree-shaking。
+
+  3. 核心语法要点
+     导出：export const / export function / export class /
+           export { a, b as c } / export default / export * from './other.js'
+     导入：import { a, b as c } from './m.js'
+           import def from './m.js'
+           import * as ns from './m.js'
+           import './m.js'                （只为副作用导入）
+           const m = await import('./m.js')（动态导入，返回 Promise）
+     模块特性：
+       - 模块顶层自动是严格模式，不写 'use strict' 也是严格模式。
+       - 模块有自己的作用域，顶层 this 是 undefined（不是 window）。
+       - 模块只会被求值一次，无论被 import 多少次（单例）。
+       - 导出的是"实时活绑定"：模块内部改变量，导入方看到的是新值。
+       - 导入的绑定是只读的，导入方不能给它赋值。
+     type="module" 的额外行为：
+       - 自动 defer（等 HTML 解析完再执行），不会阻塞页面渲染。
+       - 路径必须写全扩展名并带 ./ 或 ../（不能像 Node 那样省略）。
+       - 服务器返回的 MIME 必须是 JS 类型，否则拒绝执行。
+       - 受同源/CORS 限制 —— **file:// 下外部模块脚本会被拦截**。
+
+  4. 常见陷阱
+     - 用 file:// 双击打开时，<script type="module" src="./x.js"> 会因 CORS 失败。
+       内联的 type="module" 通常可以执行，但任何外部 import 都不行。
+       想在本地练习模块，必须起一个 HTTP 服务器（如 Live Server）。
+     - 同一份代码在 Node 里能跑，搬到浏览器可能因为路径少写 .js 而 404。
+     - 模块路径是"相对于当前模块"的，不是相对于 HTML 页面。
+     - import 不能写在 if / 函数里；需要条件加载请用 import()。
+     - 默认导出和具名导出混用容易混乱，团队里通常约定只用其中一种。
+
+  【本文件如何做到"双击就能打开且无报错"】
+     本文件用三段脚本，层层兜底：
+       1) 普通 <script>：定义渲染函数 __renderModuleDemo，并设置一个 300ms 的
+          定时器检测模块脚本有没有执行。没执行就显示友好提示并渲染"经典脚本版"的结果。
+       2) 内联 <script type="module">：演示模块作用域、import.meta.url，
+          并用 Blob + 动态 import() 真正跑一遍"导入导出"。
+          所有可能失败的操作都包在 try/catch 里。
+       3) 任何情况下页面都有可见内容，且控制台不会留下未捕获的错误。
+
+  【运行方法】
+     方式一：双击本文件用浏览器打开（推荐用 Chrome/Edge/Firefox 的较新版本）。
+     方式二（更接近真实开发）：用 VS Code 的 Live Server 打开，
+             这样"外部模块文件的导入导出"也能正常工作。
+
+  【预期输出】
+     页面上会显示：模块脚本是否执行成功、模块作用域与全局作用域的对比表、
+     import.meta.url、以及动态 import 一个 Blob 模块拿到的导出结果。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>浏览器端 ES 模块</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 16px;
+        margin: 0 0 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 12px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .status {
+        font-size: 14px;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+      }
+
+      .status.ok {
+        background: #dcffe4;
+        border: 1px solid #1a7f37;
+        color: #0b3d1c;
+      }
+
+      .status.warn {
+        background: #fff5d6;
+        border: 1px solid #d4a72c;
+        color: #4a3400;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13.5px;
+        margin-top: 6px;
+      }
+
+      th,
+      td {
+        border: 1px solid #d0d7de;
+        padding: 5px 10px;
+        text-align: left;
+        word-break: break-all;
+        vertical-align: top;
+      }
+
+      th {
+        background: #f0f3f6;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      pre {
+        margin: 0;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre;
+        overflow: auto;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13px;
+        margin: 4px 0;
+      }
+
+      .ok-text {
+        color: #1a7f37;
+        font-weight: 600;
+      }
+
+      .bad-text {
+        color: #d1242f;
+        font-weight: 600;
+      }
+
+      .two-col {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .two-col > div {
+        flex: 1 1 420px;
+        min-width: 300px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>浏览器端 ES 模块（type="module"）</h1>
+
+    <p class="hint">
+      本页演示模块作用域、import.meta、以及用 Blob + 动态 import() 实现的真实"导入导出"。
+      为了在 file:// 下也能正常打开，所有可能失败的操作都做了兜底。
+    </p>
+
+    <div id="status-host"></div>
+
+    <div class="two-col">
+      <div>
+        <div class="card">
+          <h2>1. 模块作用域 vs 普通脚本作用域</h2>
+          <p class="hint">
+            普通 <code>&lt;script&gt;</code> 里的顶层变量会挂到 window 上；
+            <code>&lt;script type="module"&gt;</code> 里则不会 —— 它有独立作用域。
+          </p>
+          <div id="scope-host">（等待模块脚本执行…）</div>
+        </div>
+
+        <div class="card">
+          <h2>2. 动态 import()：真正跑一遍导入导出</h2>
+          <p class="hint">
+            静态 import 需要外部 .js 文件（file:// 下会被 CORS 拦截），
+            而动态 <code>import()</code> 可以加载 Blob URL，
+            于是我们能在页面里现场"造一个模块"再导入它。
+          </p>
+          <div id="dynamic-host">（等待模块脚本执行…）</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>3. 静态 import 该怎么写（代码对照）</h2>
+          <p class="hint">
+            下面这些写法需要真实的外部模块文件。把它们放到用 HTTP 服务器打开的页面里
+            就能工作；用 file:// 双击打开时，浏览器会以 CORS 为由拒绝加载外部模块。
+          </p>
+          <pre>// ---- 被导入的模块 utils.js ----
+export const VERSION = '1.0.0';        // 具名导出
+export function greet(name) {
+  return `你好，${name}!`;
+}
+export class Counter { /* ... */ }
+export default function createApp() {} // 默认导出
+
+// ---- 导入方 main.js ----
+import createApp, { VERSION, greet } from './utils.js';
+import { greet as hi } from './utils.js';   // 重命名
+import * as utils from './utils.js';        // 命名空间
+import './side-effect.js';                  // 只为副作用
+const mod = await import('./lazy.js');      // 动态导入
+
+// ---- HTML ----
+// &lt;script type="module" src="./main.js"&gt;&lt;/script&gt;</pre>
+          <p class="hint">
+            要点：路径必须写全 <code>.js</code> 扩展名并带 <code>./</code>，
+            且是"相对于当前模块文件"，不是相对于 HTML 页面。
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>4. 模块的六条硬规矩</h2>
+          <p class="hint">
+            1. 顶层自动是严格模式，不用写 <code>'use strict'</code>。<br />
+            2. 顶层 <code>this</code> 是 <code>undefined</code>，不是 window。<br />
+            3. 模块只被求值一次，无论被 import 多少次（单例）。<br />
+            4. 导出的是"实时活绑定"，模块内部改变量，导入方看到新值。<br />
+            5. 导入的绑定是只读的，导入方不能赋值。<br />
+            6. import/export 只能写在顶层，不能塞进 if 或函数里。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ======================================================================
+      // 第一段：普通脚本（非 module）
+      // ======================================================================
+      (function () {
+        'use strict';
+
+        // 这段代码运行在"普通脚本"作用域里，用 var 声明的顶层变量会挂到 window 上。
+        // 这里故意用一个明显的名字，稍后和模块作用域做对比。
+        var classicTopLevel = '我是普通脚本里的顶层 var（挂在 window 上）';
+
+        /** 往状态区写一条提示 */
+        function setStatus(text, kind) {
+          const host = document.getElementById('status-host');
+          host.textContent = '';
+          const div = document.createElement('div');
+          div.className = 'status ' + kind;
+          div.textContent = text;
+          host.appendChild(div);
+        }
+
+        /** 渲染一张两列表格 */
+        function renderTable(hostId, rows, headers) {
+          const host = document.getElementById(hostId);
+          host.textContent = '';
+          const table = document.createElement('table');
+          const thead = document.createElement('thead');
+          const tr = document.createElement('tr');
+          for (const h of headers) {
+            const th = document.createElement('th');
+            th.textContent = h;
+            tr.appendChild(th);
+          }
+          thead.appendChild(tr);
+          table.appendChild(thead);
+
+          const tbody = document.createElement('tbody');
+          for (const row of rows) {
+            const r = document.createElement('tr');
+            for (const cell of row) {
+              const td = document.createElement('td');
+              // 用 textContent 写入（可能含有 < > 等字符）
+              td.textContent = cell;
+              r.appendChild(td);
+            }
+            tbody.appendChild(r);
+          }
+          table.appendChild(tbody);
+          host.appendChild(table);
+        }
+
+        // 模块脚本会用到这两个函数，所以挂到 window 上共享（模块里访问不到这里的局部作用域）
+        window.__ui = { setStatus: setStatus, renderTable: renderTable };
+
+        // ------------------------------------------------------------------
+        // 兜底：300ms 后检查模块脚本到底有没有执行
+        // ------------------------------------------------------------------
+        // 在 file:// 协议下，内联的 type="module" 通常能执行，但部分浏览器/配置
+        // 会直接拒绝。这里做一次检测，保证页面在任何情况下都有可见内容，
+        // 而且不会在控制台留下未捕获的错误。
+        window.__moduleRan = false;
+
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+            if (window.__moduleRan) return; // 模块正常执行了，什么都不用做
+
+            setStatus(
+              '检测到浏览器没有执行内联的 <script type="module">。这通常是因为用 file:// 协议打开时，' +
+                '浏览器的模块加载策略把模块脚本拦截了。页面已自动降级显示，功能说明照常可见。' +
+                '想看到完整效果，请用本地 HTTP 服务器打开本文件（例如 VS Code 的 Live Server）。',
+              'warn',
+            );
+
+            // 渲染"经典脚本版"的对照内容，保证页面依然有信息量
+            renderTable(
+              'scope-host',
+              [
+                ['普通脚本顶层 var', '"' + classicTopLevel + '"', 'window.classicTopLevel 有值'],
+                ['模块脚本（未执行）', '—', '无法演示'],
+              ],
+              ['位置', '值', '是否污染全局'],
+            );
+            renderTable(
+              'dynamic-host',
+              [
+                ['静态 import 外部 .js', '被浏览器拦截', 'file:// 下必然失败'],
+                ['动态 import(Blob URL)', '被浏览器拦截', '同样受限'],
+                ['结论', '请改用 HTTP 服务器', '或用同名 .js 在 Node 里运行'],
+              ],
+              ['方式', '结果', '说明'],
+            );
+          }, 300);
+        });
+      })();
+    </script>
+
+    <!--
+      ======================================================================
+      第二段：ES 模块脚本
+      ======================================================================
+
+      type="module" 带来的四个额外特性：
+        1) 自动 defer：等 HTML 解析完毕再执行，所以能安全地操作 DOM。
+        2) 自动严格模式，且顶层 this 是 undefined。
+        3) 拥有独立的作用域：这里的变量不会成为 window 的属性。
+        4) 受同源/CORS 限制：不能 import 外部文件（除非页面来自 http(s)）。
+      ======================================================================
+    -->
+    <script type="module">
+      // 顶层的这一行告诉第一段脚本"模块执行成功了"
+      window.__moduleRan = true;
+
+      const { setStatus, renderTable } = window.__ui;
+
+      // ------------------------------------------------------------------
+      // 1. 模块作用域
+      // ------------------------------------------------------------------
+
+      // 下面这些变量只存在于本模块内部，外部（window）读不到。
+      const modulePrivate = '我是模块内部的变量';
+      let moduleCounter = 0;
+      function bump() {
+        moduleCounter += 1;
+        return moduleCounter;
+      }
+
+      setStatus('内联的 <script type="module"> 已成功执行，下面的演示都是真实运行结果。', 'ok');
+
+      renderTable(
+        'scope-host',
+        [
+          ['模块顶层变量', '"' + modulePrivate + '"', String(window.modulePrivate === undefined)],
+          ['模块顶层函数', 'bump() → ' + bump(), String(window.bump === undefined)],
+          ['模块顶层 this', String(this), '模块顶层 this 是 undefined'],
+          ['模块是否严格模式', '是', '尝试给未声明变量赋值会抛错'],
+          ['普通脚本顶层 var', '"' + window.classicTopLevel + '"', String(window.classicTopLevel !== undefined)],
+        ],
+        ['位置', '值', 'window 上能读到吗'],
+      );
+
+      // 眼见为实：严格模式下给未声明的变量赋值会直接抛错
+      try {
+        undeclaredInModule = 1; // 故意不声明
+        setStatus('模块居然不是严格模式？这不应该发生。', 'warn');
+      } catch (err) {
+        // 把这条错误也显示出来，证明模块顶层默认就是严格模式
+        const host = document.getElementById('scope-host');
+        const p = document.createElement('p');
+        p.className = 'hint';
+        p.textContent = '严格模式验证：给未声明变量赋值 → ' + err.name + ': ' + err.message;
+        host.appendChild(p);
+      }
+
+      // ------------------------------------------------------------------
+      // 2. import.meta
+      // ------------------------------------------------------------------
+
+      const info = document.createElement('p');
+      info.className = 'hint';
+      // import.meta.url 在模块里可用，普通脚本里根本访问不到 import.meta
+      info.textContent = 'import.meta.url = ' + import.meta.url;
+      document.getElementById('scope-host').appendChild(info);
+
+      // 模块加载是异步的：可以证明它没有阻塞 HTML 解析
+      const timing = document.createElement('p');
+      timing.className = 'hint';
+      timing.textContent =
+        'document.readyState 已经是 ' +
+        document.readyState +
+        '，说明模块脚本确实在 HTML 解析完成之后才执行（自动 defer）。';
+      document.getElementById('scope-host').appendChild(timing);
+
+      // ------------------------------------------------------------------
+      // 3. 动态 import()：现场造一个模块并导入它
+      // ------------------------------------------------------------------
+
+      async function demoDynamicImport() {
+        const rows = [];
+
+        // 3.1 用字符串当"模块源码" —— 这就是一个完整的 ES 模块
+        const moduleSource = [
+          'export const VERSION = "1.0.0";',
+          'export let callCount = 0;',
+          'export function greet(name) {',
+          '  callCount += 1;',
+          '  return "你好，" + name + "！这是第 " + callCount + " 次调用";',
+          '}',
+          'export default function createApp(name) { return "应用：" + name; }',
+        ].join('\n');
+
+        rows.push(['模块源码行数', String(moduleSource.split('\n').length)]);
+
+        // 3.2 把它包成 Blob，再生成一个 blob: URL
+        let blobUrl = null;
+        try {
+          const blob = new Blob([moduleSource], { type: 'text/javascript' });
+          blobUrl = URL.createObjectURL(blob);
+          rows.push(['Blob URL', blobUrl.slice(0, 42) + '...']);
+
+          // 3.3 动态导入：import() 返回 Promise，所以可以用 await
+          const mod = await import(blobUrl);
+          rows.push(['导入成功', '是']);
+          rows.push(['mod.VERSION', mod.VERSION]);
+          rows.push(['mod.greet("小明")', mod.greet('小明')]);
+          rows.push(['再调一次 greet', mod.greet('小红')]);
+          rows.push(['mod.callCount（实时活绑定）', String(mod.callCount)]);
+          rows.push(['mod.default("我的应用")', mod.default('我的应用')]);
+          rows.push(['命名空间上的键', Object.keys(mod).sort().join(', ')]);
+        } catch (err) {
+          // file:// 下动态 import(blob:) 也可能被拦截，如实报告即可
+          rows.push(['动态 import 失败', err.name + ': ' + err.message]);
+          rows.push(['原因', '页面运行在 file:// 下，浏览器不允许加载模块脚本']);
+          rows.push(['解决办法', '用本地 HTTP 服务器打开本页（Live Server 等）']);
+        } finally {
+          // 用完就释放，避免内存泄漏
+          if (blobUrl) URL.revokeObjectURL(blobUrl);
+        }
+
+        renderTable('dynamic-host', rows, ['项目', '结果']);
+      }
+
+      // 用 async 函数调用，避免依赖较新浏览器才支持的"顶层 await"
+      demoDynamicImport().catch(function (err) {
+        // 兜底的兜底：任何意外都不会变成未捕获的异常
+        renderTable('dynamic-host', [['未预期的错误', err.name + ': ' + err.message]], ['项目', '结果']);
+      });
+
+      console.log('模块脚本执行完毕：作用域隔离、import.meta、动态 import 都已演示。');
+    </script>
+  </body>
+</html>

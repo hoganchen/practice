@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：网络请求 fetch（GET / POST / 响应解析 / 错误处理）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】进阶
+  【前置知识】27_web_apis/04_fetch_api.js（同知识点的 Node 本地服务器版）
+
+  【知识点说明】
+
+  1. 是什么
+     fetch 是浏览器提供的网络请求 API，基于 Promise，用来向服务器发 HTTP 请求
+     并读取响应，取代了老旧的 XMLHttpRequest。
+
+  2. 为什么需要
+     网页自己不带数据，数据都要从服务器取。列表加载、表单提交、上传文件、
+     调用第三方接口，全靠 fetch。Promise 风格让"请求 → 解析 → 更新界面"
+     可以用 async/await 写成近乎同步的代码。
+
+  3. 核心语法要点
+     - fetch(url, options) → Promise<Response>
+         options: { method, headers, body, signal, credentials, mode }
+     - Response 对象：
+         response.ok / status / statusText / headers.get('content-type') / url
+         response.json() / .text() / .blob() / .arrayBuffer()  → 都是 Promise
+     - 请求体 body 必须是字符串（通常是 JSON.stringify 的结果）或 FormData/Blob；
+       发 JSON 别忘了 headers: { 'Content-Type': 'application/json' }。
+     - 取消请求：AbortController + signal，controller.abort() 会让 fetch
+       以 AbortError 拒绝。fetch 没有内置超时参数，超时就是这么实现的。
+     - 查询参数：用 new URLSearchParams({...}) 拼接并自动转义。
+     - 并发：Promise.all([fetch(a), fetch(b)])。
+
+  4. 常见陷阱
+     - fetch 只在"网络层失败"时 reject。HTTP 404/500 属于"成功拿到响应"，
+       Promise 仍是 fulfilled，必须自己判断 response.ok！
+     - Response 的 body 是一次性的：json() 读过之后不能再 text()，
+       要用 response.clone() 复制。
+     - 忘记 await response.json()（它返回的是 Promise）。
+     - CORS：跨域请求需要服务端返回 Access-Control-Allow-Origin。
+     - 用 file:// 直接打开页面时，fetch 相对路径/本地文件会被安全策略拦截，
+       这也是本示例用 mock 服务器演示的原因。
+
+  【本文件在浏览器中如何演示】
+     为了做到"双击即可打开、不联网、无报错"，本文件实现了两种数据来源：
+       a) 一个**本地的模拟服务器**（mockFetch 函数）：用 Promise + setTimeout
+          模拟网络延迟，用浏览器原生的 Response 构造函数造出真实的响应对象。
+          返回值的类型、字段、行为与真正的 fetch 完全一致，
+          按钮 1~5 全部走它，保证离线可用。
+       b) 一次**真实的 fetch 调用**：请求一个 data: URL（不产生网络流量），
+          用来证明 fetch 这个 API 本身是真的，并且是异步的。
+          如果浏览器因 file:// 安全策略拒绝，会被 try/catch 捕获并如实说明。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链，可离线运行）。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     页面上有 7 组演示按钮，点击后右侧输出区会打印请求 URL、状态码、
+     响应头、解析后的数据，以及各种错误被捕获的过程。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>fetch API：请求、解析与错误处理</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 16px;
+        margin: 0 0 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 12px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div:first-child {
+        flex: 1 1 420px;
+        min-width: 320px;
+      }
+
+      .layout > div:last-child {
+        flex: 1 1 460px;
+        min-width: 320px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 13px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      pre {
+        margin: 0;
+        height: 520px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-err {
+        color: #ff7b72;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13px;
+        margin: 4px 0;
+      }
+
+      .badge {
+        display: inline-block;
+        background: #ddf4ff;
+        color: #0969da;
+        border-radius: 10px;
+        padding: 0 8px;
+        font-size: 12px;
+        margin-left: 6px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>fetch API：请求、解析与错误处理</h1>
+
+    <p class="hint">
+      本页不联网：下面的"服务器"是一个用 Promise + 原生 <code>Response</code> 构造函数
+      实现的本地模拟服务器，返回值的类型和行为与真实的 fetch 完全一致。
+      只有最后一组按钮会真正调用一次 <code>fetch</code>（请求 data: URL，不产生网络流量）。
+    </p>
+
+    <div class="layout">
+      <div>
+        <div class="card">
+          <h2>1. 基本 GET <span class="badge">mock</span></h2>
+          <p class="hint">演示 response.ok / status / headers / json() 的读取方式。</p>
+          <button data-act="get-users">fetch('/api/users')</button>
+          <button data-act="get-query">带查询参数 ?limit=2&amp;sort=age</button>
+          <button data-act="get-one">fetch('/api/users/1')</button>
+        </div>
+
+        <div class="card">
+          <h2>2. POST 提交 JSON <span class="badge">mock</span></h2>
+          <p class="hint">演示 method / headers / body 三件套，以及 201 状态码。</p>
+          <button data-act="post-user">POST 新用户</button>
+          <button data-act="post-bad">POST 一段非法 JSON（看看服务端怎么拒绝）</button>
+        </div>
+
+        <div class="card">
+          <h2>3. HTTP 错误不等于网络错误 <span class="badge">最重要</span></h2>
+          <p class="hint">
+            404 / 500 时 fetch 的 Promise 依然是"成功"的，必须自己检查 response.ok。
+          </p>
+          <button data-act="get-404">请求不存在的用户（404）</button>
+          <button data-act="get-500">请求出错的接口（500）</button>
+          <button data-act="handle-404">用封装好的 requestJson 正确处理 404</button>
+        </div>
+
+        <div class="card">
+          <h2>4. 网络错误与超时取消 <span class="badge">mock</span></h2>
+          <p class="hint">连接失败时才 reject；超时要用 AbortController 手工实现。</p>
+          <button data-act="network-error">模拟网络中断（fetch 抛 TypeError）</button>
+          <button data-act="slow-ok">请求慢接口，给它足够时间</button>
+          <button data-act="timeout">请求慢接口但只等 150ms（超时取消）</button>
+          <button data-act="manual-abort">手动 abort() 取消请求</button>
+        </div>
+
+        <div class="card">
+          <h2>5. 响应体只能读一次 <span class="badge">陷阱</span></h2>
+          <p class="hint">json() 之后再 text() 会抛 "Body has already been read"。</p>
+          <button data-act="body-twice">读两次同一个响应（看报错）</button>
+          <button data-act="clone">用 clone() 复制后再读两次</button>
+        </div>
+
+        <div class="card">
+          <h2>6. 并发与手写 Response</h2>
+          <p class="hint">Promise.all 并发发请求；Response 构造函数可以本地造假数据。</p>
+          <button data-act="parallel">Promise.all 并发 3 个请求</button>
+          <button data-act="make-response">用 new Response() 造一个响应</button>
+        </div>
+
+        <div class="card">
+          <h2>7. 真实的 fetch 调用 <span class="badge">真 API</span></h2>
+          <p class="hint">
+            请求一个 <code>data:</code> URL——这是真正的 fetch，但不会产生任何网络流量。
+            在 file:// 协议下如果被安全策略拦截，会被 try/catch 捕获并如实提示。
+          </p>
+          <button data-act="real-fetch">fetch('data:application/json,...')</button>
+          <button data-act="clear">清空输出</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>输出</h2>
+          <pre id="out"></pre>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 输出工具
+        // ------------------------------------------------------------------
+
+        const outEl = document.getElementById('out');
+
+        function out(text, kind) {
+          const span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = text;
+          outEl.appendChild(span);
+          outEl.appendChild(document.createTextNode('\n'));
+          outEl.scrollTop = outEl.scrollHeight;
+          console.log(text);
+        }
+
+        // ------------------------------------------------------------------
+        // 1. 本地模拟服务器
+        // ------------------------------------------------------------------
+
+        /** 模拟的"数据库" */
+        let users = [
+          { id: 1, name: '小明', age: 18 },
+          { id: 2, name: '小红', age: 19 },
+          { id: 3, name: '小刚', age: 17 },
+        ];
+
+        /**
+         * 模拟服务器。
+         * 关键点：返回值是浏览器原生的 Response 对象，
+         * 因此 response.ok / status / headers / json() 的用法与真实 fetch 一模一样。
+         *
+         * @param {string} url 请求地址
+         * @param {object} [options] 与 fetch 的第二个参数同构
+         * @returns {Promise<Response>}
+         */
+        function mockFetch(url, options) {
+          const opt = options || {};
+          const method = (opt.method || 'GET').toUpperCase();
+
+          return new Promise(function (resolve, reject) {
+            // 用 setTimeout 模拟网络延迟，让"异步"这件事看得见
+            const delay = url.indexOf('/slow') !== -1 ? 600 : 60;
+
+            const timer = setTimeout(function () {
+              // 解析出路径和查询参数（浏览器的 URL API 在本地也能用）
+              const parsed = new URL(url, 'http://mock.local');
+              const path = parsed.pathname;
+
+              // 路由 1：GET /api/users
+              if (method === 'GET' && path === '/api/users') {
+                const limit = Number(parsed.searchParams.get('limit') || users.length);
+                resolve(jsonResponse(200, { total: users.length, items: users.slice(0, limit) }));
+                return;
+              }
+
+              // 路由 2：GET /api/users/:id
+              const m = path.match(/^\/api\/users\/(\d+)$/);
+              if (method === 'GET' && m) {
+                const user = users.filter(function (u) {
+                  return u.id === Number(m[1]);
+                })[0];
+                if (!user) {
+                  resolve(jsonResponse(404, { error: 'UserNotFound', message: '没有 id=' + m[1] + ' 的用户' }));
+                  return;
+                }
+                resolve(jsonResponse(200, user));
+                return;
+              }
+
+              // 路由 3：POST /api/users
+              if (method === 'POST' && path === '/api/users') {
+                let payload;
+                try {
+                  // 和真实服务器一样：收到的 body 是字符串，要自己解析
+                  payload = JSON.parse(opt.body);
+                } catch (e) {
+                  resolve(jsonResponse(400, { error: 'BadRequest', message: '请求体不是合法 JSON：' + e.message }));
+                  return;
+                }
+                const created = Object.assign({ id: users.length + 1 }, payload);
+                users.push(created);
+                resolve(jsonResponse(201, created, { Location: '/api/users/' + created.id }));
+                return;
+              }
+
+              // 路由 4：GET /api/slow
+              if (method === 'GET' && path === '/api/slow') {
+                resolve(jsonResponse(200, { message: '我虽然慢，但还是回来了' }));
+                return;
+              }
+
+              // 路由 5：GET /api/error
+              if (method === 'GET' && path === '/api/error') {
+                resolve(jsonResponse(500, { error: 'InternalServerError', message: '服务器内部错误（这是故意的）' }));
+                return;
+              }
+
+              // 兜底
+              resolve(jsonResponse(404, { error: 'NotFound', message: '没有这个接口：' + path }));
+            }, delay);
+
+            // 支持 AbortController：与真实 fetch 一样，abort 后以 AbortError 拒绝
+            if (opt.signal) {
+              if (opt.signal.aborted) {
+                clearTimeout(timer);
+                reject(new DOMException('The operation was aborted.', 'AbortError'));
+                return;
+              }
+              opt.signal.addEventListener('abort', function () {
+                clearTimeout(timer); // 真实 fetch 会把请求真的掐断，这里用清定时器模拟
+                reject(new DOMException('The operation was aborted.', 'AbortError'));
+              });
+            }
+          });
+        }
+
+        /** 造一个 JSON 响应（用浏览器原生的 Response 构造函数） */
+        function jsonResponse(status, data, extraHeaders) {
+          return new Response(JSON.stringify(data), {
+            status: status,
+            headers: Object.assign({ 'Content-Type': 'application/json; charset=utf-8' }, extraHeaders || {}),
+          });
+        }
+
+        // 把全局 fetch 指向模拟实现，这样下面所有代码都可以直接用 fetch 的写法。
+        // 真实项目中这一步通常叫"给 fetch 打桩（stub）"，用于前后端并行开发。
+        const realFetch = window.fetch ? window.fetch.bind(window) : null;
+        const fetch = mockFetch;
+
+        // ------------------------------------------------------------------
+        // 2. 通用辅助
+        // ------------------------------------------------------------------
+
+        /** 和 .js 版一致的封装：HTTP 错误码也抛错 */
+        async function requestJson(url, options) {
+          const response = await fetch(url, options);
+          const contentType = response.headers.get('content-type') || '';
+          const body = contentType.indexOf('application/json') !== -1 ? await response.json() : await response.text();
+          if (!response.ok) {
+            const error = new Error('HTTP ' + response.status + ' ' + response.statusText);
+            error.status = response.status;
+            error.body = body;
+            throw error;
+          }
+          return body;
+        }
+
+        /** 打印一个 Response 的关键信息 */
+        function describeResponse(response) {
+          out('  response.ok          = ' + response.ok, response.ok ? 'ok' : 'err');
+          out('  response.status      = ' + response.status);
+          out('  response.statusText  = ' + JSON.stringify(response.statusText));
+          out('  content-type         = ' + response.headers.get('content-type'));
+        }
+
+        // ------------------------------------------------------------------
+        // 3. 按钮动作
+        // ------------------------------------------------------------------
+
+        const actions = {
+          // ---------- 1. 基本 GET ----------
+          'get-users': async function () {
+            out('=== GET /api/users ===', 'dim');
+            const response = await fetch('/api/users');
+            describeResponse(response);
+            const data = await response.json(); // json() 也是 Promise，必须 await
+            out('  total = ' + data.total + '，items = ' + data.items.map(function (u) { return u.name; }).join('、'), 'ok');
+            out('');
+          },
+
+          'get-query': async function () {
+            out('=== 带查询参数 ===', 'dim');
+            // 用 URLSearchParams 拼参数，特殊字符会自动转义
+            const params = new URLSearchParams({ limit: '2', sort: 'age' });
+            out('  URLSearchParams 生成：' + params.toString());
+            const response = await fetch('/api/users?' + params);
+            const data = await response.json();
+            out('  拿到 ' + data.items.length + ' 条（limit=2 生效）：' + JSON.stringify(data.items.map(function (u) { return u.name; })), 'ok');
+            out('  手写字符串拼接遇到中文或 & 时很容易出错，URLSearchParams 会自动处理。', 'dim');
+            out('');
+          },
+
+          'get-one': async function () {
+            out('=== GET /api/users/1 ===', 'dim');
+            const response = await fetch('/api/users/1');
+            describeResponse(response);
+            out('  解析结果：' + JSON.stringify(await response.json()), 'ok');
+            out('');
+          },
+
+          // ---------- 2. POST ----------
+          'post-user': async function () {
+            out('=== POST /api/users ===', 'dim');
+            const payload = { name: '新同学', age: 20 };
+            const response = await fetch('/api/users', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }, // 必须告诉服务器我发的是 JSON
+              body: JSON.stringify(payload), // 对象不能直接当 body，要序列化成字符串
+            });
+            out('  状态码 = ' + response.status + '（创建成功是 201）', 'ok');
+            out('  Location 响应头 = ' + response.headers.get('location'));
+            out('  服务器返回 = ' + JSON.stringify(await response.json()));
+            out('');
+          },
+
+          'post-bad': async function () {
+            out('=== POST 一段非法 JSON ===', 'dim');
+            const response = await fetch('/api/users', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: '{这不是合法的 JSON', // 故意写错
+            });
+            out('  response.ok = ' + response.ok + '，状态码 = ' + response.status + '（服务端返回 400）', 'err');
+            out('  服务端说明：' + (await response.json()).message);
+            out('  注意：这依然是"成功拿到响应"，Promise 没有 reject。', 'warn');
+            out('');
+          },
+
+          // ---------- 3. HTTP 错误 ----------
+          'get-404': async function () {
+            out('=== 请求不存在的用户 ===', 'dim');
+            const response = await fetch('/api/users/999');
+            out('  fetch 抛错了吗？没有。Promise 正常兑现。', 'warn');
+            describeResponse(response);
+            out('  所以必须自己判断 response.ok，否则会把错误体当成正常数据用！', 'err');
+            out('  错误体：' + JSON.stringify(await response.json()));
+            out('');
+          },
+
+          'get-500': async function () {
+            out('=== 请求出错的接口 ===', 'dim');
+            const response = await fetch('/api/error');
+            out('  response.ok = ' + response.ok + '，status = ' + response.status, 'err');
+            out('  错误响应体照样能解析：' + JSON.stringify(await response.json()));
+            out('');
+          },
+
+          'handle-404': async function () {
+            out('=== 用封装好的 requestJson 正确处理 ===', 'dim');
+            try {
+              await requestJson('/api/users/999');
+              out('  不应该走到这里', 'err');
+            } catch (err) {
+              out('  捕获到：' + err.name + ': ' + err.message, 'ok');
+              out('  附带的状态码：' + err.status);
+              out('  附带的错误体：' + JSON.stringify(err.body));
+              out('  这样上层就能用 try/catch 统一处理所有失败情况了。', 'ok');
+            }
+            out('');
+          },
+
+          // ---------- 4. 网络错误与取消 ----------
+          'network-error': async function () {
+            out('=== 模拟网络中断 ===', 'dim');
+            // 真实场景：断网、DNS 解析失败、服务没启动。
+            // 这里用 Promise.reject 直接模拟网络层的失败。
+            const brokenFetch = function () {
+              return Promise.reject(new TypeError('Failed to fetch'));
+            };
+            try {
+              await brokenFetch('/api/users');
+              out('  不应该走到这里', 'err');
+            } catch (err) {
+              out('  捕获到：' + err.name + ': ' + err.message, 'ok');
+              out('  这是唯一一种 fetch 会 reject 的情况：请求根本没发出去或没回来。', 'ok');
+              out('  （真实浏览器里，断网/CORS 被拒时看到的就是这个 TypeError: Failed to fetch）', 'dim');
+            }
+            out('');
+          },
+
+          'slow-ok': async function () {
+            out('=== 请求慢接口（600ms），给它 2000ms ===', 'dim');
+            const started = Date.now();
+            const response = await fetchWithTimeout('/api/slow', {}, 2000);
+            out('  状态码 = ' + response.status + '，耗时 ' + (Date.now() - started) + 'ms', 'ok');
+            out('  结果 = ' + (await response.json()).message);
+            out('');
+          },
+
+          timeout: async function () {
+            out('=== 请求慢接口，只等 150ms（必然超时）===', 'dim');
+            try {
+              await fetchWithTimeout('/api/slow', {}, 150);
+              out('  不应该走到这里', 'err');
+            } catch (err) {
+              out('  捕获到：' + err.name + ' → ' + err.message, 'ok');
+              out('  fetch 没有内置超时参数，超时必须用 AbortController 手工实现。', 'warn');
+            }
+            out('');
+          },
+
+          'manual-abort': async function () {
+            out('=== 手动 abort() ===', 'dim');
+            const controller = new AbortController();
+            const pending = fetch('/api/slow', { signal: controller.signal });
+            controller.abort(); // 立刻取消，常用于"用户已经切走了，请求没意义了"
+            try {
+              await pending;
+              out('  不应该走到这里', 'err');
+            } catch (err) {
+              out('  捕获到：' + err.name + '（请求被取消了）', 'ok');
+            }
+            out('');
+          },
+
+          // ---------- 5. body 只能读一次 ----------
+          'body-twice': async function () {
+            out('=== 同一个响应读两次 ===', 'dim');
+            const response = await fetch('/api/users/1');
+            out('  第一次 json()：' + JSON.stringify(await response.json()), 'ok');
+            try {
+              await response.text();
+              out('  不应该走到这里', 'err');
+            } catch (err) {
+              out('  第二次再读：' + err.message, 'err');
+              out('  原因：响应体是流（stream），被消费过就没了。', 'warn');
+            }
+            out('');
+          },
+
+          clone: async function () {
+            out('=== 用 clone() 复制 ===', 'dim');
+            const response = await fetch('/api/users/1');
+            const a = response.clone(); // 复制出两份独立的响应
+            const b = response.clone();
+            out('  json() 读到：' + JSON.stringify(await a.json()), 'ok');
+            out('  text() 读到：' + JSON.stringify(await b.text()), 'ok');
+            out('');
+          },
+
+          // ---------- 6. 并发与手写 Response ----------
+          parallel: async function () {
+            out('=== Promise.all 并发 ===', 'dim');
+            const started = Date.now();
+            const results = await Promise.all([
+              fetch('/api/users').then(function (r) { return r.json(); }),
+              fetch('/api/users/1').then(function (r) { return r.json(); }),
+              fetch('/api/slow').then(function (r) { return r.json(); }),
+            ]);
+            out('  三个请求并发完成，总耗时 ' + (Date.now() - started) + 'ms', 'ok');
+            out('  （如果是顺序 await，耗时会接近三者之和）', 'dim');
+            out('  结果1 = 列表 ' + results[0].total + ' 条；结果2 = ' + results[1].name + '；结果3 = ' + results[2].message);
+            out('');
+          },
+
+          'make-response': async function () {
+            out('=== new Response() 手写响应 ===', 'dim');
+            const fake = new Response(JSON.stringify({ mock: true, items: [1, 2, 3] }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            });
+            out('  status = ' + fake.status + '，ok = ' + fake.ok);
+            out('  解析：' + JSON.stringify(await fake.json()), 'ok');
+            out('  用途：给 fetch 打桩，让前端在接口没好之前也能开发调试。', 'dim');
+            out('');
+          },
+
+          // ---------- 7. 真实 fetch ----------
+          'real-fetch': async function () {
+            out('=== 真实的 fetch 调用（data: URL，不产生网络流量）===', 'dim');
+            if (!realFetch) {
+              out('  当前环境没有 window.fetch。', 'err');
+              return;
+            }
+            try {
+              const started = Date.now();
+              // data: URL 是内联数据，不访问任何服务器
+              const dataUrl = 'data:application/json,' + encodeURIComponent(JSON.stringify({ hello: 'fetch', n: 42 }));
+              out('  请求地址：' + dataUrl.slice(0, 72) + '...');
+              const response = await realFetch(dataUrl);
+              out('  真实 fetch 返回：status = ' + response.status + '，ok = ' + response.ok, 'ok');
+              out('  耗时 ' + (Date.now() - started) + 'ms，说明它确实是异步的。');
+              out('  解析结果：' + JSON.stringify(await response.json()), 'ok');
+              out('  这条链路上的 fetch / Response / json() 全都是浏览器原生实现。', 'dim');
+            } catch (err) {
+              // file:// 协议下如果被安全策略拦截，会走到这里。捕获它，页面不会报错。
+              out('  真实 fetch 被拒绝了：' + err.name + ': ' + err.message, 'err');
+              out('  常见原因：用 file:// 直接双击打开时，浏览器的安全策略会拦截某些请求。', 'warn');
+              out('  解决办法：用本地 HTTP 服务器（如 VS Code 的 Live Server）打开本页。', 'warn');
+            }
+            out('');
+          },
+
+          clear: function () {
+            outEl.textContent = '';
+            out('输出已清空。', 'dim');
+          },
+        };
+
+        /** 带超时的 fetch 封装：浏览器与 Node 通用 */
+        async function fetchWithTimeout(url, options, timeoutMs) {
+          const controller = new AbortController();
+          const timer = setTimeout(function () {
+            controller.abort();
+          }, timeoutMs);
+          try {
+            return await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+          } catch (err) {
+            if (err.name === 'AbortError') throw new Error('请求超时（超过 ' + timeoutMs + 'ms 未响应）');
+            throw err;
+          } finally {
+            clearTimeout(timer); // 成功或失败都要清掉定时器
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 4. 事件委托绑定所有按钮
+        // ------------------------------------------------------------------
+
+        document.addEventListener('click', function (e) {
+          const btn = e.target.closest('button[data-act]');
+          if (!btn) return;
+          const fn = actions[btn.getAttribute('data-act')];
+          if (typeof fn !== 'function') return;
+          out('▸ ' + btn.textContent.trim(), 'dim');
+          // 统一兜底 catch：任何意外错误都不会变成"未捕获的异常"
+          Promise.resolve()
+            .then(fn)
+            .catch(function (err) {
+              out('  ✗ 未预期的错误：' + err.name + ': ' + err.message, 'err');
+            });
+        });
+
+        out('页面已就绪。当前 fetch 已被指向本地模拟服务器（mockFetch）。', 'dim');
+        out('点击左侧任意按钮开始。', 'ok');
+      })();
+    </script>
+  </body>
+</html>

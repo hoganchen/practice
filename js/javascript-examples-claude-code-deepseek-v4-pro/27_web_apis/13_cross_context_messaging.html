@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：跨上下文通信 —— postMessage / BroadcastChannel / storage 事件
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】高级
+  【前置知识】27_web_apis/05_web_storage.html（localStorage）、
+             27_web_apis/13_cross_context_messaging.js（同知识点的 Node 版）、
+             27_web_apis/12_observer_apis.html（异步回调与事件）
+
+  【知识点说明】
+
+  1. 是什么
+     "上下文"指一个独立的 JS 执行环境：一个标签页、一个 iframe、一个弹窗、
+     一个 Web Worker。它们之间默认完全隔离——变量不能互访，函数不能互调。
+     想通信只有三条官方通道：
+       - postMessage     ：点对点，从一个窗口发给另一个窗口；
+       - BroadcastChannel：同源广播，同频道（且同源）的所有页面都能收到；
+       - storage 事件    ：localStorage 被改动时，浏览器自动通知同源的其他页面。
+
+  2. 为什么需要（以及为什么不能直接调用）
+     同源策略是浏览器安全的基石：源 = 协议 + 域名 + 端口，三者全同才算同源。
+     如果不同源的页面能随便读对方的 DOM 和 localStorage，那你在网银页面旁边
+     再开一个恶意标签页，账户信息就被偷走了。所以浏览器只留了"传消息"这条窄路：
+     数据必须被**序列化**后交给对方，对方再**反序列化**出来。
+     这条路的每一环都有安全约束——这正是本页要讲清楚的。
+
+  3. 核心语法要点
+     (1) postMessage
+         // 发送方
+         otherWindow.postMessage(message, targetOrigin, [transfer]);
+         // 接收方
+         window.addEventListener('message', (event) => {
+           if (event.origin !== 'https://trusted.example.com') return; // 必须校验
+           console.log(event.data, event.source, event.origin);
+         });
+         - targetOrigin 是必填的，决定"只有这个源的文档才收得到"；
+           写 '*' 表示不限制（可能泄漏数据）。
+         - event.origin / event.source 由浏览器填写，发送方无法伪造。
+
+     (2) BroadcastChannel
+         const ch = new BroadcastChannel('login');
+         ch.postMessage({ type: 'logout' });
+         ch.onmessage = (e) => console.log(e.data);
+         ch.close();
+         - 只能同源；发送者自己收不到自己的消息。
+
+     (3) storage 事件
+         window.addEventListener('storage', (e) => {
+           // e.key / e.oldValue / e.newValue / e.url / e.storageArea
+         });
+         - 只通知同源的其他文档；发起修改的页面自己收不到。
+         - 值没变不触发；clear() 时 e.key 是 null。
+
+     (4) 结构化克隆（Structured Clone）
+         三条通道传输数据用的都是"结构化克隆"，不是 JSON：
+         支持 循环引用 / Date / RegExp / Map / Set / ArrayBuffer / TypedArray /
+              Blob / File / Error / BigInt / undefined / NaN / -0；
+         不支持 函数 / Symbol / WeakMap / Promise / Proxy / DOM 节点（抛 DataCloneError）；
+         会丢失 原型链（class 实例变普通对象）/ Symbol 属性键 / getter（被求值成值）。
+         ArrayBuffer 还能"转移所有权"（transfer），转移后原 buffer 归零，零拷贝。
+
+  4. 常见陷阱
+     - 接收方不校验 event.origin —— 任何页面发来的消息都当命令执行，等于开了后门。
+     - 发送方 targetOrigin 写 '*' —— 消息可能泄漏给任意来源。
+     - 以为 BroadcastChannel / storage 事件会通知自己 —— 都不会，这是设计如此。
+     - 以为 postMessage 是同步的 —— 它是异步的。
+     - 不同端口（:3000 与 :4000）不算同源，广播收不到，localStorage 也不共享。
+     - 多标签页同时写 localStorage 是 last-write-wins，没有冲突解决。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（零外链、零 CDN、可离线运行）。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     页面分四块：postMessage 点对点、BroadcastChannel 广播、storage 事件、
+     以及结构化克隆实验台。右侧日志区实时打印每一次发送、接收、拒绝与异常。
+
+  【file:// 协议限制说明（本页已全部捕获处理）】
+     - postMessage / 结构化克隆：**完全可用**，本页的 iframe 演示正常工作。
+     - BroadcastChannel：多数浏览器可用（同页两个实例之间能互发）；但两个
+       不同的 file:// 标签页之间，因为文件被视为"不透明源"，可能互不相通。
+       本页会实测并如实报告结果。
+     - localStorage：在 file:// 下部分浏览器会抛 SecurityError，本页所有访问
+       都包了 try/catch，失败时给出明确提示而不是让错误冒到控制台。
+     - storage 事件的跨标签页演示需要两个标签页，本页提供「打开第二个标签页」
+       按钮，并提示需要本地 HTTP 服务才能可靠工作。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>跨上下文通信：postMessage / BroadcastChannel / storage</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 18px;
+        margin-top: 0;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 14px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div {
+        flex: 1 1 440px;
+        min-width: 340px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      select,
+      input[type='text'] {
+        padding: 5px 8px;
+        font-size: 13px;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        font-family: Consolas, Monaco, monospace;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 13px;
+      }
+
+      #log {
+        margin: 0;
+        height: 460px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .log-pm {
+        color: #79c0ff;
+      }
+
+      .log-bc {
+        color: #d2a8ff;
+      }
+
+      .log-st {
+        color: #ffa657;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13.5px;
+      }
+
+      iframe {
+        width: 100%;
+        height: 190px;
+        border: 1px dashed #2da44e;
+        border-radius: 8px;
+        background: #f2fbf4;
+      }
+
+      .kv {
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        background: #f6f8fa;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        padding: 8px 10px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 120px;
+        overflow: auto;
+      }
+
+      .chan {
+        border: 1px solid #d2a8ff;
+        border-radius: 6px;
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        background: #fbf7ff;
+      }
+
+      .chan.closed {
+        border-color: #d0d7de;
+        background: #f6f8fa;
+        color: #8b949e;
+        text-decoration: line-through;
+      }
+
+      .chan .who {
+        font-weight: bold;
+        font-size: 13px;
+      }
+
+      .chan .got {
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12px;
+        color: #57606a;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>跨上下文通信：postMessage / BroadcastChannel / storage</h1>
+
+    <p class="hint">
+      浏览器的标签页、iframe、弹窗之间默认是完全隔离的，只能通过"消息"通信。
+      本页把三条通道都做成可点的演示，右侧日志实时打印每一次发送、接收、拒绝和异常。
+      本页是双击打开的 <code>file://</code> 页面，所有受限操作都已用 try/catch 兜住并给出提示。
+    </p>
+
+    <div class="layout">
+      <!-- ================= 左侧：四块演示 ================= -->
+      <div>
+        <!-- ---------- 1. postMessage ---------- -->
+        <div class="card">
+          <h2>1. postMessage —— 点对点通信</h2>
+          <p class="hint">
+            下面绿框里是一个真正的独立文档（<code>&lt;iframe srcdoc&gt;</code>），
+            它有自己的 window 和 JS 环境，和本页互相看不到对方的变量，只能靠 postMessage 说话。
+          </p>
+
+          <iframe id="childFrame" title="另一个独立上下文"></iframe>
+
+          <p class="hint" style="margin-top: 10px">
+            <button data-act="pm-send-ok">① 用正确的 targetOrigin 发送</button>
+            <button data-act="pm-send-bad">② 用错误的 targetOrigin 发送（会被静默丢弃）</button>
+            <button data-act="pm-send-star">③ 用 targetOrigin '*' 发送</button>
+            <button data-act="pm-self">④ 给自己 postMessage（本窗口也会收到）</button>
+            <button data-act="pm-cloneerr">⑤ 发送一个函数（DataCloneError）</button>
+          </p>
+
+          <p class="hint">
+            <strong>结构化克隆实验台</strong>：选一种数据发给 iframe，看看哪些能过、哪些会抛错。
+          </p>
+          <p class="hint">
+            <select id="cloneKind">
+              <option value="plain">普通对象 { a: 1, b: [1,2,3] }</option>
+              <option value="date">Date 对象</option>
+              <option value="regexp">RegExp /ab+c/gi</option>
+              <option value="map">Map（含 Set 值）</option>
+              <option value="typed">Uint8Array [1,2,3]</option>
+              <option value="cyclic">带循环引用的对象</option>
+              <option value="classinst">class 实例（看原型是否丢失）</option>
+              <option value="bigint">BigInt 10n</option>
+              <option value="symbol">Symbol（不可克隆）</option>
+              <option value="weakmap">WeakMap（不可克隆）</option>
+            </select>
+            <button data-act="pm-clone-send">发送选中的数据</button>
+            <button data-act="pm-check-origin">切换「校验 event.origin」开关</button>
+          </p>
+          <p class="hint">
+            当前 origin 校验：<code id="originCheckState">开启</code>
+            （关掉之后，任何来源的消息都会被当成命令处理——这就是漏洞的样子）
+          </p>
+        </div>
+
+        <!-- ---------- 2. BroadcastChannel ---------- -->
+        <div class="card">
+          <h2>2. BroadcastChannel —— 同源广播</h2>
+          <p class="hint">
+            同名的频道之间可以广播。下面建了两个频道实例，模拟两个标签页。
+            重点观察：<strong>发送者自己收不到自己的消息</strong>。
+          </p>
+
+          <div class="chan" id="chanA">
+            <div class="who">频道实例 A（相当于标签页 A）</div>
+            <div class="got" id="gotA">还没收到任何消息</div>
+          </div>
+          <div class="chan" id="chanB">
+            <div class="who">频道实例 B（相当于标签页 B）</div>
+            <div class="got" id="gotB">还没收到任何消息</div>
+          </div>
+
+          <p class="hint">
+            <button data-act="bc-a">A 广播「用户已登出」</button>
+            <button data-act="bc-b">B 广播「主题改为 dark」</button>
+            <button data-act="bc-closeB">关闭 B 频道</button>
+            <button data-act="bc-reopenB">重新打开 B 频道</button>
+            <button data-act="bc-probe">实测本页 BroadcastChannel 是否可用</button>
+          </p>
+        </div>
+
+        <!-- ---------- 3. storage 事件 ---------- -->
+        <div class="card">
+          <h2>3. storage 事件 —— 改 localStorage 时的自动广播</h2>
+          <p class="hint">
+            注意：本页写 localStorage，<strong>本页自己收不到 storage 事件</strong>，
+            这是规范定义的（只通知同源的其他文档）。本页会记录收到了几次事件。
+          </p>
+
+          <p class="hint">
+            <button data-act="st-write">写入 token = abc123</button>
+            <button data-act="st-write-same">再写一遍同样的值（不触发事件）</button>
+            <button data-act="st-write2">写入 theme = dark</button>
+            <button data-act="st-remove">删除 token</button>
+            <button data-act="st-clear">clear() 清空全部</button>
+            <button data-act="st-dump">显示 localStorage 内容</button>
+            <button data-act="st-open">打开第二个标签页（用于观察 storage 事件）</button>
+          </p>
+          <p class="hint">
+            本页收到的 storage 事件次数：<code id="stCount">0</code>
+            最后一次事件：
+          </p>
+          <div class="kv" id="stLast">（无）</div>
+        </div>
+
+        <!-- ---------- 4. 速查 ---------- -->
+        <div class="card">
+          <h2>4. 三条通道速查</h2>
+          <div class="kv">postMessage        点对点。必须显式指定目标窗口，targetOrigin 限定可达范围。
+                   接收方必须自己校验 event.origin。
+
+BroadcastChannel   同源广播。同频道名的实例都收得到（发送者除外）。
+                   能传结构化克隆的任意数据，页面关闭即消失。
+
+storage 事件       同源广播，但由"写 localStorage"隐式触发。
+                   消息只可能是字符串；会持久化到磁盘；
+                   发送者自己收不到；值没变不触发。</div>
+          <p class="hint" style="margin-top: 10px">
+            一句话记忆：postMessage 是寄快递（写清地址、验明发件人）；
+            BroadcastChannel 是大喇叭（同源都能听见，喊的人自己听不见）；
+            storage 事件是储物柜响了一声（谁动了柜子，同源的其他人都会收到提醒）。
+          </p>
+        </div>
+      </div>
+
+      <!-- ================= 右侧：日志 ================= -->
+      <div>
+        <div class="card">
+          <h2>通信日志</h2>
+          <pre id="log"></pre>
+          <p class="hint">按 F12 打开开发者工具的 Console，可以看到同样的输出。</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // 用 IIFE 造出私有作用域，避免变量污染到 window 上。
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 通用工具
+        // ------------------------------------------------------------------
+
+        const logEl = document.getElementById('log');
+        let step = 0;
+
+        /**
+         * 往日志区追加一行。
+         * @param {string} text 要打印的内容
+         * @param {'ok'|'warn'|'dim'|'pm'|'bc'|'st'} [kind] 颜色分类
+         */
+        function log(text, kind) {
+          step += 1;
+          const prefix = String(step).padStart(2, '0') + ' | ';
+          const span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = prefix + text;
+          logEl.appendChild(span);
+          logEl.appendChild(document.createTextNode('\n'));
+          logEl.scrollTop = logEl.scrollHeight;
+          console.log(text);
+        }
+
+        /** 分节标题 */
+        function section(title) {
+          log('');
+          log('=== ' + title + ' ===', 'dim');
+        }
+
+        /**
+         * 一个"打不死"的 JSON.stringify：
+         * 能处理 BigInt / Map / Set / 循环引用这些原生 JSON 处理不了的东西。
+         * 注意 seen 必须**每次调用新建**——如果做成全局的，第二次序列化同一个对象
+         * 会被误判成循环引用。
+         */
+        function safeStringify(value) {
+          const seen = new WeakSet();
+          return JSON.stringify(value, function (key, v) {
+            if (typeof v === 'bigint') return String(v) + 'n';
+            if (v instanceof Map) return { __map: Array.from(v.entries()) };
+            if (v instanceof Set) return { __set: Array.from(v) };
+            if (typeof v === 'object' && v !== null) {
+              if (seen.has(v)) return '[循环引用]';
+              seen.add(v);
+            }
+            return v;
+          });
+        }
+
+        /** 把任意值描述成一行短文本 */
+        function describe(v) {
+          try {
+            if (v === undefined) return 'undefined';
+            if (typeof v === 'bigint') return String(v) + 'n';
+            if (typeof v === 'function') return 'function ' + (v.name || '(匿名)');
+            if (typeof v === 'symbol') return String(v);
+            if (v instanceof Date) return 'Date(' + v.toISOString() + ')';
+            if (v instanceof RegExp) return 'RegExp(' + v.source + '/' + v.flags + ')';
+            if (v instanceof Map) return 'Map(size=' + v.size + ') ' + safeStringify(v);
+            if (v instanceof Set) return 'Set(size=' + v.size + ')';
+            if (v instanceof ArrayBuffer) return 'ArrayBuffer(' + v.byteLength + ' 字节)';
+            if (ArrayBuffer.isView(v)) return v.constructor.name + '[' + Array.from(v).join(',') + ']';
+            if (typeof v === 'object' && v !== null) {
+              const name = v.constructor && v.constructor.name;
+              return (name && name !== 'Object' ? name + ' ' : '') + safeStringify(v);
+            }
+            return JSON.stringify(v);
+          } catch (err) {
+            return String(v);
+          }
+        }
+
+        log('页面加载完成。');
+        log('当前地址：' + location.href, 'dim');
+        log('当前源（origin）：' + (location.origin || 'null') +
+          '  ← file:// 下这是一个"不透明源"', 'dim');
+        log('环境检查：postMessage=' + (typeof window.postMessage) +
+          '，BroadcastChannel=' + (typeof window.BroadcastChannel) +
+          '，localStorage=' + (typeof window.localStorage), 'dim');
+
+        // ------------------------------------------------------------------
+        // 1. postMessage
+        // ------------------------------------------------------------------
+
+        section('1. postMessage');
+
+        const frame = document.getElementById('childFrame');
+        const originCheckStateEl = document.getElementById('originCheckState');
+        let checkOrigin = true; // 是否校验 event.origin
+
+        // ---- 构建 iframe 里的那个独立文档 ----
+        // 用 srcdoc 把一整份 HTML 直接写进 iframe，不需要任何外部文件。
+        // 注意一个经典坑：在内联脚本里书写"脚本结束标签"时必须把它拆开写，
+        // 否则 HTML 解析器会以为外层脚本到此结束，整个页面直接崩掉。
+        // 下面用 '<scr' + 'ipt>' 与 '<\/scr' + 'ipt>' 拼接，就是为了避开这个坑。
+        const childHtml = [
+          '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">',
+          '<style>',
+          'body{margin:0;padding:10px;font-family:system-ui,"Microsoft YaHei",sans-serif;',
+          'background:#f2fbf4;color:#1f2328;font-size:13px;line-height:1.6}',
+          'h4{margin:0 0 6px;font-size:14px;color:#2da44e}',
+          '#inbox{font-family:Consolas,Monaco,monospace;font-size:12px;background:#fff;',
+          'border:1px solid #d0d7de;border-radius:6px;padding:8px;min-height:44px;',
+          'white-space:pre-wrap;word-break:break-all}',
+          'button{margin-top:8px;padding:5px 10px;font-size:12px;cursor:pointer;',
+          'border:1px solid #2da44e;border-radius:6px;background:#fff;color:#2da44e}',
+          'button:hover{background:#2da44e;color:#fff}',
+          '</style></head><body>',
+          '<h4>我是 iframe 里的独立文档（另一个上下文）</h4>',
+          '<div id="inbox">还没有收到任何消息。</div>',
+          '<button id="replyBtn">主动给父页面发一条消息</button>',
+          '<scr' + 'ipt>',
+          'var inbox = document.getElementById("inbox");',
+          'var count = 0;',
+          // 子页面收到消息后：显示出来，并回一条 ack 给父页面
+          'window.addEventListener("message", function (e) {',
+          '  count += 1;',
+          '  var text;',
+          '  try { text = JSON.stringify(e.data); } catch (err) { text = String(e.data); }',
+          '  if (typeof e.data === "bigint") text = String(e.data) + "n";',
+          '  var ctor = (e.data && e.data.constructor) ? e.data.constructor.name : typeof e.data;',
+          '  inbox.textContent = "收到第 " + count + " 条消息：\\n" + text',
+          '    + "\\n（克隆后的 constructor.name = " + ctor + "）";',
+          '  parent.postMessage({ from: "child", ack: count, data: text, ctor: ctor }, "*");',
+          '});',
+          // 子页面主动发消息给父页面
+          'document.getElementById("replyBtn").addEventListener("click", function () {',
+          '  parent.postMessage({ from: "child", hello: "这是 iframe 主动发的问候" }, "*");',
+          '});',
+          '<\/scr' + 'ipt>',
+          '</body></html>',
+        ].join('');
+
+        frame.setAttribute('srcdoc', childHtml);
+        log('已用 srcdoc 创建 iframe 内的独立文档（零外链，不请求任何外部资源）。', 'dim');
+
+        // ---- 父页面的消息接收器 ----
+        // 这是全页最关键的一段代码：**先校验来源，再处理数据**。
+        window.addEventListener('message', function (event) {
+          const fromSelf = event.source === window;
+          const fromChild = frame.contentWindow && event.source === frame.contentWindow;
+          const sourceName = fromSelf ? '本页自己' : fromChild ? 'iframe 子页面' : '未知来源';
+
+          log('[PM] 收到消息，来自：' + sourceName, 'pm');
+          log('[PM]   event.origin = ' + event.origin + '（发送方的源，由浏览器填写）', 'pm');
+          log('[PM]   event.data   = ' + describe(event.data), 'pm');
+
+          // ---------- 来源校验 ----------
+          // 真实项目里，这里要写成白名单：
+          //   if (!ALLOWED_ORIGINS.includes(event.origin)) return;
+          // 本页把"是否校验"做成开关，方便你对比校验与不校验的差别。
+          if (checkOrigin) {
+            const expected = location.origin;
+            if (event.origin !== expected && event.origin !== 'null') {
+              log('[PM]   ✗ 来源不在白名单（期望 ' + expected + '），已丢弃这条消息', 'warn');
+              return;
+            }
+            log('[PM]   ✓ origin 校验通过', 'ok');
+          } else {
+            log('[PM]   ⚠ 当前关闭了 origin 校验，任何来源的消息都会被当作命令执行！', 'warn');
+          }
+
+          log('[PM]   → 处理消息：' + describe(event.data), 'ok');
+
+          // iframe 那边会把"克隆后对象的 constructor.name"回传给我们，
+          // 这是验证"原型链是否丢失"最直观的证据。
+          if (event.data && typeof event.data === 'object' && event.data.ctor) {
+            log('[PM]   ← iframe 回传：收到第 ' + event.data.ack + ' 条，' +
+              '克隆后 constructor.name = ' + event.data.ctor, 'pm');
+            if (event.data.ctor === 'Object') {
+              log('[PM]      如果原对象是个 class 实例，这里的 "Object" 就说明原型链被丢掉了。', 'dim');
+            }
+          }
+        });
+
+        /** 把消息发给 iframe 里的子文档；失败（不可克隆）时捕获 */
+        function postToChild(data, targetOrigin, label) {
+          const target = frame.contentWindow;
+          if (!target) {
+            log('[PM] ✗ iframe 还没就绪，稍后再试。', 'warn');
+            return;
+          }
+          log('[PM] 发送：' + label + '，targetOrigin = "' + targetOrigin + '"');
+          try {
+            // 注意：postMessage 遇到不可结构化克隆的数据会**同步抛出** DataCloneError
+            target.postMessage(data, targetOrigin);
+            log('[PM]   ✓ 已投递（投递是异步的，接收方稍后才会真正收到）', 'ok');
+          } catch (err) {
+            log('[PM]   ✗ 抛出 ' + err.name + '：' + err.message, 'warn');
+            log('[PM]     结构化克隆只支持"纯数据"：函数、Symbol、Promise、Proxy、DOM 节点都不行。', 'dim');
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 2. BroadcastChannel
+        // ------------------------------------------------------------------
+
+        section('2. BroadcastChannel');
+
+        const gotAEl = document.getElementById('gotA');
+        const gotBEl = document.getElementById('gotB');
+        const chanABox = document.getElementById('chanA');
+        const chanBBox = document.getElementById('chanB');
+        let chA = null;
+        let chB = null;
+
+        /** 打开一个频道实例，并绑定 onmessage */
+        function openChannel(which, onMessage) {
+          if (typeof BroadcastChannel !== 'function') {
+            log('[BC] 本环境不支持 BroadcastChannel（可能是很旧的浏览器）。', 'warn');
+            return null;
+          }
+          try {
+            const ch = new BroadcastChannel('demo-channel');
+            ch.onmessage = onMessage;
+            log('[BC] 频道实例 ' + which + ' 已打开（频道名 demo-channel）', 'bc');
+            return ch;
+          } catch (err) {
+            // file:// 下某些浏览器会因为"不透明源"拒绝创建
+            log('[BC] 创建频道实例 ' + which + ' 失败：' + err.name + ' — ' + err.message, 'warn');
+            return null;
+          }
+        }
+
+        chA = openChannel('A', function (e) {
+          gotAEl.textContent = '收到：' + describe(e.data);
+          log('[BC] A 收到 → ' + describe(e.data), 'bc');
+        });
+        chB = openChannel('B', function (e) {
+          gotBEl.textContent = '收到：' + describe(e.data);
+          log('[BC] B 收到 → ' + describe(e.data), 'bc');
+        });
+        log('两个实例都在同一个文档里，但它们是**不同的** BroadcastChannel 对象，互发消息时对方能收到。', 'dim');
+        log('关键语义：发送者自己**不会**收到自己的消息。', 'dim');
+
+        // ------------------------------------------------------------------
+        // 3. storage 事件
+        // ------------------------------------------------------------------
+
+        section('3. storage 事件');
+
+        const stCountEl = document.getElementById('stCount');
+        const stLastEl = document.getElementById('stLast');
+        let stCount = 0;
+        let storageAvailable = true;
+
+        // 先探测 localStorage 是否可用（file:// 下某些浏览器会抛 SecurityError）
+        try {
+          const probeKey = '__probe__' + Date.now();
+          window.localStorage.setItem(probeKey, '1');
+          window.localStorage.removeItem(probeKey);
+          log('[ST] localStorage 可用。', 'ok');
+        } catch (err) {
+          storageAvailable = false;
+          log('[ST] localStorage 不可用：' + err.name + ' — ' + err.message, 'warn');
+          log('[ST] （这通常发生在 file:// 协议下，浏览器把它当作"不透明源"而禁用了存储）', 'warn');
+          log('[ST] 本页其余演示不受影响，storage 相关按钮会给出同样的提示。', 'dim');
+        }
+
+        // storage 事件监听器：只有在"别的同源文档"改了存储时才会触发
+        window.addEventListener('storage', function (e) {
+          stCount += 1;
+          stCountEl.textContent = String(stCount);
+          stLastEl.textContent =
+            'key        = ' + JSON.stringify(e.key) + (e.key === null ? '  ← null 表示 clear()' : '') + '\n' +
+            'oldValue   = ' + JSON.stringify(e.oldValue) + '\n' +
+            'newValue   = ' + JSON.stringify(e.newValue) + '\n' +
+            'url        = ' + e.url + '\n' +
+            'storageArea= ' + (e.storageArea === window.localStorage ? 'localStorage' : 'sessionStorage');
+          log('[ST] 收到 storage 事件！key=' + JSON.stringify(e.key) +
+            ' old=' + JSON.stringify(e.oldValue) + ' new=' + JSON.stringify(e.newValue), 'st');
+          log('[ST] 注意：能收到说明这条改动来自**另一个标签页**，不是本页。', 'st');
+        });
+
+        /** 安全地操作 localStorage，失败时给出提示而不是抛错 */
+        function safeStorage(action, key, value) {
+          if (!storageAvailable) {
+            log('[ST] localStorage 不可用（见页面加载时的提示），本操作已跳过。', 'warn');
+            return;
+          }
+          try {
+            if (action === 'set') window.localStorage.setItem(key, value);
+            else if (action === 'remove') window.localStorage.removeItem(key);
+            else if (action === 'clear') window.localStorage.clear();
+            log('[ST] 已执行 ' + action + ' ' + (key || ''), 'ok');
+          } catch (err) {
+            log('[ST] 操作失败：' + err.name + ' — ' + err.message, 'warn');
+            return;
+          }
+          log('[ST] 但是——本页**不会**收到自己触发的 storage 事件，这是规范规定的。', 'dim');
+          log('[ST] 想看到事件，请点「打开第二个标签页」，在新标签页里点同样的按钮，再回来看这里。', 'dim');
+        }
+
+        // ------------------------------------------------------------------
+        // 结构化克隆实验台
+        // ------------------------------------------------------------------
+
+        /** 造一个带循环引用的对象 */
+        function makeCyclic() {
+          const root = { name: '根节点', children: [] };
+          root.children.push({ name: '子节点', parent: root });
+          return root;
+        }
+
+        /** 用户的 class（用来观察克隆后原型丢失） */
+        class Point {
+          constructor(x, y) {
+            this.x = x;
+            this.y = y;
+          }
+          distance() {
+            return Math.sqrt(this.x * this.x + this.y * this.y);
+          }
+        }
+
+        /** 根据下拉框的选择构造待发送的数据 */
+        function buildCloneSample(kind) {
+          switch (kind) {
+            case 'date': return new Date();
+            case 'regexp': return /ab+c/gi;
+            case 'map': return new Map([['user', '张三'], ['roles', new Set(['admin', 'dev'])]]);
+            case 'typed': return new Uint8Array([1, 2, 3]);
+            case 'cyclic': return makeCyclic();
+            case 'classinst': return new Point(3, 4);
+            case 'bigint': return 10n;
+            case 'symbol': return Symbol('不可克隆');
+            case 'weakmap': return new WeakMap();
+            default: return { a: 1, b: [1, 2, 3] };
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 按钮动作表
+        // ------------------------------------------------------------------
+
+        const actions = {};
+
+        // ---- postMessage 相关 ----
+
+        /**
+         * 算出"正确的 targetOrigin"。
+         * 在 http(s) 下就是本页的 location.origin（精确匹配，最安全）。
+         * 但在 file:// 下，每个本地文件都被当成"不透明源"，origin 序列化出来是 "null"，
+         * 此时 targetOrigin 只能写 '*'，否则消息会被静默丢弃。
+         */
+        function correctTargetOrigin() {
+          const o = location.origin;
+          if (location.protocol === 'file:' || !o || o === 'null') return '*';
+          return o;
+        }
+
+        actions['pm-send-ok'] = function () {
+          const to = correctTargetOrigin();
+          if (to === '*') {
+            log('[PM] 当前是 file:// 协议，源是"不透明"的，只能退而求其次用 "*"。', 'warn');
+            log('[PM] 在真实的 http(s) 站点里，这里应当写成确切的目标源，例如 https://app.example.com。', 'dim');
+          } else {
+            log('[PM] 当前是 ' + location.protocol + ' 协议，用本页的 origin 作为 targetOrigin，精确匹配最安全。', 'ok');
+          }
+          postToChild({ type: 'hello', text: '你好，另一个上下文', at: Date.now() },
+            to, '正确 targetOrigin 的消息');
+        };
+
+        actions['pm-send-bad'] = function () {
+          // 故意写一个和目标不匹配的源：消息会被浏览器**静默丢弃**。
+          postToChild({ type: 'secret', token: 'abc123' },
+            'https://wrong-origin.example.com', 'targetOrigin 不匹配的消息');
+          log('[PM]   观察 iframe：它不会有任何反应——消息根本没送到，也不会报错。', 'warn');
+        };
+
+        actions['pm-send-star'] = function () {
+          postToChild({ type: 'public', text: '这条不敏感，用 * 没关系' }, '*', 'targetOrigin="*" 的消息');
+          log('[PM]   ⚠ 通配符 '*' 表示"任何源都能收"，如果消息里有 token/用户信息就已经泄漏了。', 'warn');
+        };
+
+        actions['pm-self'] = function () {
+          // 向自己发消息也是合法的，消息会进入本窗口的事件队列，由上面的监听器处理。
+          log('[PM] 执行 window.postMessage(...)，目标是本窗口自己');
+          try {
+            window.postMessage({ type: 'self-talk', note: '我给自己发了条消息' }, '*');
+            log('[PM]   ✓ 已投递（因为 postMessage 是异步的，你会看到这行日志在接收日志之前打印）', 'ok');
+          } catch (err) {
+            log('[PM]   ✗ ' + err.name + '：' + err.message, 'warn');
+          }
+        };
+
+        actions['pm-cloneerr'] = function () {
+          postToChild({ run: function () { return 1; } }, '*', '含函数的消息');
+        };
+
+        actions['pm-clone-send'] = function () {
+          const select = document.getElementById('cloneKind');
+          const kind = select.value;
+          const data = buildCloneSample(kind);
+          log('');
+          log('[克隆实验] 准备发送：' + select.options[select.selectedIndex].text);
+          log('[克隆实验] 发送前的值：' + describe(data));
+          postToChild(data, '*', '结构化克隆样本');
+          // 顺便验证：克隆会不会影响原对象？（不会，克隆是深拷贝）
+          if (kind === 'classinst') {
+            log('[克隆实验] 这个 Point 实例带一个 distance() 方法，但克隆只复制"自有属性"，不复制原型。', 'dim');
+            log('[克隆实验] 看 iframe 回传的 constructor.name —— 会变成 Object 而不是 Point，方法也没了。', 'dim');
+          }
+          if (kind === 'cyclic') {
+            log('[克隆实验] 这个对象里有循环引用（子节点.parent 指回根），结构化克隆能正确处理。', 'dim');
+          }
+        };
+
+        actions['pm-check-origin'] = function () {
+          checkOrigin = !checkOrigin;
+          originCheckStateEl.textContent = checkOrigin ? '开启' : '关闭';
+          log('[PM] 已把 event.origin 校验切换为：' + (checkOrigin ? '开启' : '关闭'),
+            checkOrigin ? 'ok' : 'warn');
+          if (!checkOrigin) {
+            log('[PM] 关闭校验意味着：任何页面只要拿到本窗口的引用，就能给本页下命令。', 'warn');
+            log('[PM] 真实攻击场景：你的页面被嵌在恶意站点的 iframe 里，对方就能随意指挥你。', 'warn');
+          }
+        };
+
+        // ---- BroadcastChannel 相关 ----
+
+        actions['bc-a'] = function () {
+          if (!chA) {
+            log('[BC] A 频道未打开。', 'warn');
+            return;
+          }
+          const msg = { type: 'logout', at: new Date().toISOString() };
+          log('[BC] A 广播：' + describe(msg), 'bc');
+          chA.postMessage(msg);
+          log('[BC]   预期结果：B 收到，A 自己收不到。', 'dim');
+        };
+
+        actions['bc-b'] = function () {
+          if (!chB) {
+            log('[BC] B 频道未打开。', 'warn');
+            return;
+          }
+          const msg = { type: 'theme-changed', theme: 'dark' };
+          log('[BC] B 广播：' + describe(msg), 'bc');
+          chB.postMessage(msg);
+          log('[BC]   预期结果：A 收到，B 自己收不到。', 'dim');
+        };
+
+        actions['bc-closeB'] = function () {
+          if (!chB) {
+            log('[BC] B 频道已经是关闭状态。', 'warn');
+            return;
+          }
+          chB.close();
+          chB = null;
+          chanBBox.classList.add('closed');
+          gotBEl.textContent = '已 close()，不再接收任何消息';
+          log('[BC] B 频道已 close()。之后再广播，B 收不到。', 'ok');
+        };
+
+        actions['bc-reopenB'] = function () {
+          if (chB) {
+            log('[BC] B 频道本来就是开着的。', 'warn');
+            return;
+          }
+          chB = openChannel('B', function (e) {
+            gotBEl.textContent = '收到：' + describe(e.data);
+            log('[BC] B 收到 → ' + describe(e.data), 'bc');
+          });
+          chanBBox.classList.remove('closed');
+          if (chB) log('[BC] B 频道已重新打开。', 'ok');
+        };
+
+        actions['bc-probe'] = function () {
+          section('BroadcastChannel 可用性实测');
+          if (typeof BroadcastChannel !== 'function') {
+            log('[BC] 本环境根本没有 BroadcastChannel 构造函数（浏览器太旧）。', 'warn');
+            return;
+          }
+          log('[BC] location.protocol = ' + location.protocol + '，location.origin = ' + (location.origin || 'null'));
+          try {
+            const p1 = new BroadcastChannel('probe-' + Date.now());
+            const p2 = new BroadcastChannel(p1.name);
+            let got = false;
+            p2.onmessage = function () { got = true; };
+            p1.postMessage({ ping: 1 });
+            // 消息是异步派发的，等一下再看结果
+            setTimeout(function () {
+              log('[BC] 同一文档内两个实例互发：' + (got ? '✓ 成功收到' : '✗ 没收到'), got ? 'ok' : 'warn');
+              if (!got) {
+                log('[BC] 说明本环境下（很可能是 file://）BroadcastChannel 不可用。', 'warn');
+                log('[BC] 解决：用本地 HTTP 服务打开本页（如 VS Code Live Server、npx serve）。', 'dim');
+              }
+              p1.close();
+              p2.close();
+              log('[BC] 补充：两个**不同的** file:// 标签页之间，因为每个文件都是"不透明源"，', 'dim');
+              log('[BC]       即使协议相同也无法互发广播。要跨标签页演示请用本地 HTTP 服务。', 'dim');
+            }, 200);
+          } catch (err) {
+            log('[BC] 实测过程中抛错：' + err.name + ' — ' + err.message, 'warn');
+            log('[BC] 这通常意味着当前是 file:// 协议，源不可用于广播。', 'warn');
+            log('[BC] 解决：用本地 HTTP 服务打开本页。', 'dim');
+          }
+        };
+
+        // ---- storage 相关 ----
+
+        actions['st-write'] = function () {
+          log('[ST] 写入 token');
+          safeStorage('set', 'token', 'abc123');
+        };
+
+        actions['st-write-same'] = function () {
+          log('[ST] 再写一遍完全相同的值');
+          safeStorage('set', 'token', 'abc123');
+          log('[ST] 因为值没有变化，即使是在别的标签页里，也**不会**触发 storage 事件。', 'dim');
+        };
+
+        actions['st-write2'] = function () {
+          log('[ST] 写入 theme');
+          safeStorage('set', 'theme', 'dark');
+        };
+
+        actions['st-remove'] = function () {
+          log('[ST] 删除 token');
+          safeStorage('remove', 'token');
+        };
+
+        actions['st-clear'] = function () {
+          log('[ST] clear() 清空全部');
+          safeStorage('clear');
+          log('[ST] 其他标签页收到的 storage 事件里，key 会是 null —— 这是 clear() 的特征。', 'dim');
+        };
+
+        actions['st-dump'] = function () {
+          section('当前 localStorage 内容');
+          if (!storageAvailable) {
+            log('[ST] localStorage 不可用，无法读取。', 'warn');
+            return;
+          }
+          try {
+            if (window.localStorage.length === 0) {
+              log('[ST] （空的）');
+              return;
+            }
+            for (let i = 0; i < window.localStorage.length; i++) {
+              const k = window.localStorage.key(i);
+              log('[ST] ' + k + ' = ' + JSON.stringify(window.localStorage.getItem(k)));
+            }
+          } catch (err) {
+            log('[ST] 读取失败：' + err.name + ' — ' + err.message, 'warn');
+          }
+        };
+
+        actions['st-open'] = function () {
+          try {
+            // 必须在用户手势（点击）里调用，否则会被弹窗拦截器挡住
+            const w = window.open(location.href, '_blank');
+            if (!w) {
+              log('[ST] 新标签页被浏览器的弹窗拦截器挡住了，请允许本页弹出窗口后重试。', 'warn');
+              return;
+            }
+            log('[ST] 已打开第二个标签页。', 'ok');
+            log('[ST] 操作步骤：', 'ok');
+            log('[ST]   1) 切到新标签页，点「写入 theme = dark」；', 'dim');
+            log('[ST]   2) 切回本页，看上面「本页收到的 storage 事件次数」是否变成 1；', 'dim');
+            log('[ST]   3) 再切回新标签页，在它那里观察——它也不会收到自己触发的事件。', 'dim');
+            log('[ST] 注意：file:// 协议下两个标签页可能不共享 localStorage，', 'warn');
+            log('[ST]       用本地 HTTP 服务打开本页时该演示一定成功。', 'warn');
+          } catch (err) {
+            log('[ST] 打开新标签页失败：' + err.name + ' — ' + err.message, 'warn');
+          }
+        };
+
+        // ------------------------------------------------------------------
+        // 事件委托
+        // ------------------------------------------------------------------
+
+        document.addEventListener('click', function (event) {
+          const btn = event.target.closest('button[data-act]');
+          if (!btn) return;
+          const act = btn.getAttribute('data-act');
+          const fn = actions[act];
+          log('▸ 点击了按钮：' + btn.textContent.trim());
+          if (typeof fn === 'function') {
+            try {
+              fn();
+            } catch (err) {
+              log('操作出错：' + err.name + ' — ' + err.message, 'warn');
+            }
+          } else {
+            log('未实现的动作：' + act, 'warn');
+          }
+        });
+
+        log('');
+        log('准备就绪。建议顺序：先玩 postMessage（对比 targetOrigin 写对/写错），', 'ok');
+        log('再玩结构化克隆实验台（直观看到哪些数据能过、哪些抛错），', 'ok');
+        log('最后看 BroadcastChannel 与 storage 事件。', 'ok');
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：DOM 性能（批量插入：innerHTML vs DocumentFragment vs 逐个 appendChild）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】高级
+  【前置知识】27_web_apis/09_dom_performance.js（同知识点的 Node 模拟统计版）
+
+  【知识点说明】
+
+  1. 是什么
+     "DOM 性能"指的是操作页面结构的开销。它比普通 JS 计算贵得多，因为：
+       a) DOM 是宿主对象（C++ 侧实现），每次访问都要跨语言边界；
+       b) 修改 DOM 可能触发**重排（reflow / layout）**——重新计算所有元素的
+          几何位置；以及**重绘（repaint）**——重新画像素。
+     所以"一次性批量插入"和"循环里逐个插入"结果看起来一样，开销可能差几十倍。
+
+  2. 为什么需要
+     一个列表渲染上千条数据，方法用错就会明显卡顿。理解这套代价模型，
+     才知道为什么要有 DocumentFragment、为什么要"批量写、批量读"、
+     为什么现代框架要用虚拟 DOM 做 diff。
+
+  3. 核心语法要点
+     - 三种批量构建方式：
+         A) 字符串拼接 + container.innerHTML = html
+            一次重排，但会把容器内原有节点**全部销毁重建**。
+         B) 循环里 createElement + appendChild
+            最慢：每次插入都可能引起布局计算（尤其当循环里还读了几何属性）。
+         C) document.createDocumentFragment()
+            游离容器，往里加节点不触碰文档；最后只 appendChild(fragment) 一次。
+            兼顾"可以逐个设置属性和事件"与"只重排一次"。
+     - 布局抖动（layout thrashing）：在一轮里交替"写 DOM"和"读几何属性"
+       （offsetHeight / offsetTop / getBoundingClientRect / scrollTop …），
+       每次读都会强制浏览器立刻同步重排。
+     - 正确姿势：读写分离（先集中写，再集中读）；用 classList 批量改样式；
+       用 requestAnimationFrame 把视觉更新合并到一帧。
+     - 测量工具：performance.now()（高精度计时）、
+       performance.mark / measure、DevTools 的 Performance 面板。
+
+  4. 常见陷阱
+     - 在循环里写 container.innerHTML += '...'：每次都把整个容器的 HTML
+       重新解析一遍，复杂度 O(n²)，是前端最经典的性能事故。
+     - 以为"重排只影响被修改的那个元素"：一个元素尺寸变化会引起祖先和兄弟的
+       连锁布局，影响范围可能很大。
+     - 小列表（几十条）怎么写在现代浏览器里都感觉不到差别 —— 别过早优化。
+     - 只测一次就下结论：JS 的性能数据波动很大，必须多次测量取中位数。
+     - 只改 CSS 不设 canvas/图片的位图尺寸之类的"看起来无关"的细节，
+       也会间接造成大量重排重绘。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链，可离线运行）。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     页面上有三个可点击的基准测试按钮，点击后会在真实 DOM 上插入 5000 个节点，
+     并给出每种方式的耗时、重排次数估算，以及结果表格。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DOM 性能：批量插入的三种方式</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 16px;
+        margin: 0 0 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 12px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 8px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      button.primary {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      /* 结果容器：限制高度并滚动，避免几千个节点把页面撑爆 */
+      #stage {
+        height: 220px;
+        overflow: auto;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        background: #fbfcfd;
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+
+      #stage ul {
+        margin: 0;
+        padding-left: 22px;
+        columns: 4;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13px;
+        margin-top: 8px;
+      }
+
+      th,
+      td {
+        border: 1px solid #d0d7de;
+        padding: 5px 10px;
+        text-align: left;
+        word-break: break-all;
+      }
+
+      th {
+        background: #f0f3f6;
+      }
+
+      td.num {
+        font-family: Consolas, Monaco, monospace;
+        text-align: right;
+      }
+
+      pre {
+        margin: 0;
+        height: 240px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13px;
+        margin: 4px 0;
+      }
+
+      .big {
+        font-size: 15px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>DOM 性能：批量插入的三种方式</h1>
+
+    <p class="hint">
+      点击下面的按钮，脚本会真的往下方容器里插入 <strong>5000</strong> 个
+      <code>&lt;li&gt;</code> 节点，并用 <code>performance.now()</code>
+      测量耗时。建议每个按钮多点几次，取比较稳定的一次观察。
+    </p>
+
+    <div class="card">
+      <h2>操作</h2>
+      <button data-act="run-all" class="primary">依次跑完三种方式并汇总</button>
+      <button data-act="run-a">A：字符串拼接 + innerHTML</button>
+      <button data-act="run-b">B：循环 createElement + appendChild</button>
+      <button data-act="run-c">C：DocumentFragment 批量插入</button>
+      <button data-act="run-d">D：反例——循环里 innerHTML +=（会卡一下）</button>
+      <button data-act="run-thrash">E：布局抖动对比（读写交替 vs 批量读写）</button>
+      <button data-act="clear">清空结果容器</button>
+      <p class="hint">
+        A 只需要 1 次重排，但它会销毁容器里原有的全部节点；
+        D 每次循环都重新解析整个容器的 HTML，复杂度是 O(n²)，所以故意只用 500 条。
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>结果容器（#stage）</h2>
+      <div id="stage"></div>
+    </div>
+
+    <div class="card">
+      <h2>测量汇总</h2>
+      <div id="table-host">
+        <p class="hint">（还没有数据，点上面的按钮开始测量）</p>
+      </div>
+      <p class="hint" id="summary"></p>
+    </div>
+
+    <div class="card">
+      <h2>日志</h2>
+      <pre id="out"></pre>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 输出工具
+        // ------------------------------------------------------------------
+
+        const outEl = document.getElementById('out');
+
+        function out(text, kind) {
+          const span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = text;
+          outEl.appendChild(span);
+          outEl.appendChild(document.createTextNode('\n'));
+          outEl.scrollTop = outEl.scrollHeight;
+          console.log(text);
+        }
+
+        const stage = document.getElementById('stage');
+
+        // ------------------------------------------------------------------
+        // 1. 计时工具
+        // ------------------------------------------------------------------
+
+        // performance.now() 返回高精度时间戳（毫秒，带小数），
+        // 精度比 Date.now() 高得多，是浏览器里做基准测试的标准工具。
+        const now = () => performance.now();
+
+        /**
+         * 跑一次基准测试。
+         * @param {string} label 名称
+         * @param {Function} fn 被测函数
+         * @param {number} [repeat] 重复次数，取最快的一次（减少首次运行的 JIT 干扰）
+         */
+        function bench(label, fn, repeat = 1) {
+          let best = Infinity;
+          let lastResult = null;
+          for (let i = 0; i < repeat; i++) {
+            clearStage();
+            const t0 = now();
+            lastResult = fn();
+            const t1 = now();
+            if (t1 - t0 < best) best = t1 - t0;
+          }
+          return { label: label, ms: best, result: lastResult };
+        }
+
+        function clearStage() {
+          // 用 removeChild 逐个删也是一种方式，但这里我们只想快速清空
+          stage.textContent = '';
+        }
+
+        // ------------------------------------------------------------------
+        // 2. 造数据
+        // ------------------------------------------------------------------
+
+        const COUNT = 5000;
+
+        /** 生成一条模拟数据 */
+        const items = Array.from({ length: COUNT }, function (_, i) {
+          return { id: i, title: '条目 ' + i, done: i % 3 === 0 };
+        });
+
+        out('已生成 ' + COUNT + ' 条模拟数据。', 'dim');
+
+        // ------------------------------------------------------------------
+        // 3. 三种（加两个反例共五种）构建方式
+        // ------------------------------------------------------------------
+
+        /** A：字符串拼接 + 一次 innerHTML 赋值 */
+        function buildByInnerHTML() {
+          let html = '';
+          for (let i = 0; i < items.length; i++) {
+            html += '<li class="' + (items[i].done ? 'done' : '') + '">' + items[i].title + '</li>';
+          }
+          // 一次赋值 = 一次重排。但代价是容器里原有节点会被全部销毁重建。
+          stage.innerHTML = '<ul>' + html + '</ul>';
+          return stage.querySelectorAll('li').length;
+        }
+
+        /** B：循环 createElement + appendChild */
+        function buildByAppendChild() {
+          const ul = document.createElement('ul');
+          for (let i = 0; i < items.length; i++) {
+            const li = document.createElement('li');
+            if (items[i].done) li.className = 'done';
+            li.textContent = items[i].title; // 用 textContent 而不是 innerHTML，更安全
+            ul.appendChild(li); // ul 还没在页面上，所以这些插入不会触发页面重排
+          }
+          stage.appendChild(ul); // 只在这一步才把 5000 个节点一次性挂进文档
+          return ul.children.length;
+        }
+
+        /** C：DocumentFragment */
+        function buildByFragment() {
+          // createDocumentFragment 造一个"游离"的容器：它不在文档树上，
+          // 往里面加多少节点都不会触发重排，也不会引起浏览器布局计算。
+          const fragment = document.createDocumentFragment();
+          const ul = document.createElement('ul');
+          for (let i = 0; i < items.length; i++) {
+            const li = document.createElement('li');
+            li.textContent = items[i].title;
+            if (items[i].done) li.className = 'done';
+            ul.appendChild(li);
+          }
+          fragment.appendChild(ul);
+          // 唯一一次真正触碰文档的插入操作
+          stage.appendChild(fragment);
+          // 注意：fragment 被插入后，它自己的子节点会"转移"到 stage 里，
+          // fragment 本身变空，不会留在 DOM 中。
+          return stage.querySelectorAll('li').length;
+        }
+
+        /** D：反例——循环里 innerHTML += （O(n²)） */
+        function buildByInnerHTMLAppend() {
+          const SMALL = 500; // 故意只用 500 条，否则会卡很久
+          stage.innerHTML = '<ul id="bad-list"></ul>';
+          const ul = stage.querySelector('#bad-list');
+          for (let i = 0; i < SMALL; i++) {
+            // 这一行的真实语义是：读出 ul 当前的完整 HTML → 拼接新字符串 → 重新赋值。
+            // 重新赋值会让浏览器把 ul 里已有的节点全部销毁并按新 HTML 重建。
+            ul.innerHTML += '<li>' + items[i].title + '</li>';
+          }
+          return ul.children.length;
+        }
+
+        // ------------------------------------------------------------------
+        // 4. 布局抖动演示
+        // ------------------------------------------------------------------
+
+        /**
+         * 反例：写一次、读一次。
+         * 每次读 offsetHeight 都会强制浏览器把刚才的修改立刻算完（强制同步布局）。
+         */
+        function measureThrashing() {
+          clearStage();
+          const box = document.createElement('div');
+          stage.appendChild(box);
+          let checksum = 0;
+          const N = 800;
+          for (let i = 0; i < N; i++) {
+            box.style.height = (10 + (i % 20)) + 'px'; // 写
+            checksum += box.offsetHeight; // 读 → 强制同步布局
+          }
+          return { layouts: N, checksum: checksum };
+        }
+
+        /**
+         * 正例：先把所有写做完，再集中读。
+         * 浏览器可以把所有修改合并成一次布局。
+         */
+        function measureBatched() {
+          clearStage();
+          const box = document.createElement('div');
+          stage.appendChild(box);
+          const N = 800;
+          // 阶段一：只写
+          for (let i = 0; i < N; i++) {
+            box.style.height = (10 + (i % 20)) + 'px';
+          }
+          // 阶段二：只读（第一次读时结算一次布局，之后都命中缓存）
+          let checksum = 0;
+          for (let i = 0; i < N; i++) {
+            checksum += box.offsetHeight;
+          }
+          return { layouts: 1, checksum: checksum };
+        }
+
+        // ------------------------------------------------------------------
+        // 5. 结果表格
+        // ------------------------------------------------------------------
+
+        const records = []; // 保存每次测量的结果
+
+        /** 渲染汇总表格 */
+        function renderTable() {
+          const host = document.getElementById('table-host');
+          host.textContent = '';
+          if (records.length === 0) {
+            const p = document.createElement('p');
+            p.className = 'hint';
+            p.textContent = '（还没有数据）';
+            host.appendChild(p);
+            return;
+          }
+
+          const table = document.createElement('table');
+          const thead = document.createElement('thead');
+          const headRow = document.createElement('tr');
+          for (const h of ['方式', '耗时(ms)', '重排次数(估算)', '销毁原有节点的风险']) {
+            const th = document.createElement('th');
+            th.textContent = h;
+            headRow.appendChild(th);
+          }
+          thead.appendChild(headRow);
+          table.appendChild(thead);
+
+          const tbody = document.createElement('tbody');
+          for (const r of records) {
+            const tr = document.createElement('tr');
+            const cells = [
+              [r.label, ''],
+              [r.ms.toFixed(2), 'num'],
+              [String(r.layouts), 'num'],
+              [r.risk, ''],
+            ];
+            for (const [text, cls] of cells) {
+              const td = document.createElement('td');
+              if (cls) td.className = cls;
+              td.textContent = text;
+              tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+          }
+          table.appendChild(tbody);
+          host.appendChild(table);
+        }
+
+        /** 记录一条测量结果 */
+        function record(label, ms, layouts, risk) {
+          // 同名的方式只保留最新一次，避免表格无限增长
+          const i = records.findIndex(function (r) { return r.label === label; });
+          const row = { label: label, ms: ms, layouts: layouts, risk: risk };
+          if (i === -1) records.push(row);
+          else records[i] = row;
+          renderTable();
+        }
+
+        // ------------------------------------------------------------------
+        // 6. 按钮动作
+        // ------------------------------------------------------------------
+
+        const actions = {
+          'run-a': function () {
+            const r = bench('A) innerHTML 一次性赋值', buildByInnerHTML, 1);
+            out('A) innerHTML 一次性赋值：' + r.ms.toFixed(2) + ' ms，插入 ' + r.result + ' 个节点', 'ok');
+            out('   重排约 1 次，但容器内原有节点全部被销毁重建。', 'warn');
+            record('A) innerHTML 一次性赋值', r.ms, 1, '高（全量替换）');
+          },
+
+          'run-b': function () {
+            const r = bench('B) 循环 appendChild', buildByAppendChild, 1);
+            out('B) 循环 createElement + appendChild：' + r.ms.toFixed(2) + ' ms，插入 ' + r.result + ' 个节点', 'ok');
+            out('   亮点：因为 ul 在挂载前是游离的，循环里的 appendChild 不会触发页面重排。', 'dim');
+            out('   如果把 ul 先挂到页面上再循环 appendChild，性能会明显变差。', 'warn');
+            record('B) 循环 appendChild（先建后挂）', r.ms, 1, '无（保留原有节点）');
+          },
+
+          'run-c': function () {
+            const r = bench('C) DocumentFragment', buildByFragment, 1);
+            out('C) DocumentFragment：' + r.ms.toFixed(2) + ' ms，插入 ' + r.result + ' 个节点', 'ok');
+            out('   fragment 不在文档树上，往里面加节点完全不影响页面布局；', 'dim');
+            out('   最后只 appendChild 一次。这是"既要逐个建节点、又要只重排一次"的标准答案。', 'ok');
+            record('C) DocumentFragment', r.ms, 1, '无（保留原有节点）');
+          },
+
+          'run-d': function () {
+            const r = bench('D) 反例：循环 innerHTML +=（500 条）', buildByInnerHTMLAppend, 1);
+            out('D) 反例：循环里 innerHTML +=（只插 ' + r.result + ' 条）：' + r.ms.toFixed(2) + ' ms', 'err');
+            out('   数据量只有 A/B/C 的 1/10，但耗时通常反而更长。', 'warn');
+            out('   原因：每次 += 都要读出整个容器的 HTML、重新拼接、再整体解析一遍，复杂度 O(n²)。', 'warn');
+            out('   这就是前端最经典的性能事故，务必避免。', 'err');
+            record('D) 反例：循环 innerHTML +=（500 条）', r.ms, 500, '高（每次都全量重建）');
+          },
+
+          'run-thrash': function () {
+            out('=== E) 布局抖动：读写交替 vs 批量读写 ===', 'dim');
+
+            const bad = measureThrashing();
+            out('  反例（写→读→写→读，共 800 轮）：');
+            out('    强制同步布局约 ' + bad.layouts + ' 次（每一次都真的重算了一遍布局）', 'err');
+
+            const good = measureBatched();
+            out('  正例（先全部写 800 次，再全部读 800 次）：');
+            out('    强制同步布局约 ' + good.layouts + ' 次（浏览器把写合并了）', 'ok');
+            out('  两次的 checksum 一致：' + (bad.checksum === good.checksum), 'dim');
+            out('  → 结果完全一样，但浏览器的布局计算次数差了 800 倍。', 'ok');
+            out('  规则：同一轮里，先把所有写做完，再开始读。', 'ok');
+            out('');
+          },
+
+          'run-all': async function () {
+            out('=== 依次跑完 A / B / C / D / E ===', 'dim');
+            out('（每次运行前都会清空结果容器，保证条件一致）', 'dim');
+            out('');
+
+            // 用 requestAnimationFrame 让浏览器在两轮之间"喘一口气"，
+            // 这样测量更稳定，也给页面留出重绘的机会（否则界面会像卡住一样）。
+            /** 等待下一帧 */
+            const nextFrame = () => new Promise(function (resolve) { requestAnimationFrame(function () { resolve(); }); });
+
+            for (const act of ['run-a', 'run-b', 'run-c', 'run-d']) {
+              actions[act]();
+              await nextFrame(); // 每跑完一个让出一帧
+            }
+            actions['run-thrash']();
+
+            // 汇总：找出最快的那个（排除反例）
+            const valid = records.filter(function (r) { return r.label.indexOf('反例') === -1; });
+            if (valid.length > 0) {
+              let fastest = valid[0];
+              for (const r of valid) if (r.ms < fastest.ms) fastest = r;
+              out('★ 本次最快：' + fastest.label + '（' + fastest.ms.toFixed(2) + ' ms）', 'ok');
+            }
+            document.getElementById('summary').textContent =
+              '提示：JS 性能数据波动很大（JIT、GC、后台标签页降频都会影响），' +
+              '所以要多测几次、看趋势，不要只跑一次就下结论。';
+
+            // 最后把结果容器恢复成一个小列表，避免页面留下一地节点
+            clearStage();
+            const p = document.createElement('p');
+            p.className = 'hint';
+            p.textContent = '结果容器已清空（几千个节点留在页面上也会拖慢后续操作）。';
+            stage.appendChild(p);
+          },
+
+          clear: function () {
+            clearStage();
+            out('结果容器已清空。', 'ok');
+          },
+        };
+
+        document.addEventListener('click', function (e) {
+          const btn = e.target.closest('button[data-act]');
+          if (!btn) return;
+          const fn = actions[btn.getAttribute('data-act')];
+          if (typeof fn !== 'function') return;
+          out('▸ ' + btn.textContent.trim(), 'dim');
+          try {
+            const maybePromise = fn();
+            if (maybePromise && typeof maybePromise.catch === 'function') {
+              maybePromise.catch(function (err) {
+                out('  ✗ 出错了：' + err.name + ': ' + err.message, 'err');
+              });
+            }
+          } catch (err) {
+            out('  ✗ 出错了：' + err.name + ': ' + err.message, 'err');
+          }
+        });
+
+        out('页面已就绪。建议先点"A"看一次，再点"依次跑完三种方式并汇总"。', 'ok');
+      })();
+    </script>
+  </body>
+</html>

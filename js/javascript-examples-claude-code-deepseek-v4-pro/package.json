@@ -1,0 +1,45 @@
+{
+  "name": "javascript-examples",
+  "version": "1.0.0",
+  "description": "面向有编程基础的学习者的 JavaScript 示例代码集，按知识点分目录组织",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "check": "node scripts/run-all.js",
+    "check:list": "node scripts/run-all.js --list",
+    "check:html": "node scripts/check-html.js",
+    "check:docs": "node scripts/check-docs.js",
+    "check:counts": "node scripts/check-counts.js",
+    "check:all": "node scripts/run-all.js && node scripts/check-html.js && node scripts/gen-index.js --check && node scripts/gen-glossary.js --check && node scripts/check-docs.js && node scripts/check-counts.js && eslint .",
+    "index": "node scripts/gen-index.js",
+    "index:check": "node scripts/gen-index.js --check",
+    "glossary": "node scripts/gen-glossary.js",
+    "glossary:check": "node scripts/gen-glossary.js --check",
+    "glossary:stats": "node scripts/gen-glossary.js --stats",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"scripts/**/*.js\" \"*.js\" \"*.json\"",
+    "format:check": "prettier --check \"scripts/**/*.js\" \"*.js\" \"*.json\""
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "lodash": "^4.17.21",
+    "uuid": "^11.0.3",
+    "ws": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "eslint": "^10.10.0",
+    "prettier": "^3.9.6",
+    "semver": "^7.8.5",
+    "vitest": "^2.1.8"
+  }
+}

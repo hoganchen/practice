@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：拖放 API（Drag and Drop）与剪贴板 API（Clipboard）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】高级
+  【前置知识】27_web_apis/02_dom_events.html（事件、事件对象）、
+             27_web_apis/11_blob_file_formdata.html（Blob / File / FormData）、
+             27_web_apis/14_drag_drop_and_clipboard.js（同知识点的 Node 模拟版）
+
+  【知识点说明】
+
+  1. 是什么
+     - 拖放 API：基于"事件序列 + dataTransfer 数据仓库"的一套机制，让用户能把
+       元素、文字或文件从 A 处拖到 B 处。拖动时浏览器依次派发：
+         dragstart → drag → dragenter → dragover → dragleave → drop → dragend
+     - 剪贴板 API：navigator.clipboard 提供的异步读写接口
+       （readText / writeText / read / write），用于程序化地读写系统剪贴板。
+
+  2. 为什么需要
+     拖放是"所见即所得"的自然交互：看板拖卡片、拖拽排序、拖文件上传、可视化搭建。
+     剪贴板则是"复制粘贴"这一最基础交互的编程接口：一键复制邀请码、
+     粘贴富文本进编辑器、从剪贴板读图片直接上传。
+
+  3. 拖放的核心语法
+     （1）7 个事件的分工
+         dragstart  在源元素上触发一次，**唯一能写数据**的时机
+         drag       在源元素上持续触发（约每 350ms 一次）
+         dragenter  进入可放置目标时触发
+         dragover   在目标上持续触发，**必须 preventDefault() 才允许 drop**
+         dragleave  离开目标时触发
+         drop       在目标上触发，在这里读数据、做业务
+         dragend    在源元素上触发一次，无论成功失败
+
+     （2）draggable 属性
+         图片和链接默认可拖；其它元素必须显式写 draggable="true"。
+
+     （3）dataTransfer 数据仓库
+         dt.setData(format, data) / gt.getData(format) / dt.clearData()
+         dt.types        已存在的数据格式（**dragover 阶段唯一能看的东西**）
+         dt.files        拖入的文件 FileList
+         dt.items        更底层的条目列表（kind/type/getAsFile）
+         dt.effectAllowed / dt.dropEffect  效果协商，决定鼠标光标
+         dt.setDragImage(el, x, y)         自定义跟随鼠标的缩略图
+
+     （4）受保护模式（protected mode）—— 最容易踩的坑
+         dragstart 期间     → read/write，可以 setData
+         dragenter/dragover → protected，**getData 一律返回空字符串**
+         drop 期间          → read-only，可以 getData，不能 setData
+         所以"能不能放在这里"的判断，在 dragover 只能靠 dt.types。
+
+  4. 剪贴板的核心语法
+       await navigator.clipboard.writeText('文本');
+       const text = await navigator.clipboard.readText();
+       await navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })]);
+       const items = await navigator.clipboard.read();
+
+     （1）为什么必须在用户手势里调用
+         剪贴板里可能躺着密码、验证码、私钥、刚复制的钱包地址。
+         任意脚本若能后台静默读取，就是一个"合法键盘记录器"；若能随意写入，
+         就能在你复制钱包地址时把它悄悄换成攻击者的地址（剪贴板劫持）。
+         所以规范强制要求：安全上下文 + 短暂用户激活 + 权限授权，三者齐备。
+     （2）安全上下文：https 或 localhost。http 站点不算。file:// 在 Chrome 中
+         被视为"潜在可信"，isSecureContext 为 true，但权限行为各浏览器不一致。
+     （3）权限：clipboard-write 通常自动授予；clipboard-read 必须弹窗询问。
+         可用 navigator.permissions.query({ name: 'clipboard-read' }) 查询。
+     （4）降级三级火箭：
+         ① navigator.clipboard.*（现代异步 API）
+         ② document.execCommand('copy')（已废弃但兼容性极好，需先选中文本）
+         ③ 手动兜底：把内容放进只读输入框并全选，提示用户按 Ctrl+C
+
+  5. 常见陷阱
+     - **忘记在 dragover 里 preventDefault()** → drop 根本不触发（头号坑）。
+     - 在 dragover 里 getData() 拿不到数据（受保护模式），只能看 dt.types。
+     - dragenter / dragleave 会随鼠标划过子元素反复触发，高亮会闪烁；
+       解法是用计数器，或判断 e.relatedTarget 是否还在容器内。
+     - 拖入的文件拿不到完整本地路径（安全设计）。
+     - 移动端浏览器基本不支持 HTML5 拖放，需要用 Pointer/Touch 事件自己实现。
+     - execCommand('copy') 必须在用户手势的**同步调用栈**里执行，
+       放在 await 之后就会因手势过期而失效。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（零外链、零 CDN、可离线运行）。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     页面上有四块演示：拖放看板（可真实拖动卡片）、文件投放区（可拖入本地文件）、
+     拖放事件序列日志、剪贴板读写（含三级降级演示）。右侧日志实时打印全过程。
+
+  【file:// 协议限制说明（本页已全部捕获处理）】
+     - 拖放：**完全可用**，本页的拖卡片、拖文件演示都正常工作。
+     - 剪贴板：是否能调用取决于浏览器。本页会先检测 isSecureContext 与
+       navigator.clipboard 是否存在，把所有调用都包在 try/catch 里，
+       失败时自动走 execCommand 兜底，再失败就提示用户手动复制，
+       全过程打印在日志里，不会留下未捕获错误。
+     - 用本地 HTTP 服务（VS Code Live Server / npx serve）打开时，剪贴板最稳。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>拖放 API 与剪贴板 API</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 18px;
+        margin-top: 0;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 14px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div {
+        flex: 1 1 440px;
+        min-width: 340px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      textarea,
+      input[type='text'] {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 7px 9px;
+        font-size: 13px;
+        font-family: Consolas, Monaco, monospace;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 13px;
+      }
+
+      #log {
+        margin: 0;
+        height: 400px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .log-drag {
+        color: #79c0ff;
+      }
+
+      .log-clip {
+        color: #d2a8ff;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13.5px;
+      }
+
+      /* ---------------- 看板 ---------------- */
+      .board {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .column {
+        flex: 1 1 150px;
+        min-width: 140px;
+        border: 2px dashed #d0d7de;
+        border-radius: 8px;
+        padding: 8px;
+        background: #fbfcfd;
+        min-height: 150px;
+        transition: background 0.15s, border-color 0.15s;
+      }
+
+      /* 拖动悬停时的高亮（由 dragenter/dragleave + 计数器控制） */
+      .column.over {
+        border-color: #2da44e;
+        background: #eaf7ee;
+      }
+
+      .column h3 {
+        margin: 0 0 6px;
+        font-size: 13.5px;
+        color: #57606a;
+      }
+
+      .column h3 .count {
+        color: #2f6feb;
+      }
+
+      .card-item {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-left: 4px solid #2f6feb;
+        border-radius: 6px;
+        padding: 6px 9px;
+        margin-bottom: 6px;
+        font-size: 13px;
+        cursor: grab;
+        user-select: none;
+      }
+
+      .card-item:active {
+        cursor: grabbing;
+      }
+
+      /* 正在被拖动的源元素 */
+      .card-item.dragging {
+        opacity: 0.4;
+      }
+
+      /* ---------------- 文件投放区 ---------------- */
+      #fileZone {
+        border: 2px dashed #f0883e;
+        border-radius: 8px;
+        background: #fff8f0;
+        padding: 18px;
+        text-align: center;
+        color: #57606a;
+        font-size: 13.5px;
+        transition: background 0.15s, border-color 0.15s;
+      }
+
+      #fileZone.over {
+        background: #ffe9d1;
+        border-color: #cf222e;
+        color: #cf222e;
+      }
+
+      #fileList {
+        margin-top: 10px;
+        text-align: left;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      #previews {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+
+      #previews img {
+        max-height: 90px;
+        border-radius: 6px;
+        border: 1px solid #d0d7de;
+      }
+
+      .kv {
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        background: #f6f8fa;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        padding: 8px 10px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .label {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 13px;
+        color: #57606a;
+        margin-right: 12px;
+        cursor: pointer;
+      }
+
+      /* 拖动时跟随鼠标的自定义缩略图（真实项目里放这里的是一个 DOM 元素） */
+      #dragGhost {
+        position: fixed;
+        top: -1000px;
+        left: -1000px;
+        padding: 6px 12px;
+        background: #2f6feb;
+        color: #fff;
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: system-ui, sans-serif;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>拖放 API 与剪贴板 API</h1>
+
+    <p class="hint">
+      左边四块都是可以直接上手的演示：把卡片拖到别的列、把电脑里的文件拖进来、
+      试试一键复制。右边日志会逐条打印浏览器派发的每一个事件，请重点观察
+      <strong>事件顺序</strong>和 <strong>dataTransfer 在什么阶段能读到数据</strong>。
+    </p>
+
+    <div class="layout">
+      <!-- ================= 左侧 ================= -->
+      <div>
+        <!-- ---------- 1. 拖放看板 ---------- -->
+        <div class="card">
+          <h2>1. 拖放看板（拖动卡片到别的列）</h2>
+          <p class="hint">
+            卡片带 <code>draggable="true"</code>，列是放置目标。
+            注意观察：拖动过程中列的<strong>高亮</strong>是否会闪烁。
+          </p>
+
+          <div class="board" id="board">
+            <div class="column" data-col="todo">
+              <h3>待办 <span class="count">0</span></h3>
+              <div class="card-item" draggable="true" data-card="c1">修复登录 bug</div>
+              <div class="card-item" draggable="true" data-card="c2">优化首屏加载</div>
+              <div class="card-item" draggable="true" data-card="c3">补充单元测试</div>
+            </div>
+            <div class="column" data-col="doing">
+              <h3>进行中 <span class="count">0</span></h3>
+            </div>
+            <div class="column" data-col="done">
+              <h3>已完成 <span class="count">0</span></h3>
+            </div>
+          </div>
+
+          <p class="hint" style="margin-top: 10px">
+            <label class="label">
+              <input type="checkbox" id="useCounter" checked />
+              用「计数器」解法处理高亮（取消勾选则用天真解法，会看到闪烁）
+            </label>
+          </p>
+          <p class="hint">
+            <button data-act="board-reset">重置看板</button>
+            <button data-act="board-state">打印当前看板状态</button>
+          </p>
+        </div>
+
+        <!-- ---------- 2. 文件投放 ---------- -->
+        <div class="card">
+          <h2>2. 拖入本地文件</h2>
+          <p class="hint">
+            从电脑里把文件（或一批文件）拖到下面的橙色区域。图片会立刻用
+            <code>URL.createObjectURL</code> 生成预览（用完即 revoke，避免内存泄漏）。
+          </p>
+          <div id="fileZone">
+            把文件拖到这里
+            <div id="fileList"></div>
+            <div id="previews"></div>
+          </div>
+          <p class="hint" style="margin-top: 10px">
+            试试把文件拖到页面的<strong>空白处</strong>：本页在 window 上拦截了默认行为，
+            所以浏览器不会直接打开那个文件（不拦截的话，页面会被导航走）。
+          </p>
+        </div>
+
+        <!-- ---------- 3. 剪贴板 ---------- -->
+        <div class="card">
+          <h2>3. 剪贴板读写</h2>
+          <p class="hint">
+            环境检测（决定剪贴板 API 能不能用）：
+          </p>
+          <div class="kv" id="clipEnv">检测中……</div>
+
+          <p class="hint" style="margin-top: 10px">要写入剪贴板的文本：</p>
+          <textarea id="clipInput" rows="2">邀请码：ABC-123（来自 27_web_apis/14 示例）</textarea>
+
+          <p class="hint" style="margin-top: 8px">
+            <button data-act="clip-write">写入剪贴板（writeText）</button>
+            <button data-act="clip-read">读取剪贴板（readText）</button>
+            <button data-act="clip-write-html">写入富文本（write + ClipboardItem）</button>
+            <button data-act="clip-query">查询剪贴板权限</button>
+            <button data-act="clip-fallback">三级降级复制（完整演示）</button>
+            <button data-act="clip-outside">在 setTimeout 里调用（不合法，观察报错）</button>
+          </p>
+          <p class="hint">
+            读取结果：
+          </p>
+          <div class="kv" id="clipResult">（还没读取）</div>
+        </div>
+
+        <!-- ---------- 4. 事件顺序说明 ---------- -->
+        <div class="card">
+          <h2>4. 拖放的事件顺序</h2>
+          <div class="kv">dragstart   源元素，只触发一次，唯一能 setData 的时机
+    ↓
+drag        源元素，持续触发（约每 350ms 一次）
+    ↓
+dragenter   进入目标（会因划过子元素而反复触发）
+    ↓
+dragover    在目标上持续触发 ← 必须 preventDefault()，否则 drop 不触发
+    ↓
+dragleave   离开目标（同样会因划过子元素而反复触发）
+    ↓
+drop        松手时在目标上触发 ← 在这里读 dataTransfer 的数据
+    ↓
+dragend     源元素，无论成功失败都触发，适合做收尾清理</div>
+          <p class="hint" style="margin-top: 10px">
+            记忆口诀：<strong>想接收拖放，dragover 和 drop 两个都写 preventDefault()</strong>。
+          </p>
+        </div>
+      </div>
+
+      <!-- ================= 右侧 ================= -->
+      <div>
+        <div class="card">
+          <h2>事件日志</h2>
+          <pre id="log"></pre>
+          <p class="hint">
+            按 F12 打开开发者工具的 Console，可以看到同样的输出。
+            日志里 <code>[拖放]</code> 是拖放事件，<code>[剪贴板]</code> 是剪贴板操作。
+          </p>
+          <p class="hint">
+            <button data-act="log-clear">清空日志</button>
+            <label class="label">
+              <input type="checkbox" id="logAllEvents" />
+              打印全部 drag 事件（含持续触发的 dragover/drag，会刷屏）
+            </label>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 拖动时跟随鼠标的自定义缩略图 -->
+    <div id="dragGhost">正在拖动…</div>
+
+    <script>
+      // 用 IIFE 造出私有作用域，避免变量污染到 window 上。
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 通用工具
+        // ------------------------------------------------------------------
+
+        const logEl = document.getElementById('log');
+        let step = 0;
+
+        /**
+         * 往日志区追加一行。
+         * @param {string} text 要打印的内容
+         * @param {'ok'|'warn'|'dim'|'drag'|'clip'} [kind] 颜色分类
+         */
+        function log(text, kind) {
+          step += 1;
+          const prefix = String(step).padStart(2, '0') + ' | ';
+          const span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = prefix + text;
+          logEl.appendChild(span);
+          logEl.appendChild(document.createTextNode('\n'));
+          logEl.scrollTop = logEl.scrollHeight;
+          console.log(text);
+        }
+
+        /** 分节标题 */
+        function section(title) {
+          log('');
+          log('=== ' + title + ' ===', 'dim');
+        }
+
+        /** 描述一个 File 的大小 */
+        function humanSize(n) {
+          if (n < 1024) return n + ' B';
+          if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+          return (n / 1024 / 1024).toFixed(2) + ' MB';
+        }
+
+        log('页面加载完成。');
+        log('提示：本页所有事件都有日志，建议一边操作一边看右边。');
+
+        // ------------------------------------------------------------------
+        // 1. 全局拖放事件记录器
+        // ------------------------------------------------------------------
+        // 在 document 上以**捕获阶段**监听全部 7 个拖放事件，
+        // 这样无论事件发生在哪个元素上，我们都能按真实顺序记录下来。
+
+        const dragEventNames = ['dragstart', 'drag', 'dragenter', 'dragover', 'dragleave', 'drop', 'dragend'];
+        const logAllEventsEl = document.getElementById('logAllEvents');
+
+        for (const name of dragEventNames) {
+          document.addEventListener(
+            name,
+            function (e) {
+              // drag / dragover / dragleave 会高频触发，默认只记录关键的那几个
+              const isNoisy = name === 'drag' || name === 'dragover' || name === 'dragleave';
+              if (isNoisy && !logAllEventsEl.checked) return;
+
+              const target = describeTarget(e.target);
+              const dt = e.dataTransfer;
+              const types = dt ? '[' + Array.from(dt.types).join(', ') + ']' : '(无 dataTransfer)';
+              // 不用 padEnd 对齐：target 里可能含中文，全角字符会让列宽算不准
+              log('[拖放] ' + name + '  |  target = ' + target +
+                '  |  types = ' + types + '  |  defaultPrevented = ' + e.defaultPrevented, 'drag');
+              if (name === 'dragover' && !e.defaultPrevented) {
+                log('[拖放]   ⚠ 这次 dragover 没有 preventDefault()，松手时 drop 不会触发', 'warn');
+              }
+            },
+            true, // useCapture = true，捕获阶段先于冒泡阶段
+          );
+        }
+
+        /** 把一个元素描述成可读短名 */
+        function describeTarget(el) {
+          if (!el || !el.tagName) return String(el);
+          if (el === document) return '#document';
+          if (el === document.body) return 'body';
+          const id = el.id ? '#' + el.id : '';
+          const cls = el.className && typeof el.className === 'string'
+            ? '.' + el.className.trim().split(/\s+/).join('.')
+            : '';
+          return el.tagName.toLowerCase() + id + cls;
+        }
+
+        // ------------------------------------------------------------------
+        // 2. 看板拖放
+        // ------------------------------------------------------------------
+
+        const board = document.getElementById('board');
+        const useCounterEl = document.getElementById('useCounter');
+        const dragGhost = document.getElementById('dragGhost');
+
+        /** 刷新每列的卡片计数 */
+        function refreshCounts() {
+          for (const col of board.querySelectorAll('.column')) {
+            const n = col.querySelectorAll('.card-item').length;
+            col.querySelector('.count').textContent = String(n);
+          }
+        }
+        refreshCounts();
+
+        /** 记录每个列的高亮状态（计数器解法用的 depth） */
+        const columnDepth = new WeakMap();
+
+        /**
+         * 给一列挂上"放置目标"需要的事件处理。
+         * 这里演示两种高亮写法，用复选框切换：
+         *   - 天真解法：dragenter 加类、dragleave 去类 → 划过子元素时会闪烁
+         *   - 计数器解法：dragenter +1、dragleave -1，只有归零才是真的离开
+         */
+        function setupColumn(col) {
+          columnDepth.set(col, 0);
+
+          col.addEventListener('dragenter', function (e) {
+            // 必须 preventDefault，否则这一列不会成为合法的放置目标，
+            // 后续的 drop 也不会触发。
+            e.preventDefault();
+            if (useCounterEl.checked) {
+              const d = columnDepth.get(col) + 1;
+              columnDepth.set(col, d);
+              col.classList.add('over');
+            } else {
+              // 天真解法：直接加类。鼠标移到卡片上时会先 dragleave 再 dragenter，于是闪烁。
+              col.classList.add('over');
+            }
+          });
+
+          col.addEventListener('dragover', function (e) {
+            // 这一句是 drop 能触发的唯一前提
+            e.preventDefault();
+            // 受保护模式：这里 getData 拿到的是空字符串，只能看 types
+            const isOurCard = Array.from(e.dataTransfer.types).includes('application/x-kanban-card');
+            e.dataTransfer.dropEffect = isOurCard ? 'move' : 'none';
+          });
+
+          col.addEventListener('dragleave', function () {
+            if (useCounterEl.checked) {
+              const d = columnDepth.get(col) - 1;
+              columnDepth.set(col, d);
+              if (d <= 0) {
+                columnDepth.set(col, 0);
+                col.classList.remove('over');
+              }
+            } else {
+              col.classList.remove('over');
+            }
+          });
+
+          col.addEventListener('drop', function (e) {
+            // drop 里也要 preventDefault：阻止浏览器对链接/文件的默认处理
+            e.preventDefault();
+            columnDepth.set(col, 0);
+            col.classList.remove('over');
+
+            // 现在处于 read-only 模式，可以读数据了
+            const raw = e.dataTransfer.getData('application/x-kanban-card');
+            const plain = e.dataTransfer.getData('text/plain');
+            log('[拖放] drop 读到：自定义格式=' + JSON.stringify(raw) +
+              '，text/plain=' + JSON.stringify(plain), 'ok');
+
+            if (!plain) {
+              log('[拖放] 没有可用的数据，忽略这次放置。', 'warn');
+              return;
+            }
+
+            const card = board.querySelector('.card-item[data-card="' + plain + '"]');
+            if (!card) {
+              log('[拖放] 找不到对应的卡片：' + plain, 'warn');
+              return;
+            }
+            col.appendChild(card); // 把卡片移动到这一列
+            refreshCounts();
+            log('[拖放] 已把卡片「' + card.textContent + '」移动到「' +
+              col.querySelector('h3').textContent.trim().split(' ')[0] + '」列', 'ok');
+          });
+        }
+
+        for (const col of board.querySelectorAll('.column')) setupColumn(col);
+
+        /** 给一张卡片挂上"可拖动源"需要的事件处理 */
+        function setupCard(card) {
+          card.addEventListener('dragstart', function (e) {
+            // dragstart 是唯一能写数据的时机
+            e.dataTransfer.setData('text/plain', card.dataset.card);
+            e.dataTransfer.setData('application/x-kanban-card',
+              JSON.stringify({ id: card.dataset.card, title: card.textContent }));
+            e.dataTransfer.effectAllowed = 'move';
+
+            // 自定义跟随鼠标的缩略图（不设置的话浏览器会截取元素本身的快照）
+            e.dataTransfer.setDragImage(dragGhost, 10, 10);
+
+            card.classList.add('dragging');
+            log('[拖放] dragstart：已写入 text/plain 与 application/x-kanban-card 两种格式', 'ok');
+          });
+
+          card.addEventListener('dragend', function () {
+            // 无论成功失败都会触发，最适合做"收尾清理"
+            card.classList.remove('dragging');
+            for (const col of board.querySelectorAll('.column')) {
+              columnDepth.set(col, 0);
+              col.classList.remove('over');
+            }
+            log('[拖放] dragend：已清理拖动中的样式', 'dim');
+          });
+        }
+
+        for (const card of board.querySelectorAll('.card-item')) setupCard(card);
+
+        // 页面级兜底：阻止"文件被拖到空白处 → 浏览器直接打开它"
+        window.addEventListener('dragover', function (e) {
+          e.preventDefault(); // 不写这句，drop 到空白处时页面会被导航走
+        });
+        window.addEventListener('drop', function (e) {
+          if (e.target.closest && e.target.closest('#fileZone')) return; // 文件区自己会处理
+          e.preventDefault();
+          // 只有"拖入文件"才有必要提醒；拖动看板卡片时不需要刷屏
+          const fileCount = e.dataTransfer ? e.dataTransfer.files.length : 0;
+          if (fileCount > 0) {
+            log('[拖放] 文件被丢在了页面空白处，已阻止浏览器的默认"打开文件"行为。', 'warn');
+          }
+        });
+
+        // ------------------------------------------------------------------
+        // 3. 文件投放
+        // ------------------------------------------------------------------
+
+        const fileZone = document.getElementById('fileZone');
+        const fileListEl = document.getElementById('fileList');
+        const previewsEl = document.getElementById('previews');
+        let previewUrls = []; // 记录所有 createObjectURL 的地址，便于统一 revoke
+
+        /**
+         * 清掉上一次的预览图。
+         * 关键：createObjectURL 生成的地址会一直占着内存，
+         * 必须显式 revokeObjectURL，否则反复拖图会持续泄漏。
+         */
+        function clearPreviews() {
+          for (const url of previewUrls) URL.revokeObjectURL(url);
+          previewUrls = [];
+          previewsEl.textContent = '';
+        }
+
+        fileZone.addEventListener('dragenter', function (e) {
+          e.preventDefault();
+          fileZone.classList.add('over');
+        });
+
+        fileZone.addEventListener('dragover', function (e) {
+          e.preventDefault(); // 必须
+          // 受保护模式下读不到文件名，但可以通过 items 判断"拖的是不是文件"
+          const hasFile = Array.from(e.dataTransfer.items || []).some(function (it) {
+            return it.kind === 'file';
+          });
+          e.dataTransfer.dropEffect = hasFile ? 'copy' : 'none';
+        });
+
+        fileZone.addEventListener('dragleave', function () {
+          fileZone.classList.remove('over');
+        });
+
+        fileZone.addEventListener('drop', function (e) {
+          e.preventDefault();
+          fileZone.classList.remove('over');
+
+          const files = Array.from(e.dataTransfer.files || []);
+          if (files.length === 0) {
+            log('[拖放] drop 里没有文件（可能拖的是普通文本或链接）', 'warn');
+            return;
+          }
+
+          log('[拖放] 收到 ' + files.length + ' 个文件：', 'ok');
+          fileListEl.textContent = '';
+          clearPreviews();
+
+          for (const f of files) {
+            log('[拖放]   · ' + f.name + '  ' + humanSize(f.size) + '  ' + (f.type || '(类型未知)'), 'drag');
+            const line = document.createElement('div');
+            line.textContent = '· ' + f.name + '  ' + humanSize(f.size) + '  ' + (f.type || '?');
+            fileListEl.appendChild(line);
+
+            // 图片直接用 Object URL 预览，不需要读成 DataURL（更省内存）
+            if (/^image\//.test(f.type)) {
+              const url = URL.createObjectURL(f);
+              previewUrls.push(url);
+              const img = document.createElement('img');
+              img.src = url;
+              img.alt = f.name;
+              previewsEl.appendChild(img);
+            }
+          }
+          log('[拖放] 已用 URL.createObjectURL 生成 ' + previewUrls.length +
+            ' 张预览图（下次投放时会 revoke 掉旧的）', 'dim');
+          log('[拖放] 拿不到文件的完整本地路径 —— 这是浏览器的安全设计。', 'dim');
+        });
+
+        // ------------------------------------------------------------------
+        // 4. 剪贴板
+        // ------------------------------------------------------------------
+
+        section('剪贴板环境检测');
+
+        const clipEnvEl = document.getElementById('clipEnv');
+        const clipResultEl = document.getElementById('clipResult');
+        const clipInputEl = document.getElementById('clipInput');
+
+        const clipEnv = {
+          isSecureContext: window.isSecureContext,
+          protocol: location.protocol,
+          origin: location.origin || 'null',
+          hasNavigatorClipboard: !!(navigator.clipboard),
+          hasWriteText: !!(navigator.clipboard && navigator.clipboard.writeText),
+          hasReadText: !!(navigator.clipboard && navigator.clipboard.readText),
+          hasClipboardItem: typeof window.ClipboardItem === 'function',
+          hasExecCommand: !!(document.execCommand),
+        };
+
+        clipEnvEl.textContent =
+          'isSecureContext      = ' + clipEnv.isSecureContext +
+          '   （安全上下文是剪贴板 API 的硬性前提）\n' +
+          'location.protocol    = ' + clipEnv.protocol + '\n' +
+          'location.origin      = ' + clipEnv.origin + '\n' +
+          'navigator.clipboard  = ' + (clipEnv.hasNavigatorClipboard ? '存在' : 'undefined（不可用）') + '\n' +
+          '  .writeText         = ' + clipEnv.hasWriteText + '\n' +
+          '  .readText          = ' + clipEnv.hasReadText + '\n' +
+          'window.ClipboardItem = ' + clipEnv.hasClipboardItem + '\n' +
+          'document.execCommand = ' + clipEnv.hasExecCommand + '（降级方案的第 2 级）';
+
+        log('isSecureContext = ' + clipEnv.isSecureContext + '，协议 = ' + clipEnv.protocol, 'clip');
+        log('navigator.clipboard = ' + (clipEnv.hasNavigatorClipboard ? '存在' : 'undefined'), 'clip');
+        if (!clipEnv.hasNavigatorClipboard) {
+          log('剪贴板 API 不可用，本页的复制操作会自动走降级方案。', 'warn');
+          log('原因可能是：http 站点（非安全上下文）、或浏览器太旧、或没有权限。', 'dim');
+          log('注意：Chrome 把 file:// 视为"潜在可信"，所以 isSecureContext 可能是 true；', 'dim');
+          log('      但不同浏览器对 file:// 下剪贴板权限的处理并不一致，本页会如实报告结果。', 'dim');
+        }
+
+        /** 更新"读取结果"面板 */
+        function showClipResult(text) {
+          clipResultEl.textContent = text;
+        }
+
+        /**
+         * 第 2 级降级方案：document.execCommand('copy')。
+         * 原理：创建一个隐藏的 textarea 并选中其内容，然后执行 copy 命令。
+         * 它已被标准废弃，但兼容性极好，很多"一键复制"库仍在用它兜底。
+         *
+         * 关键限制：必须在用户手势的**同步调用栈**里执行。
+         */
+        function fallbackExecCommand(text) {
+          if (typeof document.execCommand !== 'function') {
+            return { ok: false, reason: '本环境没有 document.execCommand' };
+          }
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          // 放到屏幕外，避免页面跳动；不要用 display:none，那样选不中
+          ta.style.position = 'fixed';
+          ta.style.top = '-1000px';
+          ta.style.left = '-1000px';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          let ok = false;
+          try {
+            ok = document.execCommand('copy');
+          } catch (err) {
+            return { ok: false, reason: err.name + ': ' + err.message };
+          } finally {
+            document.body.removeChild(ta); // 无论成败都要清理临时节点
+          }
+          return ok
+            ? { ok: true }
+            : { ok: false, reason: "execCommand('copy') 返回了 false（常见原因是当前没有有效选区）" };
+        }
+
+        /**
+         * 三级降级复制。
+         * 返回 { via, ok }，via 说明最终是通过哪一级完成的。
+         */
+        async function copyTextWithFallback(text) {
+          // ---------- 第 1 级：Async Clipboard API ----------
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            try {
+              await navigator.clipboard.writeText(text);
+              return { ok: true, via: 'navigator.clipboard.writeText（第 1 级：现代异步 API）' };
+            } catch (err) {
+              log('[剪贴板] 第 1 级失败：' + err.name + ' — ' + err.message, 'warn');
+              log('[剪贴板] 常见原因：不在安全上下文 / 没有用户手势 / 权限被拒。', 'dim');
+              log('[剪贴板] → 回退到第 2 级', 'dim');
+            }
+          } else {
+            log('[剪贴板] 第 1 级不可用：navigator.clipboard 是 undefined → 回退到第 2 级', 'dim');
+          }
+
+          // ---------- 第 2 级：document.execCommand('copy') ----------
+          const r2 = fallbackExecCommand(text);
+          if (r2.ok) {
+            return { ok: true, via: "document.execCommand('copy')（第 2 级：已废弃但兼容性好）" };
+          }
+          log('[剪贴板] 第 2 级失败：' + r2.reason, 'warn');
+          log('[剪贴板] → 回退到第 3 级', 'dim');
+
+          // ---------- 第 3 级：手动兜底 ----------
+          // 现代 UI 的常规做法：把内容放进只读输入框并全选，提示用户按 Ctrl+C。
+          clipInputEl.focus();
+          clipInputEl.select();
+          return {
+            ok: false,
+            via: '第 3 级：已自动全选文本框内容，请手动按 Ctrl+C（或 ⌘C）复制',
+          };
+        }
+
+        // ------------------------------------------------------------------
+        // 按钮动作表
+        // ------------------------------------------------------------------
+
+        const actions = {};
+
+        // ---- 看板 ----
+
+        actions['board-reset'] = function () {
+          const todo = board.querySelector('.column[data-col="todo"]');
+          const doing = board.querySelector('.column[data-col="doing"]');
+          const done = board.querySelector('.column[data-col="done"]');
+          // 先把所有卡片收回来，再按初始顺序放回"待办"
+          const all = Array.from(board.querySelectorAll('.card-item'));
+          all.sort(function (a, b) {
+            return a.dataset.card.localeCompare(b.dataset.card);
+          });
+          for (const c of all) todo.appendChild(c);
+          refreshCounts();
+          log('[看板] 已重置：doing=' + doing.querySelectorAll('.card-item').length +
+            '，done=' + done.querySelectorAll('.card-item').length, 'ok');
+        };
+
+        actions['board-state'] = function () {
+          section('看板当前状态');
+          for (const col of board.querySelectorAll('.column')) {
+            const names = Array.from(col.querySelectorAll('.card-item')).map(function (c) {
+              return c.dataset.card + '(' + c.textContent + ')';
+            });
+            log('[看板] ' + col.dataset.col + ' → [' + names.join(', ') + ']', 'drag');
+          }
+          log('[看板] 当前高亮策略：' + (useCounterEl.checked ? '计数器解法' : '天真解法（会闪烁）'), 'dim');
+        };
+
+        // ---- 剪贴板 ----
+
+        actions['clip-write'] = async function () {
+          const text = clipInputEl.value;
+          log('[剪贴板] 准备写入：' + JSON.stringify(text), 'clip');
+          try {
+            await navigator.clipboard.writeText(text);
+            log('[剪贴板] ✓ writeText 成功', 'ok');
+            showClipResult('写入成功（writeText）：' + text);
+          } catch (err) {
+            log('[剪贴板] ✗ ' + err.name + ' — ' + err.message, 'warn');
+            log('[剪贴板] 可能的原因：', 'dim');
+            log('[剪贴板]   · 当前不是安全上下文（http 站点）', 'dim');
+            log('[剪贴板]   · navigator.clipboard 不存在（旧浏览器）', 'dim');
+            log('[剪贴板]   · 这一行代码不在用户手势的调用栈里', 'dim');
+            log('[剪贴板] 试试点「三级降级复制（完整演示）」，它会自动回退。', 'dim');
+            showClipResult('writeText 失败：' + err.name + ' — ' + err.message);
+          }
+        };
+
+        actions['clip-read'] = async function () {
+          log('[剪贴板] 准备读取剪贴板……', 'clip');
+          log('[剪贴板] 注意：读取几乎一定会触发权限弹窗（剪贴板里可能是密码）。', 'dim');
+          try {
+            const text = await navigator.clipboard.readText();
+            log('[剪贴板] ✓ readText 成功，内容 = ' + JSON.stringify(text), 'ok');
+            showClipResult('读取成功（readText）：\n' + (text || '（剪贴板是空的）'));
+          } catch (err) {
+            log('[剪贴板] ✗ ' + err.name + ' — ' + err.message, 'warn');
+            log('[剪贴板] 最常见的原因是用户拒绝了 clipboard-read 权限。', 'dim');
+            log('[剪贴板] 降级方案：让用户自己按 Ctrl+V，监听 paste 事件拿到内容。', 'dim');
+            showClipResult('readText 失败：' + err.name + ' — ' + err.message +
+              '\n降级做法：监听 paste 事件，让用户自己粘贴。');
+          }
+        };
+
+        actions['clip-write-html'] = async function () {
+          log('[剪贴板] 准备写入富文本（同时写 text/html 与 text/plain）', 'clip');
+          if (typeof window.ClipboardItem !== 'function') {
+            log('[剪贴板] ✗ 本环境没有 ClipboardItem，无法写多格式内容。', 'warn');
+            return;
+          }
+          try {
+            const html = '<b style="color:#2f6feb">加粗的标题</b> —— 来自 ClipboardItem';
+            const plain = '加粗的标题 —— 来自 ClipboardItem';
+            const item = new ClipboardItem({
+              'text/html': new Blob([html], { type: 'text/html' }),
+              'text/plain': new Blob([plain], { type: 'text/plain' }),
+            });
+            await navigator.clipboard.write([item]);
+            log('[剪贴板] ✓ 已写入，可用格式 = [' + item.types.join(', ') + ']', 'ok');
+            log('[剪贴板] 粘贴时由接收方决定用哪种：Word 会用 text/html（带格式），', 'dim');
+            log('[剪贴板] 记事本会用 text/plain（纯文本）。这就是"复制带格式内容"的原理。', 'dim');
+            showClipResult('已写入富文本。粘贴到富文本编辑器里看看效果。');
+          } catch (err) {
+            log('[剪贴板] ✗ ' + err.name + ' — ' + err.message, 'warn');
+            showClipResult('write([ClipboardItem]) 失败：' + err.name + ' — ' + err.message);
+          }
+        };
+
+        actions['clip-query'] = async function () {
+          section('剪贴板权限查询');
+          if (!navigator.permissions || typeof navigator.permissions.query !== 'function') {
+            log('[剪贴板] 本环境没有 Permissions API，无法查询权限。', 'warn');
+            return;
+          }
+          for (const name of ['clipboard-read', 'clipboard-write']) {
+            try {
+              const status = await navigator.permissions.query({ name: name });
+              log('[剪贴板] ' + name + ' → state = ' + status.state +
+                '（granted 已授予 / prompt 会弹窗 / denied 已拒绝）', 'clip');
+              // 权限状态变化时可以实时收到通知
+              status.onchange = function () {
+                log('[剪贴板] ' + name + ' 的权限状态变成了 ' + status.state, 'clip');
+              };
+            } catch (err) {
+              // 部分浏览器不支持这两个权限名，query 会抛 TypeError
+              log('[剪贴板] ' + name + ' 查询失败：' + err.name + ' — ' + err.message +
+                '（该浏览器可能不支持这个权限名）', 'warn');
+            }
+          }
+          log('[剪贴板] 说明：clipboard-write 通常在页面激活时自动授予；', 'dim');
+          log('[剪贴板]       clipboard-read 必须用户显式同意，所以读取几乎总会弹窗。', 'dim');
+        };
+
+        actions['clip-fallback'] = async function () {
+          section('三级降级复制');
+          const text = clipInputEl.value;
+          log('[剪贴板] 目标文本：' + JSON.stringify(text), 'clip');
+          log('[剪贴板] 第 1 级：navigator.clipboard.writeText（现代异步 API）', 'dim');
+          const r = await copyTextWithFallback(text);
+          log('[剪贴板] 最终结果：' + (r.ok ? '✓ 成功' : '✗ 未自动完成'), r.ok ? 'ok' : 'warn');
+          log('[剪贴板] 实际通过：' + r.via, r.ok ? 'ok' : 'warn');
+          showClipResult('三级降级结果：\n' + (r.ok ? '成功' : '未自动完成') + '\n通过：' + r.via);
+        };
+
+        actions['clip-outside'] = function () {
+          section('在 setTimeout 里调用剪贴板（不合法）');
+          log('[剪贴板] 1 秒后会在一个 setTimeout 回调里调用 writeText。', 'clip');
+          log('[剪贴板] 那时"用户手势"已经过期，预期会失败。', 'dim');
+          setTimeout(async function () {
+            try {
+              await navigator.clipboard.writeText('这行写在 setTimeout 里');
+              log('[剪贴板] 居然成功了 —— 说明本浏览器对手势窗口比较宽松。', 'warn');
+            } catch (err) {
+              log('[剪贴板] 预期中的失败：' + err.name + ' — ' + err.message, 'ok');
+              log('[剪贴板] 结论："一键复制"必须绑在 click 上，不能放在自动执行的逻辑里。', 'dim');
+            }
+          }, 1000);
+        };
+
+        // ---- 日志 ----
+
+        actions['log-clear'] = function () {
+          logEl.textContent = '';
+          step = 0;
+          log('日志已清空。');
+        };
+
+        // ------------------------------------------------------------------
+        // 事件委托
+        // ------------------------------------------------------------------
+
+        document.addEventListener('click', function (event) {
+          const btn = event.target.closest('button[data-act]');
+          if (!btn) return;
+          const act = btn.getAttribute('data-act');
+          const fn = actions[act];
+          log('▸ 点击了按钮：' + btn.textContent.trim());
+          if (typeof fn === 'function') {
+            try {
+              const r = fn();
+              // async 函数返回 Promise，要把 rejection 也接住
+              if (r && typeof r.catch === 'function') {
+                r.catch(function (err) {
+                  log('操作出错：' + err.name + ' — ' + err.message, 'warn');
+                });
+              }
+            } catch (err) {
+              log('操作出错：' + err.name + ' — ' + err.message, 'warn');
+            }
+          } else {
+            log('未实现的动作：' + act, 'warn');
+          }
+        });
+
+        log('');
+        log('准备就绪。建议顺序：', 'ok');
+        log('  1) 把「修复登录 bug」拖到「进行中」列，看事件顺序；', 'ok');
+        log('  2) 取消勾选「用计数器解法」，再拖动一次，观察列高亮的闪烁；', 'ok');
+        log('  3) 从电脑里拖一张图片到橙色区域；', 'ok');
+        log('  4) 点剪贴板那一排按钮，对比成功与失败的提示。', 'ok');
+      })();
+    </script>
+  </body>
+</html>

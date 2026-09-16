@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：浏览器版 Hello World —— 在页面里运行 JavaScript
+  ============================================================================
+
+  【所属分类】00_hello_world —— 起步
+  【难度等级】入门
+  【前置知识】00_hello_world/01_hello_world.js
+
+  【知识点说明】
+
+  1. 是什么
+     这是一个不再依赖 Node.js、直接在浏览器里运行的 Hello World。它把
+     JavaScript 代码用 <script> 标签嵌入 HTML 页面，由浏览器内置的 JS 引擎
+     （Chrome 的 V8、Firefox 的 SpiderMonkey、Safari 的 JavaScriptCore）执行。
+
+  2. 为什么需要 / 解决什么问题
+     JavaScript 最初就是为浏览器发明的：它的核心使命是"操作页面"。
+     只有跑在浏览器里，JS 才能真正访问 DOM（页面结构）、BOM（浏览器窗口）、
+     处理用户的点击/输入事件。Node.js 里没有 document、没有 window，
+     所以那些示例无法演示"如何改变页面"。这个文件补齐了这块拼图。
+
+  3. 核心语法要点
+     - <script> 标签：浏览器发现它就会解析并执行其中的 JS。
+       * 放在 <head> 里，会在页面元素渲染之前执行 → 用 document.getElementById 会拿到 null。
+       * 放在 </body> 之前，页面元素已就绪 → 可以直接操作 DOM，这是经典写法。
+       * 加 defer 属性：脚本延迟到 HTML 解析完成后再执行，效果类似放在 body 末尾。
+       * 加 type="module"：以 ES 模块方式加载，自动 defer、自动严格模式、有独立作用域。
+     - document.getElementById('id')：按 id 找元素，返回 Element 或 null。
+     - element.textContent：设置元素内的纯文本（不解析 HTML，安全）。
+     - element.innerHTML：设置元素内的 HTML 字符串（会解析标签，慎用）。
+     - element.classList.add(...)：增删 CSS 类，是改变样式最推荐的方式。
+     - document.createElement + appendChild：动态创建并插入节点。
+     - F12 打开开发者工具 → Console 面板，可以用 console.log 输出调试信息。
+
+  4. 常见陷阱与注意事项
+     - 脚本执行顺序：默认情况下脚本会"阻塞" HTML 解析，且执行时后面的元素还不存在。
+       所以要么把脚本放 body 末尾，要么用 defer。
+     - 用 file:// 协议双击打开时，type="module" 的脚本会被浏览器的跨源策略拦截
+       （CORS 错误）。因此本示例刻意使用普通 script，保证双击即可运行。
+     - textContent 与 innerHTML 的区别：文本中含有 < > 时，用 innerHTML 会把它当成标签解析，
+       可能造成 XSS。能不用 innerHTML 就不用。
+     - 浏览器没有 require / module.exports，也没有 process、fs 这些 Node 专有对象。
+
+  【运行方法】
+     方式一：直接双击本文件，用默认浏览器打开（推荐，本示例无外链、可离线运行）。
+     方式二：右键 → 打开方式 → 选一个浏览器。
+     方式三：在 VS Code 中安装 Live Server 扩展后右键 "Open with Live Server"。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     页面上会显示一段由 JavaScript 动态生成的问候语、一张学生成绩表，
+     以及若干"知识点卡片"。点击按钮可以追加问候、改变配色。
+     Console 面板中会打印若干条带说明的日志。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <!-- 声明字符编码为 UTF-8，否则中文会显示成乱码。这一行必须尽量靠前。 -->
+    <meta charset="UTF-8" />
+    <!-- 视口设置，让页面在手机上也能按设备宽度渲染。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>浏览器版 Hello World</title>
+
+    <style>
+      /* CSS 样式集中写在 <style> 里，与 JS 逻辑分离，便于维护。 */
+      :root {
+        /* 用 CSS 自定义属性（变量）统一管理配色，方便 JS 一键换肤。 */
+        --main-color: #2f6feb;
+        --bg-color: #f6f8fa;
+        --text-color: #1f2328;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: var(--bg-color);
+        color: var(--text-color);
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: var(--main-color);
+        border-bottom: 3px solid var(--main-color);
+        padding-bottom: 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 12px 18px;
+        margin: 12px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      /* 由 JS 动态添加 / 移除的类，用来展示 classList 的用法。 */
+      .highlight {
+        border-left: 6px solid var(--main-color);
+        background: #eef3ff;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin-top: 8px;
+      }
+
+      th,
+      td {
+        border: 1px solid #d0d7de;
+        padding: 6px 12px;
+        text-align: left;
+      }
+
+      th {
+        background: var(--main-color);
+        color: #fff;
+      }
+
+      button {
+        margin-right: 8px;
+        margin-bottom: 8px;
+        padding: 8px 16px;
+        font-size: 14px;
+        cursor: pointer;
+        border: 1px solid var(--main-color);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--main-color);
+      }
+
+      button:hover {
+        background: var(--main-color);
+        color: #fff;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!--
+      页面结构（HTML）负责"内容"，样式（CSS）负责"外观"，行为（JS）负责"交互"。
+      三者分离是前端最基本的工程原则。
+    -->
+
+    <!-- 这个 <h1> 里的文字稍后会被 JS 改写，用 id 给它一个唯一标识。 -->
+    <h1 id="title">浏览器版 Hello World</h1>
+
+    <!-- 这一块用来展示 JS 动态生成的问候语。 -->
+    <div class="card">
+      <p id="greeting" class="hint">（此处的问候语会在页面加载后由 JavaScript 写入）</p>
+    </div>
+
+    <!-- 这一块用来展示 JS 动态生成的表格。 -->
+    <div class="card">
+      <strong>由 JS 动态生成的表格：</strong>
+      <div id="table-host"></div>
+    </div>
+
+    <!-- 这一块用来展示"事件驱动"：JS 响应按钮点击。 -->
+    <div class="card">
+      <strong>交互演示：</strong>
+      <p class="hint">下面的按钮由 JavaScript 绑定 click 事件，页面不会刷新。</p>
+      <button id="btn-greet">再追加一句问候</button>
+      <button id="btn-theme">切换配色</button>
+      <button id="btn-highlight">高亮 / 取消高亮卡片</button>
+    </div>
+
+    <!-- 事件日志区：把每次点击记录下来，直观展示"事件回调"的执行时机。 -->
+    <div class="card">
+      <strong>事件日志：</strong>
+      <ul id="log-list"></ul>
+    </div>
+
+    <p class="hint">
+      提示：按 F12（Mac 上是 Cmd+Option+I）打开开发者工具，切到 Console 面板，
+      就能看到本页 JavaScript 打印的调试日志。
+    </p>
+
+    <!--
+      ========================================================================
+      <script> 放在 </body> 之前，这是最经典的写法。
+      原因：HTML 是从上往下解析的。脚本执行时，它上面的所有元素都已经
+      存在于 DOM 中，所以 document.getElementById 一定能拿到元素。
+      如果把这段脚本放到 <head> 里，下面那些 <div id="..."> 还没被解析，
+      getElementById 会返回 null，紧接着访问 .textContent 就会抛
+      "Cannot read properties of null" 错误。
+      ========================================================================
+    -->
+    <script>
+      // 注意：普通 <script> 里的代码运行在"全局作用域"，
+      // 用 var / function 声明的东西会挂到 window 上，容易和别人冲突。
+      // 所以这里用一个立即执行函数表达式（IIFE）造出私有作用域，
+      // 这是 HTML 内联脚本中最常见的隔离手法。
+      (function () {
+        'use strict'; // 开启严格模式，把一些"静默失败"变成明确报错，便于发现 bug。
+
+        // -------------------------------------------------------------------
+        // 1. 最简单的浏览器 Hello World
+        // -------------------------------------------------------------------
+
+        // console.log 在浏览器里的输出会进入开发者工具的 Console 面板，
+        // 而不是像 Node.js 那样进入终端。用法完全一样。
+        console.log('Hello, World! —— 这条来自浏览器页面');
+
+        // -------------------------------------------------------------------
+        // 2. 通过 DOM API 修改页面内容
+        // -------------------------------------------------------------------
+
+        // document 是浏览器提供的全局对象，代表整个页面（DOM 树的入口）。
+        // Node.js 里没有它。getElementById 按 id 查找元素，找不到返回 null。
+        const titleEl = document.getElementById('title');
+        console.log('取到的标题元素：', titleEl);
+
+        // textContent 写入的是"纯文本"：即使内容里含有 <b> 这样的字符，
+        // 也会被当作普通文字显示，不会被解析成 HTML 标签 —— 这是最安全的写法。
+        titleEl.textContent = '浏览器版 Hello World ✅（这行文字是 JS 改写的）';
+
+        // innerHTML 会把字符串当作 HTML 解析。演示一下它的效果，
+        // 顺便提醒：绝不要把"用户输入"直接塞进 innerHTML，否则会有 XSS 风险。
+        const greetingEl = document.getElementById('greeting');
+        greetingEl.innerHTML = '你好，<strong>世界</strong>！我是由 <code>JavaScript</code> 动态写入的。';
+
+        // -------------------------------------------------------------------
+        // 3. 动态生成一张表格
+        // -------------------------------------------------------------------
+
+        // 数据本身就是普通的 JS 数组 / 对象 —— 语言部分的知识在浏览器里同样适用。
+        const students = [
+          { name: '小明', age: 18, score: 92 },
+          { name: '小红', age: 19, score: 88 },
+          { name: '小刚', age: 17, score: 76 },
+        ];
+
+        const host = document.getElementById('table-host');
+
+        // createElement 创建新节点，但此时它还没被插进页面（"游离"状态）。
+        const table = document.createElement('table');
+
+        // 表头行
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        for (const label of ['姓名', '年龄', '分数']) {
+          const th = document.createElement('th');
+          th.textContent = label;
+          headRow.appendChild(th); // appendChild 把子节点挂到父节点上
+        }
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        // 表体行：用 for...of 遍历数组，为每条数据生成一行
+        const tbody = document.createElement('tbody');
+        for (const stu of students) {
+          const tr = document.createElement('tr');
+          for (const value of [stu.name, stu.age, stu.score]) {
+            const td = document.createElement('td');
+            td.textContent = String(value); // 统一转成字符串再写入
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+
+        // 最后一步才把整张表插入页面 —— 一次性插入比逐个插入性能好得多。
+        host.appendChild(table);
+        console.log('表格已动态生成，共 %d 行数据', students.length);
+
+        // -------------------------------------------------------------------
+        // 4. 事件驱动：给按钮绑定 click 回调
+        // -------------------------------------------------------------------
+
+        // 浏览器编程的核心是"事件驱动"：你不是写一条从头跑到尾的流水线，
+        // 而是注册一堆回调函数，等用户操作发生时才被调用。
+        const logList = document.getElementById('log-list');
+        let greetCount = 0; // 闭包变量：被下面的回调函数持续引用，值会一直保留
+
+        /** 往事件日志区追加一条记录 */
+        function addLog(text) {
+          const li = document.createElement('li');
+          // toLocaleTimeString 生成本地时间字符串，方便观察事件发生的先后顺序
+          li.textContent = '[' + new Date().toLocaleTimeString() + '] ' + text;
+          logList.appendChild(li);
+        }
+
+        // addEventListener(事件名, 回调函数)：注册事件监听器。
+        // 注意传入的是函数本身（回调），不是函数的调用结果，所以不写括号。
+        document.getElementById('btn-greet').addEventListener('click', function () {
+          greetCount += 1;
+          // 用模板字符串拼出一句话，再追加到页面末尾
+          const p = document.createElement('p');
+          p.textContent = '第 ' + greetCount + ' 次问候：Hello, World!';
+          p.classList.add('highlight'); // classList.add 添加 CSS 类，是最推荐的改样式方式
+          document.getElementById('greeting').after(p);
+          addLog('按钮「再追加一句问候」被点击，计数 = ' + greetCount);
+        });
+
+        // 用箭头函数写回调，语法更短。
+        document.getElementById('btn-theme').addEventListener('click', () => {
+          // CSS 自定义属性定义在 :root（即 <html> 元素）上，
+          // 通过 documentElement.style.setProperty 就能整体换肤。
+          const root = document.documentElement;
+          const current = root.style.getPropertyValue('--main-color');
+          // 三元运算符：当前是蓝色就换紫色，否则换回蓝色
+          const next = current === '#7b3ff2' ? '#2f6feb' : '#7b3ff2';
+          root.style.setProperty('--main-color', next);
+          addLog('按钮「切换配色」被点击，主色改为 ' + next);
+        });
+
+        document.getElementById('btn-highlight').addEventListener('click', () => {
+          // querySelectorAll 返回的是类数组的 NodeList，可以配合 for...of 遍历。
+          // classList.toggle 有则删、无则加，非常适合做开关。
+          const cards = document.querySelectorAll('.card');
+          for (const card of cards) {
+            card.classList.toggle('highlight');
+          }
+          addLog('按钮「高亮 / 取消高亮」被点击，共影响 ' + cards.length + ' 个卡片');
+        });
+
+        // -------------------------------------------------------------------
+        // 5. 浏览器特有的全局对象速览
+        // -------------------------------------------------------------------
+
+        // window：浏览器窗口的全局对象。在浏览器里，顶层的全局变量其实就是 window 的属性。
+        console.log('window 存在吗？', typeof window !== 'undefined');
+
+        // document：页面的 DOM 入口，Node.js 中没有。
+        console.log('当前页面标题：', document.title);
+        console.log('当前页面地址：', location.href);
+        console.log('浏览器信息（前 60 字符）：', navigator.userAgent.slice(0, 60));
+
+        // 小结
+        console.log('本页脚本执行完毕，共注册了 3 个 click 事件监听器。');
+      })();
+    </script>
+  </body>
+</html>

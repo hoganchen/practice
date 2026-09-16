@@ -1,0 +1,45 @@
+# 依赖
+node_modules/
+
+# ⚠️ 注意：package-lock.json **不要**加进来，它必须提交。
+#    理由见本仓库自己的教学文件 39_tooling_and_workflow/07_lockfile_and_ci.js：
+#      · 锁文件是"可复现安装"的唯一保证，CI 里要用 `npm ci`（它依赖锁文件）；
+#      · 32_security_and_best_practices/14_supply_chain_security.js 还会真实读取
+#        本仓库的 package-lock.json 做依赖树与 integrity 分析 —— 不提交它，别人克隆后跑不了。
+
+# 日志
+*.log
+npm-debug.log*
+logs/
+
+# 环境变量与凭据（示例中不要提交真实密钥）
+.env
+.env.local
+.env.*.local
+
+# ⚠️ .npmrc 必须忽略：项目级 .npmrc 里常常写着私有 registry 的认证 token
+#    （`//registry.npmjs.org/:_authToken=...`），提交上去就是密钥泄漏。
+#    这个隐患是 39_tooling_and_workflow/12_npmrc_and_registry.js 的真实体检发现的。
+#    注意本仓库目前并没有 .npmrc，这一条是防御性的。
+.npmrc
+
+# 编辑器与系统
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# 临时产物
+tmp/
+temp/
+dist/
+build/
+coverage/
+*.tmp
+
+# 调试与性能剖析产物（37_debugging_and_profiling 里教了怎么生成它们，
+# 体积很大且每台机器都不一样，不要提交）
+*.heapsnapshot
+*.cpuprofile
+*.heapprofile

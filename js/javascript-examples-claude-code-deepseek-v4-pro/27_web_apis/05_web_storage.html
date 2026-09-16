@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：本地存储（localStorage / sessionStorage / Cookie）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】入门
+  【前置知识】27_web_apis/05_web_storage.js（同知识点的 Node Map 模拟版）
+
+  【知识点说明】
+
+  1. 是什么
+     浏览器提供的"把数据存在用户本机"的几种方式：
+       - localStorage   ：永久保存，同源的所有标签页共享
+       - sessionStorage ：只在当前标签页有效，关掉标签页就没了
+       - Cookie         ：随每个 HTTP 请求自动发给服务器，容量约 4KB
+     前两者实现的是同一个 Storage 接口，用法完全一样，只有生命周期不同。
+
+  2. 为什么需要
+     刷新页面后 JS 变量全部清零。想"记住"用户的主题、语言、登录状态、
+     草稿内容、购物车，就必须写进浏览器提供的持久化存储里。
+     localStorage 是最简单的一种：同步 API、字符串键值对、约 5MB 容量。
+
+  3. 核心语法要点
+     Storage 接口只有 5 个方法 + 1 个属性：
+       setItem(key, value)  写入（值会被强制转成字符串）
+       getItem(key)         读取，键不存在返回 null
+       removeItem(key)      删除单个键
+       clear()              清空（只清当前源的）
+       key(index)           按序号取键名（顺序不保证）
+       length               键的数量
+     storage 事件：**其它**标签页修改 localStorage 时，本页会收到该事件。
+     Cookie：document.cookie，读出来是 "a=1; b=2" 这样一整行字符串，
+             写入是"追加/覆盖同名项"而不是整体替换。
+
+  4. 常见陷阱
+     - 存的全是字符串：setItem('n', 1) 取出是 '1'，+1 会得到 '11'。
+     - 存对象必须 JSON.stringify；直接存会变成 "[object Object]"。
+     - 读取不存在的键返回 null，而 null 本身也可能是合法值。
+     - localStorage 是同步 API，存大字符串会阻塞主线程。
+     - 容量超限抛 QuotaExceededError（DOMException，code 22）。
+     - 隐私模式 / file:// 协议下，localStorage 可能不可用甚至会抛错，
+       所以真实项目里要用 try/catch 包一层。
+     - Cookie 在 file:// 下通常写不进去（本页会如实显示结果，不会报错）。
+     - localStorage 不加密，绝不要存 token、密码等敏感信息。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链，可离线运行）。
+     注意：本文件不需要、也不能用 node 命令运行。
+     提示：刷新页面观察"访问次数"，就能直观看到 localStorage 的持久化效果。
+
+  【预期输出】
+     页面上有 4 组演示：localStorage 读写、sessionStorage 对比、Cookie、
+     跨标签页 storage 事件。所有操作结果都会打印到下方输出区。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>本地存储：localStorage / sessionStorage / Cookie</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 16px;
+        margin: 0 0 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 12px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div:first-child {
+        flex: 1 1 440px;
+        min-width: 320px;
+      }
+
+      .layout > div:last-child {
+        flex: 1 1 440px;
+        min-width: 320px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 13px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      input[type='text'] {
+        padding: 6px 10px;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        font-size: 14px;
+        width: 200px;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      pre {
+        margin: 0;
+        height: 520px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-err {
+        color: #ff7b72;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13px;
+        margin: 4px 0;
+      }
+
+      .stat {
+        display: inline-block;
+        background: #ddf4ff;
+        color: #0969da;
+        border-radius: 10px;
+        padding: 2px 10px;
+        font-size: 13px;
+        margin-right: 8px;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13px;
+        margin-top: 6px;
+      }
+
+      th,
+      td {
+        border: 1px solid #d0d7de;
+        padding: 4px 8px;
+        text-align: left;
+        word-break: break-all;
+      }
+
+      th {
+        background: #f0f3f6;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>本地存储：localStorage / sessionStorage / Cookie</h1>
+
+    <p class="hint">
+      提示：改变下面输入框里的内容并保存，然后<strong>刷新页面</strong>——
+      localStorage 里的数据会保留，sessionStorage 的也会保留（同一个标签页），
+      而页面里的普通变量会全部归零。
+    </p>
+
+    <div class="layout">
+      <div>
+        <div class="card">
+          <h2>1. localStorage 基本读写</h2>
+          <p class="hint">
+            刷新页面后，"页面访问次数"会继续累加，这就是持久化的效果。
+          </p>
+          <p><span class="stat" id="visit-stat">访问次数加载中...</span></p>
+          <p>
+            <input type="text" id="value-input" placeholder="输入要保存的文本" />
+            <button data-act="save-simple">save</button>
+          </p>
+          <button data-act="read-simple">读取</button>
+          <button data-act="remove-simple">删除这个键</button>
+          <button data-act="list">列出所有键值</button>
+          <button data-act="clear">clear 清空全部</button>
+          <div id="table-host"></div>
+        </div>
+
+        <div class="card">
+          <h2>2. 存对象必须 JSON.stringify</h2>
+          <p class="hint">
+            对比"直接存对象"和"JSON 序列化后存"的结果差异。
+          </p>
+          <button data-act="save-raw-object">直接 setItem('user', 对象)</button>
+          <button data-act="save-json-object">JSON.stringify 后存</button>
+          <button data-act="read-json-object">读出来并 JSON.parse</button>
+          <button data-act="add-todo">往持久化待办清单里加一条</button>
+          <button data-act="clear-todo">清空待办清单</button>
+          <div id="todo-host"></div>
+        </div>
+
+        <div class="card">
+          <h2>3. sessionStorage 与容量测试</h2>
+          <button data-act="session-set">往 sessionStorage 写一条</button>
+          <button data-act="session-read">读取 sessionStorage</button>
+          <button data-act="session-clear">清空 sessionStorage</button>
+          <button data-act="quota">一直写直到超出配额（演示 QuotaExceededError）</button>
+        </div>
+
+        <div class="card">
+          <h2>4. Cookie</h2>
+          <p class="hint">
+            读：<code>document.cookie</code> 返回 "a=1; b=2" 这样一整行；
+            写：<code>document.cookie = 'k=v'</code> 是追加，不是整体替换。
+            注意：用 file:// 直接打开时浏览器通常不允许写 Cookie，本示例会如实显示结果。
+          </p>
+          <button data-act="cookie-set">document.cookie = 'theme=dark; path=/'</button>
+          <button data-act="cookie-read">读取 document.cookie</button>
+          <button data-act="cookie-delete">删除 theme（设为过期时间）</button>
+        </div>
+
+        <div class="card">
+          <h2>5. storage 事件（跨标签页通信）</h2>
+          <p class="hint">
+            真实场景：打开两个标签页，在 A 页里改 localStorage，B 页会收到 storage 事件。
+            这里用代码手动构造一个 StorageEvent 来观察它长什么样。
+          </p>
+          <button data-act="fake-storage-event">手动派发一个 storage 事件</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>输出</h2>
+          <pre id="out"></pre>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 输出工具
+        // ------------------------------------------------------------------
+
+        const outEl = document.getElementById('out');
+
+        function out(text, kind) {
+          const span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = text;
+          outEl.appendChild(span);
+          outEl.appendChild(document.createTextNode('\n'));
+          outEl.scrollTop = outEl.scrollHeight;
+          console.log(text);
+        }
+
+        // ------------------------------------------------------------------
+        // 1. 安全地拿到 localStorage
+        // ------------------------------------------------------------------
+        // 在隐私模式或某些 file:// 场景下，访问 window.localStorage 本身就可能抛错，
+        // 所以真实项目里一定要包一层。这里如果拿不到，就退化成内存版（刷新即失效），
+        // 保证示例在任何环境下都能正常运行、不会因为报错而白屏。
+
+        /** 内存版 Storage，接口与 localStorage 完全一致（兜底用） */
+        function createMemoryStorage() {
+          const map = new Map();
+          return {
+            getItem: function (k) { return map.has(String(k)) ? map.get(String(k)) : null; },
+            setItem: function (k, v) { map.set(String(k), String(v)); },
+            removeItem: function (k) { map.delete(String(k)); },
+            clear: function () { map.clear(); },
+            key: function (i) { return Array.from(map.keys())[i] || null; },
+            get length() { return map.size; },
+          };
+        }
+
+        let ls;
+        let lsKind = 'localStorage';
+        try {
+          ls = window.localStorage;
+          ls.setItem('__probe__', '1'); // 真正写一次才知道能不能用
+          ls.removeItem('__probe__');
+        } catch (err) {
+          ls = createMemoryStorage();
+          lsKind = '内存兜底（localStorage 不可用）';
+          out('注意：当前环境不允许使用 localStorage（' + err.name + '），已自动降级为内存版。', 'warn');
+        }
+
+        let ss;
+        try {
+          ss = window.sessionStorage;
+        } catch (err) {
+          ss = createMemoryStorage();
+        }
+
+        out('存储后端：' + lsKind, 'dim');
+
+        /** 列出某个 Storage 里的全部键值对 */
+        function dumpStorage(storage, label) {
+          out('  ' + label + ' 共有 ' + storage.length + ' 个键：');
+          if (storage.length === 0) {
+            out('    （空）', 'dim');
+            return;
+          }
+          // 用 key(i) 按序号遍历是标准做法（不要用 for...in，它会把方法也列出来）
+          for (let i = 0; i < storage.length; i++) {
+            const k = storage.key(i);
+            out('    ' + k + ' = ' + JSON.stringify(storage.getItem(k)));
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // 2. 页面访问次数：最直观的持久化演示
+        // ------------------------------------------------------------------
+
+        try {
+          const count = Number(ls.getItem('visitCount') || '0') + 1;
+          ls.setItem('visitCount', count);
+          document.getElementById('visit-stat').textContent = '这是你第 ' + count + ' 次访问本页（刷新试试）';
+          out('读取 visitCount 并加 1，现在为 ' + count + '（类型：' + typeof ls.getItem('visitCount') + '，注意存进去的是字符串）', 'ok');
+        } catch (err) {
+          out('统计访问次数失败：' + err.name, 'err');
+        }
+
+        // ------------------------------------------------------------------
+        // 3. 按钮动作
+        // ------------------------------------------------------------------
+
+        const KEY_SIMPLE = 'myText';
+
+        const actions = {
+          'save-simple': function () {
+            const value = document.getElementById('value-input').value;
+            ls.setItem(KEY_SIMPLE, value);
+            out("setItem('" + KEY_SIMPLE + "', " + JSON.stringify(value) + ') 完成', 'ok');
+            out('  写入后 storage.length = ' + ls.length);
+          },
+
+          'read-simple': function () {
+            const value = ls.getItem(KEY_SIMPLE);
+            out("getItem('" + KEY_SIMPLE + "') = " + JSON.stringify(value));
+            if (value === null) out('  键不存在时返回 null，不是 undefined。', 'warn');
+          },
+
+          'remove-simple': function () {
+            ls.removeItem(KEY_SIMPLE);
+            out("removeItem('" + KEY_SIMPLE + "') 完成", 'ok');
+            out("  再读一次：getItem('" + KEY_SIMPLE + "') = " + JSON.stringify(ls.getItem(KEY_SIMPLE)), 'dim');
+          },
+
+          list: function () {
+            out('=== 列出 localStorage 全部内容 ===', 'dim');
+            dumpStorage(ls, 'localStorage');
+            out('');
+            out('  顺序说明：Storage 规范没有规定 key(index) 的顺序，不要依赖它。', 'warn');
+          },
+
+          clear: function () {
+            ls.clear();
+            out('clear() 完成，storage.length = ' + ls.length, 'ok');
+            out('  注意：clear() 会清掉当前源下的所有数据，包括上面的 visitCount。', 'warn');
+            document.getElementById('visit-stat').textContent = '已被清空（刷新页面会从 1 重新开始）';
+          },
+
+          'save-raw-object': function () {
+            const user = { name: '小明', age: 18 };
+            ls.setItem('user', user); // 没做 JSON.stringify
+            out('直接 setItem("user", 对象) 之后读出来：', 'err');
+            out('  ' + JSON.stringify(ls.getItem('user')), 'err');
+            out('  值被强制转了字符串，对象信息全丢了。', 'warn');
+          },
+
+          'save-json-object': function () {
+            const user = { name: '小明', age: 18, tags: ['vip', 'new'] };
+            ls.setItem('user', JSON.stringify(user));
+            out('JSON.stringify 后写入，存储里的原始字符串：', 'ok');
+            out('  ' + ls.getItem('user'));
+          },
+
+          'read-json-object': function () {
+            const raw = ls.getItem('user');
+            if (raw === null) {
+              out('还没存过 user，先点上面的两个按钮之一。', 'warn');
+              return;
+            }
+            try {
+              const user = JSON.parse(raw);
+              out('JSON.parse 后拿到真对象：name = ' + user.name + '，tags = ' + JSON.stringify(user.tags), 'ok');
+              out('  tags 是真数组吗？' + Array.isArray(user.tags), 'ok');
+            } catch (err) {
+              // 解析失败说明存的不是合法 JSON（比如点了"直接存对象"那个按钮）
+              out('JSON.parse 失败：' + err.message, 'err');
+              out('  存进去的内容是：' + JSON.stringify(raw) + '，它不是合法 JSON。', 'warn');
+            }
+          },
+
+          'add-todo': function () {
+            // 一个典型的"持久化列表"模式：读取 → 修改 → 写回
+            let todos;
+            try {
+              todos = JSON.parse(ls.getItem('todos') || '[]');
+              if (!Array.isArray(todos)) todos = []; // 防御：万一存的不是数组
+            } catch (err) {
+              todos = []; // 数据坏了就当空的，不要让页面崩掉
+              out('  已有的 todos 数据无法解析，已重置为空数组。', 'warn');
+            }
+            todos.push('第 ' + (todos.length + 1) + ' 条待办（' + new Date().toLocaleTimeString() + '）');
+            ls.setItem('todos', JSON.stringify(todos));
+            renderTodos(todos);
+            out('已往持久化待办清单里加了一条，现在共 ' + todos.length + ' 条。刷新页面它们还在。', 'ok');
+          },
+
+          'clear-todo': function () {
+            ls.removeItem('todos');
+            renderTodos([]);
+            out('待办清单已清空。', 'ok');
+          },
+
+          'session-set': function () {
+            ss.setItem('temp', '写于 ' + new Date().toLocaleTimeString());
+            out("sessionStorage.setItem('temp', ...) 完成", 'ok');
+            out('  sessionStorage.length = ' + ss.length + '（注意它和 localStorage 是两块独立的空间）', 'dim');
+          },
+
+          'session-read': function () {
+            out("sessionStorage.getItem('temp') = " + JSON.stringify(ss.getItem('temp')));
+            out('  刷新页面它还在（同一个标签页），但复制链接到新标签页打开就没有了。', 'dim');
+            out('  在浏览器里关掉这个标签页，sessionStorage 的内容就会被销毁。', 'dim');
+          },
+
+          'session-clear': function () {
+            ss.clear();
+            out('sessionStorage 已清空，length = ' + ss.length, 'ok');
+          },
+
+          quota: function () {
+            out('=== 容量测试：一直写直到超出配额 ===', 'dim');
+            // 每次写入一个约 256KB 的**新键**（写同一个键是覆盖，不会增长），
+            // 直到浏览器抛 QuotaExceededError。localStorage 通常约 5MB，
+            // 所以大概写到第 20 次左右就会失败。
+            const chunk = new Array(256 * 1024).join('x');
+            const usedKeys = [];
+            let written = 0;
+            try {
+              for (let i = 0; i < 40; i++) {
+                const key = '__quota_test_' + i + '__';
+                ls.setItem(key, chunk);
+                usedKeys.push(key);
+                written += 1;
+              }
+              out('  写满了 ' + written + ' 次都没超限（本环境容量比预期大）。', 'warn');
+            } catch (err) {
+              out('  第 ' + (written + 1) + ' 次写入失败：' + err.name, 'err');
+              out('    错误名是不是 QuotaExceededError？' + (err.name === 'QuotaExceededError'), 'ok');
+              out('    错误码 code = ' + err.code + '（QuotaExceededError 的标准码是 22）');
+              out('    这意味着已经成功写进去大约 ' + written * 256 + ' KB。', 'dim');
+              out('  真实项目里必须捕获它，提示用户清理，或者降级成内存变量。', 'ok');
+            } finally {
+              // 无论成功失败都要把测试数据清掉，别污染用户的存储
+              for (const key of usedKeys) ls.removeItem(key);
+              out('  测试数据已清理，storage.length = ' + ls.length, 'dim');
+            }
+            out('');
+          },
+
+          'cookie-set': function () {
+            out('=== 写入 Cookie ===', 'dim');
+            try {
+              // 注意：这是"赋值"，但效果是追加/覆盖同名项，不会清掉其它 Cookie
+              document.cookie = 'theme=dark; path=/; max-age=3600';
+              out('  执行了 document.cookie = "theme=dark; path=/; max-age=3600"', 'ok');
+              out('  当前 document.cookie = ' + JSON.stringify(document.cookie));
+              if (!document.cookie) {
+                out('  读回来是空的：file:// 协议下浏览器通常不允许写 Cookie。', 'warn');
+                out('  用本地 HTTP 服务器（如 Live Server）打开本页就能看到效果。', 'warn');
+              }
+            } catch (err) {
+              out('  写入 Cookie 被拒绝：' + err.name + ': ' + err.message, 'err');
+              out('  这是浏览器的隐私策略，被 try/catch 捕获，页面不会报错。', 'warn');
+            }
+            out('');
+          },
+
+          'cookie-read': function () {
+            out('=== 读取 Cookie ===', 'dim');
+            const cookie = document.cookie;
+            out('  document.cookie = ' + JSON.stringify(cookie));
+            if (!cookie) {
+              out('  空字符串表示当前上下文没有可读的 Cookie。', 'dim');
+              return;
+            }
+            // 手动把它解析成对象（这就是"读 Cookie"的真实工作量）
+            const obj = {};
+            cookie.split(';').forEach(function (pair) {
+              const i = pair.indexOf('=');
+              if (i === -1) return;
+              obj[pair.slice(0, i).trim()] = pair.slice(i + 1).trim();
+            });
+            out('  解析成对象 = ' + JSON.stringify(obj), 'ok');
+            out('  HttpOnly 的 Cookie 在这里永远读不到，这是安全特性。', 'dim');
+            out('');
+          },
+
+          'cookie-delete': function () {
+            out('=== 删除 Cookie ===', 'dim');
+            try {
+              // Cookie 没有 delete 接口，只能通过设置成"已过期"来让它失效
+              document.cookie = 'theme=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+              out('  已把 theme 设为 1970 年过期，浏览器会把它删掉。', 'ok');
+              out('  document.cookie 现在是 ' + JSON.stringify(document.cookie));
+            } catch (err) {
+              out('  操作被拒绝：' + err.name, 'err');
+            }
+            out('');
+          },
+
+          'fake-storage-event': function () {
+            out('=== 手动派发一个 storage 事件 ===', 'dim');
+            try {
+              // StorageEvent 构造函数可以手动造事件，方便本地测试跨标签页逻辑
+              const event = new StorageEvent('storage', {
+                key: 'theme',
+                oldValue: 'light',
+                newValue: 'dark',
+                url: location.href,
+                storageArea: ls,
+              });
+              out('  事件对象已创建：key=' + event.key + '，oldValue=' + event.oldValue + ' → newValue=' + event.newValue);
+              window.dispatchEvent(event); // 派发出去，下面的监听器会收到
+            } catch (err) {
+              out('  当前浏览器不支持手动构造 StorageEvent：' + err.name, 'err');
+            }
+            out('');
+          },
+        };
+
+        // ------------------------------------------------------------------
+        // 4. 注册 storage 事件监听器
+        // ------------------------------------------------------------------
+        // 真实场景：在标签页 A 里改 localStorage，标签页 B 会收到这个事件。
+        // 修改数据的那一页自己收不到（规范如此），所以本页手动派发的事件才会触发它。
+        window.addEventListener('storage', function (e) {
+          out('  [收到 storage 事件] key=' + e.key + '，oldValue=' + JSON.stringify(e.oldValue) + ' → newValue=' + JSON.stringify(e.newValue), 'ok');
+          out('    storageArea 是不是 localStorage？' + (e.storageArea === ls));
+          out('    触发页面 url = ' + e.url);
+        });
+
+        // ------------------------------------------------------------------
+        // 5. 渲染持久化的待办清单（页面加载时就恢复上次的数据）
+        // ------------------------------------------------------------------
+
+        function renderTodos(todos) {
+          const host = document.getElementById('todo-host');
+          host.textContent = '';
+          if (todos.length === 0) {
+            host.innerHTML = '<p class="hint">（待办清单为空）</p>';
+            return;
+          }
+          const ol = document.createElement('ol');
+          for (const t of todos) {
+            const li = document.createElement('li');
+            li.textContent = t; // 用 textContent 而不是 innerHTML，避免注入
+            ol.appendChild(li);
+          }
+          host.appendChild(ol);
+        }
+
+        // 页面一打开就尝试恢复上次保存的数据 —— 这就是"持久化"的价值所在
+        try {
+          const saved = JSON.parse(ls.getItem('todos') || '[]');
+          renderTodos(Array.isArray(saved) ? saved : []);
+          if (Array.isArray(saved) && saved.length > 0) {
+            out('已从 localStorage 恢复上次的待办清单，共 ' + saved.length + ' 条。', 'ok');
+          }
+        } catch (err) {
+          renderTodos([]);
+        }
+
+        // ------------------------------------------------------------------
+        // 6. 事件委托绑定按钮
+        // ------------------------------------------------------------------
+
+        document.addEventListener('click', function (e) {
+          const btn = e.target.closest('button[data-act]');
+          if (!btn) return;
+          const fn = actions[btn.getAttribute('data-act')];
+          if (typeof fn !== 'function') return;
+          out('▸ ' + btn.textContent.trim(), 'dim');
+          try {
+            fn();
+          } catch (err) {
+            // 统一兜底，任何意外都不会变成未捕获异常
+            out('  ✗ 出错了：' + err.name + ': ' + err.message, 'err');
+          }
+        });
+
+        out('页面已就绪。', 'dim');
+      })();
+    </script>
+  </body>
+</html>

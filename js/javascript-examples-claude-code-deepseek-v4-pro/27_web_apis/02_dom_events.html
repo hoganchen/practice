@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：DOM 事件（addEventListener / 冒泡 / 捕获 / 委托 / 阻止默认行为）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】进阶
+  【前置知识】27_web_apis/02_dom_events.js（同知识点的 Node 自建事件系统版）
+
+  【知识点说明】
+
+  1. 是什么
+     浏览器里的 JavaScript 是"事件驱动"的：代码不是从头跑到尾，而是注册一堆
+     回调函数，等用户点击、输入、按键时由浏览器回头调用它们。
+     事件从 window 一层层"捕获"到目标元素，再从目标"冒泡"回 window，
+     沿途每个节点上注册的监听器都会被依次执行。
+
+  2. 为什么需要
+     如果给每个按钮单独绑事件，页面一复杂就是成百上千个监听器，内存开销大，
+     而且动态新增的元素还得记得补绑。事件传播机制（特别是"事件委托"）让
+     父元素用一个监听器接管所有子元素的点击——这是前端最常用的优化手段。
+
+  3. 核心语法要点
+     - el.addEventListener(type, handler, options)
+         options = { capture: true }  在捕获阶段触发（默认 false = 冒泡阶段）
+         options = { once: true }     只触发一次后自动移除
+         options = { passive: true }  承诺不调用 preventDefault（滚动性能优化）
+       第三个参数也可以直接写布尔值 true，等价于 { capture: true }。
+     - 传播三阶段：捕获(1) → 目标(2) → 冒泡(3)。目标元素上注册的监听器
+       无论 capture 真假都在"目标阶段"触发。
+     - event.target        实际触发事件的元素（全程不变）
+       event.currentTarget 当前正在执行监听器的元素（随传播变化，等于 this）
+     - event.preventDefault()          阻止默认行为（链接跳转、表单提交、输入字符）
+     - event.stopPropagation()         阻止继续传播
+     - event.stopImmediatePropagation() 连同一元素上后续监听器一起阻止
+     - 事件委托：监听器注册在父元素上，用 event.target 配合 closest() 判断来源。
+
+  4. 常见陷阱
+     - 写 addEventListener('click', fn()) 会立刻执行 fn，把返回值（通常是 undefined）
+       当成回调，事件永远不触发。要传函数本身。
+     - 同一元素、同类型、同一函数、同一 capture 值重复注册会被自动去重。
+     - 移除监听器必须传入与注册时相同的函数引用和相同的 capture 值，
+       匿名函数注册的监听器无法移除。
+     - stopPropagation 不会阻止同一元素上其它监听器的执行。
+     - 箭头函数没有自己的 this，回调里想用 this 指代 currentTarget 就得用普通函数。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链，可离线运行）。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     页面上有四个演示面板：传播顺序、stopPropagation、事件委托、阻止默认行为。
+     每点一次按钮/链接/输入框，右侧"事件日志"区都会按真实发生顺序打印记录。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DOM 事件：捕获、冒泡、委托</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 17px;
+        margin: 0 0 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 14px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div {
+        flex: 1 1 400px;
+        min-width: 320px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 13px;
+      }
+
+      /* 三个嵌套的盒子，用来观察捕获/冒泡的传播路径 */
+      .box {
+        border: 2px dashed #b6c2cf;
+        border-radius: 8px;
+        padding: 12px;
+        margin-top: 6px;
+        background: #fbfcfd;
+      }
+
+      .box > span {
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12px;
+        color: #57606a;
+      }
+
+      /* 事件经过时闪一下，让传播"看得见" */
+      .flash {
+        background: #fff1d6 !important;
+        border-color: #f0883e !important;
+      }
+
+      #log {
+        margin: 0;
+        height: 420px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13.5px;
+      }
+
+      ul#todo {
+        margin: 6px 0;
+        padding-left: 22px;
+      }
+
+      ul#todo li {
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+
+      ul#todo li:hover {
+        background: #eef3ff;
+      }
+
+      input[type='text'] {
+        padding: 6px 10px;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        font-size: 14px;
+        width: 220px;
+      }
+
+      label {
+        font-size: 13.5px;
+        margin-right: 12px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>DOM 事件：捕获、冒泡、委托</h1>
+
+    <p class="hint">
+      右侧的日志按"事件真实发生的顺序"记录。先点几下左侧的按钮，再回头看日志，
+      就能直观地看到事件的传播过程。
+    </p>
+
+    <div class="layout">
+      <div>
+        <!-- ================= 面板 1：传播顺序 ================= -->
+        <div class="card">
+          <h2>1. 事件传播：捕获 → 目标 → 冒泡</h2>
+          <p class="hint">
+            三个嵌套盒子，每个盒子都注册了"捕获"和"冒泡"两个监听器。
+            点击最里面的按钮，观察日志顺序。
+          </p>
+
+          <div class="box" id="box-outer">
+            <span>div#box-outer（最外层）</span>
+            <div class="box" id="box-middle">
+              <span>div#box-middle（中间层）</span>
+              <div class="box" id="box-inner">
+                <span>div#box-inner（最内层 = 事件目标所在）</span>
+                <button id="btn-inner">点我（事件目标）</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= 面板 2：阻止传播 ================= -->
+        <div class="card">
+          <h2>2. stopPropagation：把事件截在半路</h2>
+          <p class="hint">
+            勾选后，中间层的监听器会调用 <code>stopPropagation()</code>，
+            最外层的冒泡监听器就收不到事件了。
+          </p>
+          <label><input type="checkbox" id="chk-stop" /> 在中间层调用 stopPropagation()</label>
+          <label><input type="checkbox" id="chk-immediate" /> 改用 stopImmediatePropagation()</label>
+          <p class="hint">（这两个开关只影响面板 1 里的三个盒子）</p>
+        </div>
+
+        <!-- ================= 面板 3：事件委托 ================= -->
+        <div class="card">
+          <h2>3. 事件委托：1 个监听器管所有条目</h2>
+          <p class="hint">
+            只在 <code>ul</code> 上注册了 1 个 click 监听器，点击任意 <code>li</code>
+            都能被它捕获。点「动态新增」加一个条目试试——新条目无需重新绑定事件。
+          </p>
+          <ul id="todo">
+            <li data-id="1">条目 1：买牛奶</li>
+            <li data-id="2">条目 2：写代码</li>
+            <li data-id="3">条目 3：遛狗</li>
+          </ul>
+          <button id="btn-add">动态新增一个条目</button>
+          <span class="hint" id="delegation-count"></span>
+        </div>
+
+        <!-- ================= 面板 4：阻止默认行为 ================= -->
+        <div class="card">
+          <h2>4. preventDefault：阻止浏览器默认行为</h2>
+
+          <p class="hint">
+            a) 点击下面的锚点链接，默认行为是跳到页面底部的 #bottom 位置。
+            勾选后默认行为被阻止，页面不会跳。
+          </p>
+          <label><input type="checkbox" id="chk-prevent-link" /> 阻止链接跳转</label>
+          <p><a id="demo-link" href="#bottom">→ 点我跳到页面底部（href="#bottom"）</a></p>
+
+          <p class="hint">
+            b) 在下面的输入框里打字。勾选后 keydown 事件被 preventDefault，
+            按键将无法输入任何字符（这就是"密码框只能输数字"这类需求的实现方式）。
+          </p>
+          <label><input type="checkbox" id="chk-prevent-input" /> 阻止键盘输入</label>
+          <p><input type="text" id="demo-input" placeholder="在这里打字试试" /></p>
+          <button id="btn-clear-log">清空日志</button>
+        </div>
+      </div>
+
+      <!-- ================= 右侧：日志区 ================= -->
+      <div>
+        <div class="card">
+          <h2>事件日志</h2>
+          <pre id="log"></pre>
+          <p class="hint">按 F12 打开 Console，可以看到同样的输出。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 给"阻止默认行为"演示用的页面底部锚点 -->
+    <p id="bottom" class="hint">（这里是页面底部 #bottom 位置。如果你之前点击链接后跳到了这里，说明默认行为生效了。）</p>
+
+    <script>
+      // IIFE 造私有作用域，避免变量挂到 window 上
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 日志工具
+        // ------------------------------------------------------------------
+
+        const logEl = document.getElementById('log');
+
+        /** 往日志区追加一行 */
+        function log(text, kind) {
+          const span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = text;
+          logEl.appendChild(span);
+          logEl.appendChild(document.createTextNode('\n'));
+          logEl.scrollTop = logEl.scrollHeight;
+          console.log(text);
+        }
+
+        /** 事件经过某个元素时，让它的背景闪一下 */
+        function flash(el) {
+          el.classList.add('flash');
+          // 80ms 后移除高亮；用了 { once: true } 的监听器不会受影响
+          setTimeout(function () {
+            el.classList.remove('flash');
+          }, 120);
+        }
+
+        /** 阶段名 */
+        const PHASE_NAME = { 1: '捕获', 2: '目标', 3: '冒泡' };
+
+        log('页面加载完成。', 'dim');
+
+        // ------------------------------------------------------------------
+        // 1. 传播顺序：给三层盒子各注册一个捕获 + 一个冒泡监听器
+        // ------------------------------------------------------------------
+
+        const boxes = [document.getElementById('box-outer'), document.getElementById('box-middle'), document.getElementById('box-inner')];
+        const names = ['box-outer', 'box-middle', 'box-inner'];
+
+        boxes.forEach(function (box, i) {
+          // 捕获阶段监听器：第三个参数 { capture: true }
+          box.addEventListener(
+            'click',
+            function (e) {
+              log('  [' + PHASE_NAME[e.eventPhase] + '] ' + names[i] + ' 的监听器执行（capture=true）');
+              flash(box);
+            },
+            { capture: true },
+          );
+
+          // 冒泡阶段监听器：默认行为，capture 为 false
+          box.addEventListener('click', function (e) {
+            log('  [' + PHASE_NAME[e.eventPhase] + '] ' + names[i] + ' 的监听器执行（capture=false）');
+            flash(box);
+          });
+        });
+
+        // 中间层额外注册一个"可能阻止传播"的监听器
+        document.getElementById('box-middle').addEventListener('click', function (e) {
+          if (document.getElementById('chk-immediate').checked) {
+            e.stopImmediatePropagation();
+            log('  ⛔ box-middle 调用了 stopImmediatePropagation()，同层后面的监听器与后续传播全部停止', 'warn');
+          } else if (document.getElementById('chk-stop').checked) {
+            e.stopPropagation();
+            log('  ⛔ box-middle 调用了 stopPropagation()，事件不再往外冒泡', 'warn');
+          }
+        });
+
+        document.getElementById('btn-inner').addEventListener('click', function () {
+          log('▸ 点击了最内层按钮，事件开始从 document 往这里传播', 'ok');
+        });
+
+        log('已给三层盒子各注册 capture + bubble 两个监听器（共 6 个）。', 'dim');
+
+        // ------------------------------------------------------------------
+        // 2. 事件委托：只在 ul 上注册 1 个监听器
+        // ------------------------------------------------------------------
+
+        const todo = document.getElementById('todo');
+        const countEl = document.getElementById('delegation-count');
+        let delegatedCount = 0;
+        let nextId = 4;
+
+        todo.addEventListener('click', function (e) {
+          // e.target 是真正被点击的元素；用 closest 向上找到带 data-id 的 li
+          const li = e.target.closest('li[data-id]');
+          if (!li) return; // 点的不是条目（比如点到了 ul 的空白处）
+          delegatedCount += 1;
+          log('  委托监听器收到点击：target = ' + e.target.tagName + '，命中 li[data-id="' + li.dataset.id + '"]，文本 = ' + li.textContent, 'ok');
+          log('    第 ' + delegatedCount + ' 次委托处理（监听器总数始终是 1 个）', 'dim');
+          countEl.textContent = '委托监听器触发次数：' + delegatedCount;
+        });
+
+        document.getElementById('btn-add').addEventListener('click', function () {
+          const li = document.createElement('li');
+          li.dataset.id = String(nextId); // 写入 data-id 属性
+          li.textContent = '条目 ' + nextId + '：动态新增（I am 新来的）';
+          nextId += 1;
+          todo.appendChild(li);
+          log('  新增了一个 li，注意它并没有单独绑定任何监听器，但点击它依然有反应。', 'ok');
+        });
+
+        // ------------------------------------------------------------------
+        // 3. preventDefault：链接跳转
+        // ------------------------------------------------------------------
+
+        document.getElementById('demo-link').addEventListener('click', function (e) {
+          if (document.getElementById('chk-prevent-link').checked) {
+            e.preventDefault(); // 阻止浏览器跳转到 #bottom
+            log('  链接被点击，但调用了 preventDefault()，页面不会跳转。defaultPrevented = ' + e.defaultPrevented, 'warn');
+          } else {
+            log('  链接被点击，没有阻止默认行为，浏览器会跳到 #bottom 位置。', 'ok');
+          }
+        });
+
+        // ------------------------------------------------------------------
+        // 4. preventDefault：阻止键盘输入
+        // ------------------------------------------------------------------
+
+        const input = document.getElementById('demo-input');
+        input.addEventListener('keydown', function (e) {
+          if (document.getElementById('chk-prevent-input').checked) {
+            e.preventDefault(); // keydown 被取消后，字符不会被插入输入框
+            log('  拦截按键：' + e.key + '（keydown 被 preventDefault，字符不会进入输入框）', 'warn');
+          } else {
+            log('  按键通过：' + e.key, 'dim');
+          }
+        });
+
+        // 用 input 事件观察"实际输入的内容"，进一步印证 preventDefault 的效果
+        input.addEventListener('input', function (e) {
+          log('    输入框当前内容：' + JSON.stringify(e.target.value), 'dim');
+        });
+
+        // ------------------------------------------------------------------
+        // 5. 清空日志
+        // ------------------------------------------------------------------
+
+        document.getElementById('btn-clear-log').addEventListener('click', function () {
+          logEl.textContent = '';
+          log('日志已清空。', 'dim');
+        });
+
+        log('准备就绪：请点击面板 1 里的按钮，观察捕获与冒泡的顺序。', 'ok');
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：URL 与历史记录（URL / URLSearchParams / History API）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】进阶
+  【前置知识】27_web_apis/06_url_and_history.js（同知识点的 Node 版）
+
+  【知识点说明】
+
+  1. 是什么
+     URL 是资源地址的标准写法。浏览器的 window 上提供了三个相关工具：
+       - URL 类：把地址解析成 protocol / host / pathname / search / hash 等部件，
+         也能反向拼装。
+       - URLSearchParams 类：专门读写 "?a=1&b=2" 这种查询字符串。
+       - History API：操作浏览器的历史记录栈（pushState / replaceState / popstate），
+         是单页应用（SPA）路由的基础。
+
+  2. 为什么需要
+     - 手写字符串处理 URL 极易出错：中文要编码、& 和 = 要转义、相对路径要拼接，
+       URL 类全部帮你搞定。
+     - 传统网页每点一次链接就整页刷新；SPA 用 History API 在不刷新的前提下
+       改变地址栏，并正确响应浏览器的前进/后退按钮。
+
+  3. 核心语法要点
+     new URL(input, base?) 的属性：
+       href / protocol / username / password / host / hostname / port /
+       pathname / search / hash / origin（只读）/ searchParams
+     URLSearchParams：
+       get / getAll / has / set / append / delete / sort / toString / forEach
+     History API：
+       history.pushState(state, '', url)      入栈一条新记录（不刷新页面）
+       history.replaceState(state, '', url)   替换当前记录（不新增历史）
+       history.back() / forward() / go(n)
+       history.length / history.state
+       window.addEventListener('popstate', e => ...)   前进后退时触发
+     location：location.href / hash / search / pathname，赋值即导航。
+     hashchange 事件：地址里的 # 部分变化时触发，是"hash 路由"的基础。
+
+  4. 常见陷阱
+     - new URL('foo') 会直接抛 TypeError，必须给 base 参数或写绝对地址。
+     - searchParams.get('a') 只返回第一个 a；要全部拿到必须用 getAll。
+     - 修改 searchParams 会立刻同步到 URL 对象上，但不会触发导航或历史记录。
+     - pushState 只改地址栏和历史栈，不刷新页面也不触发 popstate，
+       渲染要自己调用。
+     - popstate 事件里的 e.state 就是 pushState 时传入的第一个参数。
+     - **用 file:// 双击打开时，pushState 会抛 SecurityError**（origin 为 null）。
+       本页会捕获它并提示；hash 路由则不受此限制，所以本页默认用 hash 路由演示。
+     - encodeURI 与 encodeURIComponent 不同：前者保留 :/?#&=，后者全部转义。
+       拼查询参数值要用 encodeURIComponent。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链，可离线运行）。
+     建议同时用 Live Server 打开一次，对比 pushState 在 file:// 下的报错。
+
+  【预期输出】
+     页面上有 4 个面板：URL 解析、查询参数构造、hash 路由（可点击导航并观察
+     地址栏与历史记录）、以及 History API 的状态展示。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>URL 与 History API</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 16px;
+        margin: 0 0 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 12px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div:first-child {
+        flex: 1 1 440px;
+        min-width: 320px;
+      }
+
+      .layout > div:last-child {
+        flex: 1 1 440px;
+        min-width: 320px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 13px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      button.active {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      input[type='text'] {
+        padding: 6px 10px;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        font-size: 13.5px;
+        width: 100%;
+        box-sizing: border-box;
+        font-family: Consolas, Monaco, monospace;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      pre {
+        margin: 0;
+        height: 460px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-err {
+        color: #ff7b72;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13px;
+        margin: 4px 0;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13px;
+        margin-top: 6px;
+      }
+
+      th,
+      td {
+        border: 1px solid #d0d7de;
+        padding: 4px 8px;
+        text-align: left;
+        word-break: break-all;
+      }
+
+      th {
+        background: #f0f3f6;
+      }
+
+      #view {
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 12px 16px;
+        background: #fbfcfd;
+        min-height: 72px;
+      }
+
+      .addr {
+        font-family: Consolas, Monaco, monospace;
+        font-size: 13px;
+        background: #eef3ff;
+        border: 1px solid #c8d8ff;
+        border-radius: 6px;
+        padding: 6px 10px;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>URL 与 History API</h1>
+
+    <p class="hint">
+      本页默认用 <strong>hash 路由</strong>（地址里的 # 部分）演示前端路由，
+      因为它在 file:// 下也能正常工作。pushState 面板会如实报告浏览器是否允许。
+    </p>
+
+    <div class="layout">
+      <div>
+        <!-- ============ 面板 1：URL 解析 ============ -->
+        <div class="card">
+          <h2>1. URL 解析：一个地址由哪些部分组成</h2>
+          <p class="hint">改一改下面的地址，点「解析」看看各部件的变化。</p>
+          <input type="text" id="url-input" value="https://shop.example.com:8443/goods/list?cat=book&page=2&tag=js&tag=node#reviews" />
+          <p>
+            <button data-act="parse-url">解析</button>
+            <button data-act="parse-relative">演示相对路径解析</button>
+            <button data-act="demo-encode">对比 encodeURI / encodeURIComponent</button>
+          </p>
+          <div id="url-table"></div>
+        </div>
+
+        <!-- ============ 面板 2：URLSearchParams ============ -->
+        <div class="card">
+          <h2>2. URLSearchParams：查询参数的增删改查</h2>
+          <p class="hint">
+            下面是一个搜索表单，每次改动都会用 URLSearchParams 重新拼出地址。
+          </p>
+          <p>
+            关键词：<input type="text" id="q-input" value="中文 & 符号" style="width: 200px" />
+          </p>
+          <p>
+            分类：
+            <label class="hint"><input type="checkbox" class="cat-box" value="book" checked /> 图书</label>
+            <label class="hint"><input type="checkbox" class="cat-box" value="music" /> 音乐</label>
+            <label class="hint"><input type="checkbox" class="cat-box" value="movie" /> 电影</label>
+          </p>
+          <p>
+            排序：
+            <select id="sort-select">
+              <option value="relevance">相关度</option>
+              <option value="price">价格</option>
+              <option value="newest">最新</option>
+            </select>
+          </p>
+          <p><button data-act="build-url">用 URLSearchParams 拼出地址</button></p>
+          <p class="addr" id="built-url">（点上面的按钮生成）</p>
+          <div id="params-table"></div>
+        </div>
+
+        <!-- ============ 面板 3：hash 路由 ============ -->
+        <div class="card">
+          <h2>3. hash 路由：改地址但不刷新页面</h2>
+          <p class="hint">
+            点击下面的导航按钮，注意浏览器地址栏的 # 部分会变化，
+            页面上方的"视图"也随之切换，而且浏览器的后退按钮能回退。
+          </p>
+          <p>
+            <button data-route="#/home">首页</button>
+            <button data-route="#/list">列表页</button>
+            <button data-route="#/about">关于</button>
+            <button data-act="hash-back">history.back() 后退</button>
+            <button data-act="hash-forward">history.forward() 前进</button>
+          </p>
+          <div id="view">（视图区）</div>
+          <p class="hint" id="hash-info"></p>
+        </div>
+
+        <!-- ============ 面板 4：pushState ============ -->
+        <div class="card">
+          <h2>4. History API：pushState / replaceState</h2>
+          <p class="hint">
+            pushState 可以做出不带 # 的漂亮地址，但要求页面运行在 http(s) 下。
+            用 file:// 打开时浏览器会抛 SecurityError，本示例会捕获并提示。
+          </p>
+          <button data-act="push-state">pushState 进入 /page/1</button>
+          <button data-act="replace-state">replaceState 替换当前记录</button>
+          <button data-act="read-state">读取 history.state / length</button>
+          <p class="hint">
+            操作后按浏览器的后退/前进按钮，观察 popstate 事件被触发。
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>输出</h2>
+          <pre id="out"></pre>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 输出工具
+        // ------------------------------------------------------------------
+
+        const outEl = document.getElementById('out');
+
+        function out(text, kind) {
+          const span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = text;
+          outEl.appendChild(span);
+          outEl.appendChild(document.createTextNode('\n'));
+          outEl.scrollTop = outEl.scrollHeight;
+          console.log(text);
+        }
+
+        /** 把键值对渲染成表格 */
+        function renderTable(host, rows) {
+          host.textContent = '';
+          const table = document.createElement('table');
+          const thead = document.createElement('thead');
+          const headRow = document.createElement('tr');
+          for (const h of ['属性', '值', '说明']) {
+            const th = document.createElement('th');
+            th.textContent = h;
+            headRow.appendChild(th);
+          }
+          thead.appendChild(headRow);
+          table.appendChild(thead);
+
+          const tbody = document.createElement('tbody');
+          for (const row of rows) {
+            const tr = document.createElement('tr');
+            for (const cell of row) {
+              const td = document.createElement('td');
+              // 用 textContent 而不是 innerHTML：地址里可能含有 < > & 等字符
+              td.textContent = cell;
+              tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+          }
+          table.appendChild(tbody);
+          host.appendChild(table);
+        }
+
+        // ------------------------------------------------------------------
+        // 1. URL 解析
+        // ------------------------------------------------------------------
+
+        const URL_PARTS = [
+          ['href', '完整地址'],
+          ['protocol', '协议（带冒号）'],
+          ['username', '用户名'],
+          ['password', '密码'],
+          ['host', '主机名 + 端口'],
+          ['hostname', '只有主机名'],
+          ['port', '端口（默认端口会被省略）'],
+          ['pathname', '路径'],
+          ['search', '查询字符串（含问号）'],
+          ['hash', '锚点（含井号）'],
+          ['origin', '协议 + 主机 + 端口（只读）'],
+        ];
+
+        const actions = {
+          'parse-url': function () {
+            const input = document.getElementById('url-input').value.trim();
+            out('=== 解析 URL ===', 'dim');
+            out('  输入：' + input);
+            let url;
+            try {
+              // new URL 在地址非法时会抛 TypeError，必须捕获
+              url = new URL(input);
+            } catch (err) {
+              out('  解析失败：' + err.name + ': ' + err.message, 'err');
+              out('  提示：new URL("foo") 这种没有协议、也没有 base 的写法一定会失败。', 'warn');
+              return;
+            }
+            const rows = URL_PARTS.map(function (p) {
+              return [p[0], String(url[p[0]]), p[1]];
+            });
+            renderTable(document.getElementById('url-table'), rows);
+            out('  解析成功，各部件已显示在下方表格中', 'ok');
+            out("  查询参数个数：" + Array.from(url.searchParams.keys()).length, 'dim');
+            out("  host 里默认端口被省略的规则：https 默认 443、http 默认 80", 'dim');
+            out('');
+          },
+
+          'parse-relative': function () {
+            out('=== 相对路径解析：new URL(相对, 基准) ===', 'dim');
+            const base = 'https://example.com/a/b/index.html';
+            out('  基准地址：' + base);
+            const relatives = ['c.html', './c.html', '../c.html', '/root.html', '//cdn.example.com/x.js', '?q=1', '#top'];
+            for (const rel of relatives) {
+              out('    ' + JSON.stringify(rel).padEnd(26) + ' → ' + new URL(rel, base).href);
+            }
+            out('');
+            out('  浏览器的 location.href 就是天然的基准地址：', 'dim');
+            out('    用 location.href 当 base 解析相对路径，结果与浏览器自己导航的结果一致。');
+            out('');
+          },
+
+          'demo-encode': function () {
+            out('=== encodeURI vs encodeURIComponent ===');
+            const s = 'a b&c=d/中文';
+            out('  原字符串：' + s);
+            out('  encodeURI          → ' + encodeURI(s));
+            out('  encodeURIComponent → ' + encodeURIComponent(s));
+            out('  区别：encodeURI 保留 :/?#&= 这些分隔符（适合整条 URL）；');
+            out('        encodeURIComponent 把它们也转义（适合单个参数值）。', 'ok');
+            out('');
+            out('  用 URLSearchParams 时不需要自己编码，它内部用的就是 encodeURIComponent 的规则：');
+            const p = new URLSearchParams();
+            p.set('q', s);
+            out('    URLSearchParams.toString() = ' + p.toString(), 'ok');
+            out('');
+          },
+
+          // ----------------------------------------------------------------
+          // 2. URLSearchParams
+          // ----------------------------------------------------------------
+          'build-url': function () {
+            out('=== 用 URLSearchParams 构造查询字符串 ===', 'dim');
+
+            const base = 'https://api.example.com/v1/search';
+            const url = new URL(base); // 先建一个干净的 URL
+
+            // 1) 关键词：中文和 & 需要编码，set 会自动处理
+            const q = document.getElementById('q-input').value;
+            if (q.trim()) url.searchParams.set('q', q);
+            out("  searchParams.set('q', " + JSON.stringify(q) + ')');
+
+            // 2) 复选框组 → 同名多值，用 append 而不是 set
+            url.searchParams.delete('cat'); // 先清掉旧的，避免反复点击后越积越多
+            const checked = document.querySelectorAll('.cat-box:checked');
+            for (const box of checked) {
+              url.searchParams.append('cat', box.value);
+            }
+            out("  勾选了 " + checked.length + ' 个分类，用 append 追加（同名多值）');
+
+            // 3) 排序：单选用 set
+            const sort = document.getElementById('sort-select').value;
+            url.searchParams.set('sort', sort);
+
+            document.getElementById('built-url').textContent = url.href;
+            out('  最终地址：' + url.href, 'ok');
+            out('  注意中文和 & 都被正确编码了。', 'dim');
+
+            // 把参数渲染成表格，演示 get / getAll 的区别
+            const rows = [];
+            const keys = Array.from(new Set(url.searchParams.keys()));
+            for (const k of keys) {
+              const all = url.searchParams.getAll(k);
+              rows.push([k, JSON.stringify(all.length > 1 ? all : all[0]), all.length > 1 ? "有 " + all.length + " 个值，要用 getAll" : "get('" + k + "') 即可"]);
+            }
+            renderTable(document.getElementById('params-table'), rows);
+            out('  参数表已更新（同名多值的情况请看 cat 那一行）', 'dim');
+            out('');
+          },
+
+          // ----------------------------------------------------------------
+          // 3. hash 路由
+          // ----------------------------------------------------------------
+          'hash-back': function () {
+            out('=== history.back() ===', 'dim');
+            history.back(); // 触发 hashchange，路由会自动重新渲染
+            out('  已调用 history.back()，等待 hashchange 事件...', 'dim');
+            out('');
+          },
+
+          'hash-forward': function () {
+            out('=== history.forward() ===', 'dim');
+            history.forward();
+            out('  已调用 history.forward()', 'dim');
+            out('');
+          },
+
+          // ----------------------------------------------------------------
+          // 4. pushState
+          // ----------------------------------------------------------------
+          'push-state': function () {
+            out('=== history.pushState ===', 'dim');
+            try {
+              const n = (history.length || 0);
+              // pushState(状态对象, 标题(已被忽略), 新地址)
+              history.pushState({ page: n }, '', '#/pushed-' + n);
+              out('  pushState 成功，history.length = ' + history.length, 'ok');
+              out('  history.state = ' + JSON.stringify(history.state));
+              out('  注意：pushState 不会触发 popstate，也不会刷新页面；', 'warn');
+              out('        如果要更新界面，必须自己调用渲染函数。', 'warn');
+              out('  另外：地址栏已经变了，按浏览器的后退按钮会回到上一个状态。', 'dim');
+            } catch (err) {
+              // file:// 下会走到这里：SecurityError
+              out('  pushState 被浏览器拒绝：' + err.name + ': ' + err.message, 'err');
+              out('  原因：用 file:// 打开时页面的 origin 是 "null"，', 'warn');
+              out('        History API 不允许为 null 源创建历史记录。', 'warn');
+              out('  解决：用本地 HTTP 服务器打开本页（如 VS Code 的 Live Server）。', 'ok');
+              out('  hash 路由不受这个限制，所以面板 3 在 file:// 下也能用。', 'ok');
+            }
+            out('');
+          },
+
+          'replace-state': function () {
+            out('=== history.replaceState ===', 'dim');
+            try {
+              history.replaceState({ page: 'replaced', at: new Date().toLocaleTimeString() }, '', '#/replaced');
+              out('  replaceState 成功，history.length = ' + history.length + '（没有新增历史记录）', 'ok');
+              out('  history.state = ' + JSON.stringify(history.state));
+              out('  用途：把临时筛选条件、滚动位置写进地址栏/state，但不想让用户后退时回到中间状态。', 'dim');
+            } catch (err) {
+              out('  replaceState 被拒绝：' + err.name, 'err');
+              out('  同样是因为 file:// 下 origin 为 null。', 'warn');
+            }
+            out('');
+          },
+
+          'read-state': function () {
+            out('=== 当前 History 状态 ===');
+            out('  history.length = ' + history.length + '（当前会话的历史记录条数）');
+            out('  history.state  = ' + JSON.stringify(history.state));
+            out('  location.href  = ' + location.href);
+            out('  location.hash  = ' + JSON.stringify(location.hash));
+            out('  location.search= ' + JSON.stringify(location.search));
+            out('  location.origin= ' + JSON.stringify(location.origin));
+            if (location.origin === 'null') {
+              out('  origin 是 "null"，说明本页是用 file:// 打开的 —— 这正是 pushState 失败的根因。', 'warn');
+            }
+            out('');
+          },
+        };
+
+        // ------------------------------------------------------------------
+        // 5. hash 路由：基于 hashchange 的最小路由器
+        // ------------------------------------------------------------------
+
+        const routes = {
+          '#/home': { title: '首页', body: '这里是首页。地址栏里的 #/home 就是这条路由的"地址"。' },
+          '#/list': { title: '列表页', body: '这里是列表页。点击导航按钮切换时，页面并没有重新加载。' },
+          '#/about': { title: '关于', body: '这里是关于页。按浏览器的后退按钮可以回到上一次的视图。' },
+        };
+
+        /** 渲染指定路由 */
+        function renderRoute(hash) {
+          const route = routes[hash];
+          const view = document.getElementById('view');
+          view.textContent = '';
+          if (!route) {
+            // 未知路由：显示提示（真实项目里通常是 404 页面）
+            const p = document.createElement('p');
+            p.textContent = '未知路由：' + (hash || '（空）') + '。请点击上面的导航按钮。';
+            view.appendChild(p);
+            return;
+          }
+          const h = document.createElement('strong');
+          h.textContent = route.title;
+          const p = document.createElement('p');
+          p.textContent = route.body;
+          view.appendChild(h);
+          view.appendChild(p);
+        }
+
+        /** 高亮当前路由对应的按钮 */
+        function highlightNav(hash) {
+          const buttons = document.querySelectorAll('button[data-route]');
+          for (const b of buttons) {
+            b.classList.toggle('active', b.getAttribute('data-route') === hash);
+          }
+        }
+
+        function updateHashInfo() {
+          document.getElementById('hash-info').textContent =
+            '当前 hash = ' + JSON.stringify(location.hash) + '，history.length = ' + history.length;
+        }
+
+        /** 统一的"导航到某路由"函数（SPA 里点链接时调用的就是它） */
+        function navigate(hash) {
+          if (location.hash === hash) {
+            // hash 没变的话浏览器不会触发 hashchange，得自己渲染
+            renderRoute(hash);
+            highlightNav(hash);
+            return;
+          }
+          location.hash = hash; // 赋值会写进历史记录，并触发 hashchange
+        }
+
+        // hash 变化时触发 —— hash 路由的核心
+        window.addEventListener('hashchange', function () {
+          out('  [hashchange 事件] ' + JSON.stringify(location.hash), 'ok');
+          renderRoute(location.hash);
+          highlightNav(location.hash);
+          updateHashInfo();
+        });
+
+        // popstate：pushState/replaceState 产生的记录被前进后退时触发
+        window.addEventListener('popstate', function (e) {
+          out('  [popstate 事件] history.state = ' + JSON.stringify(e.state) + '，当前地址 = ' + location.href, 'ok');
+          // 如果当前 hash 也被改变了，hashchange 会另外触发一次
+        });
+
+        // ------------------------------------------------------------------
+        // 6. 事件委托绑定所有按钮
+        // ------------------------------------------------------------------
+
+        document.addEventListener('click', function (e) {
+          // 路由导航按钮
+          const routeBtn = e.target.closest('button[data-route]');
+          if (routeBtn) {
+            const hash = routeBtn.getAttribute('data-route');
+            out('▸ 点击导航：' + routeBtn.textContent.trim() + '（' + hash + '）', 'dim');
+            navigate(hash);
+            return;
+          }
+          // 普通动作按钮
+          const btn = e.target.closest('button[data-act]');
+          if (!btn) return;
+          const fn = actions[btn.getAttribute('data-act')];
+          if (typeof fn !== 'function') return;
+          out('▸ ' + btn.textContent.trim(), 'dim');
+          try {
+            fn();
+          } catch (err) {
+            out('  ✗ 出错了：' + err.name + ': ' + err.message, 'err');
+          }
+        });
+
+        // ------------------------------------------------------------------
+        // 7. 首次加载：解析当前地址，渲染初始路由
+        // ------------------------------------------------------------------
+
+        const here = new URL(location.href);
+        out('页面已就绪。', 'dim');
+        out('  当前地址：' + here.href);
+        out('  protocol = ' + JSON.stringify(here.protocol) + '，host = ' + JSON.stringify(here.host));
+        out('  pathname = ' + JSON.stringify(here.pathname) + '，hash = ' + JSON.stringify(here.hash));
+        out('  origin   = ' + JSON.stringify(here.origin) + (here.origin === 'null' ? '  ← file:// 打开时就是 null' : ''), here.origin === 'null' ? 'warn' : 'dim');
+        out('');
+
+        // 首次进入时如果 hash 不在路由表里，就补一个默认路由
+        if (!routes[location.hash]) {
+          // 用 location.replace 而不是赋值，避免在历史里多出一条初始记录
+          location.replace(location.href.split('#')[0] + '#/home');
+        } else {
+          renderRoute(location.hash);
+          highlightNav(location.hash);
+        }
+        updateHashInfo();
+
+        out('提示：面板 3 的导航按钮用的是 hash 路由，在 file:// 下也能用；', 'ok');
+        out('      面板 4 的 pushState 在 file:// 下会被浏览器拒绝（这是正常的）。', 'ok');
+      })();
+    </script>
+  </body>
+</html>

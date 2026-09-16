@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：DOM 查询与操作（querySelector / querySelectorAll / 创建与插入节点）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】入门
+  【前置知识】27_web_apis/01_dom_query.js（同知识点的 Node 模拟版）
+
+  【知识点说明】
+
+  1. 是什么
+     DOM（Document Object Model）是浏览器把 HTML 解析成的一棵节点树。
+     页面里的每个标签、每段文字都是树上的一个对象。JS 通过操作这些对象来
+     改变页面上看到的内容——这就是"前端开发"最核心的一环。
+
+  2. 为什么需要
+     想改页面上某个东西，第一步永远是"找到它"。查询（querySelector 系列）
+     和增删改（createElement / appendChild / remove 等）是使用频率最高的两组 API，
+     所有前端框架（React、Vue）最终都是在替你调用这些原生方法。
+
+  3. 核心语法要点
+     - document.querySelector('选择器')   → 第一个匹配的元素，找不到返回 null。
+     - document.querySelectorAll('选择器') → 静态 NodeList（有 length、可 for...of、
+       可 forEach），但不是真数组，没有 map/filter，需要用 Array.from 或 [...] 转换。
+     - 选择器语法与 CSS 完全一致：'li'、'#id'、'.class'、'ul > li'、'li.hot'、
+       'h1, p'（分组）、'.card .title'（后代）。
+     - 遍历：parentElement / children / firstElementChild / nextElementSibling /
+       closest(选择器) / contains(节点) / matches(选择器)。
+     - 创建与插入：createElement、appendChild、insertBefore(new, ref)、
+       el.before(x) / el.after(x) / el.replaceWith(x) / el.remove()。
+     - 内容读写：textContent（纯文本，安全）、innerHTML（解析 HTML 标签，有 XSS 风险）、
+       setAttribute/getAttribute、classList.add/remove/toggle/contains。
+
+  4. 常见陷阱
+     - querySelector 找不到返回 null，直接访问它的属性会抛
+       "Cannot read properties of null"，务必先判空。
+     - querySelectorAll 的结果是"静态快照"：拿到之后即使页面变了，这个集合也不变；
+       而 getElementsByClassName 返回的是"活集合"，会跟着变（两者行为不同）。
+     - 选择器拼错（如 'lis'）不会报错，只会静默返回 null / 空集合。
+     - innerHTML 拼接用户输入会造成 XSS；能用 textContent 就用 textContent。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链，可离线运行）。
+     也可用 VS Code 的 Live Server 打开。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     页面上会显示一棵"待办清单"示例树；点击各个按钮，右侧日志区会实时打印
+     查询结果、遍历路径、节点增删前后的变化，并同步高亮命中的元素。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DOM 查询与操作</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 18px;
+        margin-top: 0;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 14px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      .layout {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .layout > div {
+        flex: 1 1 380px;
+        min-width: 320px;
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 13px;
+      }
+
+      /* 命中元素时给它加一个描边，让查询结果"看得见" */
+      .hit {
+        outline: 3px solid #f0883e;
+        outline-offset: 2px;
+        background: #fff8f0;
+      }
+
+      /* 日志区：等宽字体 + 滚动，模拟控制台 */
+      #log {
+        margin: 0;
+        height: 340px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13.5px;
+      }
+
+      /* 被演示的这棵"假页面结构" */
+      #app {
+        border: 1px dashed #d0d7de;
+        border-radius: 8px;
+        padding: 10px 14px;
+        background: #fbfcfd;
+      }
+
+      #app h1 {
+        font-size: 20px;
+        color: #1f2328;
+        border: none;
+        padding: 0;
+        margin: 0 0 6px;
+      }
+
+      #app ul {
+        margin: 6px 0;
+        padding-left: 22px;
+      }
+
+      #app li {
+        padding: 2px 4px;
+      }
+
+      /* 用 CSS 给"已完成"的条目加删除线，同时它也演示了 li.done 这个类的作用 */
+      #app li.done {
+        text-decoration: line-through;
+        color: #8b949e;
+      }
+
+      #app li.hot {
+        font-weight: bold;
+      }
+
+      #app .desc {
+        color: #57606a;
+        font-size: 13px;
+        margin: 4px 0 0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>DOM 查询与操作</h1>
+
+    <p class="hint">
+      下面是本页真正的 DOM 结构（<code>#app</code> 这一块）。所有按钮都在对它做查询或修改，
+      命中结果会用橙色描边高亮，右侧日志区打印每次操作的细节。
+    </p>
+
+    <div class="layout">
+      <!-- ============ 左侧：被操作的 DOM 结构 ============ -->
+      <div>
+        <div class="card">
+          <h2>被操作的页面结构</h2>
+
+          <!--
+            这就是本示例的"数据源"。它是真正的 HTML，会被浏览器解析成 DOM 树：
+              div#app.container
+                h1.title
+                ul#list
+                  li.item.done
+                  li.item
+                  li.item.hot
+                p.desc
+            JS 里所有选择器都针对这棵树。
+          -->
+          <div id="app" class="container">
+            <h1 class="title">待办清单</h1>
+            <ul id="list">
+              <li class="item done">学习 DOM 查询</li>
+              <li class="item">理解树结构</li>
+              <li class="item hot">实现选择器引擎</li>
+            </ul>
+            <p class="desc">共 3 条记录</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>操作按钮</h2>
+          <p class="hint">第 1 组：查询（只读，不改结构）</p>
+          <button data-act="q-first">querySelector('li')</button>
+          <button data-act="q-id">querySelector('#list')</button>
+          <button data-act="q-class">querySelector('.hot')</button>
+          <button data-act="q-compound">querySelector('li.done')</button>
+          <button data-act="q-null">querySelector('#not-exist')</button>
+          <button data-act="q-all">querySelectorAll('li')</button>
+          <button data-act="q-child">querySelectorAll('#list &gt; li.item')</button>
+          <button data-act="q-group">querySelectorAll('h1, .desc')</button>
+
+          <p class="hint">第 2 组：遍历（在树中上下移动）</p>
+          <button data-act="t-parent">.hot 的父元素</button>
+          <button data-act="t-sibling">.hot 的前一个兄弟</button>
+          <button data-act="t-closest">.hot 的 closest('#app')</button>
+          <button data-act="t-contains">app.contains(.hot)</button>
+          <button data-act="t-matches">.hot.matches('li.hot')</button>
+
+          <p class="hint">第 3 组：增删改（结构会变化）</p>
+          <button data-act="m-create">appendChild 新增一条</button>
+          <button data-act="m-insert">insertBefore 插到最前</button>
+          <button data-act="m-remove">remove 删除 .done</button>
+          <button data-act="m-reset">重置为初始结构</button>
+        </div>
+      </div>
+
+      <!-- ============ 右侧：日志输出区 ============ -->
+      <div>
+        <div class="card">
+          <h2>操作日志</h2>
+          <pre id="log"></pre>
+          <p class="hint">按 F12 打开开发者工具的 Console，可以看到同样的输出。</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // 用 IIFE 造出私有作用域，避免把变量污染到 window 上。
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 通用小工具：日志与高亮
+        // ------------------------------------------------------------------
+
+        const logEl = document.getElementById('log');
+        let step = 0;
+
+        /**
+         * 往日志区追加一行。
+         * @param {string} text 要打印的内容
+         * @param {'ok'|'warn'|'dim'} [kind] 颜色分类
+         */
+        function log(text, kind) {
+          step += 1;
+          const prefix = String(step).padStart(2, '0') + ' | ';
+          const span = document.createElement('span'); // 创建节点：一行日志
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = prefix + text; // 用 textContent 而不是 innerHTML，避免 XSS
+          logEl.appendChild(span);
+          logEl.appendChild(document.createTextNode('\n')); // 手动补换行
+          logEl.scrollTop = logEl.scrollHeight; // 自动滚到底部
+          console.log(text); // 同时输出到开发者工具 Console
+        }
+
+        /** 清掉上一步的高亮 */
+        function clearHits() {
+          // querySelectorAll 返回静态 NodeList，可以放心地边遍历边改类名
+          const hits = document.querySelectorAll('.hit');
+          for (const el of hits) el.classList.remove('hit');
+        }
+
+        /** 高亮一批元素，返回它们的可读描述 */
+        function markHits(elements) {
+          const arr = Array.from(elements); // NodeList → 真数组，这样才能用 map
+          for (const el of arr) el.classList.add('hit');
+          return describe(arr);
+        }
+
+        /** 把一个元素数组变成可读文本，如 "[LI.item.done] 学习 DOM 查询" */
+        function describe(elements) {
+          return (
+            '[' +
+            elements
+              .map((el) => el.tagName + (el.id ? '#' + el.id : '') + (el.className ? '.' + String(el.className).split(' ').join('.') : ''))
+              .join(', ') +
+            ']'
+          );
+        }
+
+        /** 取元素的可读短名，用于日志 */
+        const nameOf = (el) =>
+          el ? el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className ? '.' + String(el.className).split(' ').join('.') : '') : 'null';
+
+        log('页面加载完成，示例 DOM 树已就绪。', 'dim');
+        log('原始结构：' + nameOf(document.querySelector('#app')), 'dim');
+
+        // ------------------------------------------------------------------
+        // 1. 查询类按钮
+        // ------------------------------------------------------------------
+
+        // 保存初始结构，供"重置"按钮使用（cloneNode(true) 深拷贝整棵子树）
+        const initialHTML = document.getElementById('app').outerHTML;
+
+        const actions = {
+          'q-first'() {
+            clearHits();
+            const el = document.querySelector('li'); // 返回第一个匹配元素或 null
+            log("querySelector('li') → " + (el ? '找到 ' + nameOf(el) : 'null'));
+            log('  它的 textContent 是：' + (el ? el.textContent : '（不能读取 null 的属性！）'), 'ok');
+            if (el) el.classList.add('hit');
+          },
+
+          'q-id'() {
+            clearHits();
+            const el = document.querySelector('#list');
+            log("querySelector('#list') → " + nameOf(el));
+            log('  它的子元素个数 children.length = ' + el.children.length, 'ok');
+            el.classList.add('hit');
+          },
+
+          'q-class'() {
+            clearHits();
+            const el = document.querySelector('.hot');
+            log("querySelector('.hot') → " + nameOf(el) + '，文本 = ' + el.textContent);
+            el.classList.add('hit');
+          },
+
+          'q-compound'() {
+            clearHits();
+            // 复合选择器：标签名 + 类名同时满足
+            const el = document.querySelector('li.done');
+            log("querySelector('li.done') → " + nameOf(el) + '，文本 = ' + el.textContent);
+            el.classList.add('hit');
+          },
+
+          'q-null'() {
+            clearHits();
+            const el = document.querySelector('#not-exist');
+            log("querySelector('#not-exist') → " + el + '（找不到返回 null，不报错）', 'warn');
+            log('  陷阱：接着写 el.textContent 会抛 "Cannot read properties of null"。', 'warn');
+            // 演示正确做法：先判空
+            if (el === null) log('  正确做法：先 if (el) 判断，或使用可选链 el?.textContent。', 'ok');
+          },
+
+          'q-all'() {
+            clearHits();
+            const nodes = document.querySelectorAll('li'); // 静态 NodeList
+            log("querySelectorAll('li') → 数量 = " + nodes.length);
+            log('  类型是 ' + nodes.constructor.name + '，不是 Array，所以没有 map/filter。', 'dim');
+            log('  用 Array.from 转成真数组后 map：' + JSON.stringify(Array.from(nodes).map((n) => n.textContent)), 'ok');
+            log('  高亮 ' + markHits(nodes));
+          },
+
+          'q-child'() {
+            clearHits();
+            // '>' 是子代选择器：只有直接子元素才算，孙辈不算
+            const nodes = document.querySelectorAll('#list > li.item');
+            log("querySelectorAll('#list > li.item') → 数量 = " + nodes.length);
+            log('  ">" 要求直接父子关系，换成空格（后代选择器）会匹配到孙辈。', 'dim');
+            log('  高亮 ' + markHits(nodes));
+          },
+
+          'q-group'() {
+            clearHits();
+            // 逗号 = 分组选择器，任一组匹配即可
+            const nodes = document.querySelectorAll('h1, .desc');
+            log("querySelectorAll('h1, .desc') → 数量 = " + nodes.length + '，标签分别是 ' + Array.from(nodes).map((n) => n.tagName).join(', '));
+            log('  高亮 ' + markHits(nodes));
+          },
+
+          // ----------------------------------------------------------------
+          // 2. 遍历类按钮
+          // ----------------------------------------------------------------
+          't-parent'() {
+            clearHits();
+            const el = document.querySelector('.hot');
+            const p = el.parentElement; // 只算元素节点，不会拿到文本节点
+            log(".hot 的 parentElement → " + nameOf(p));
+            log('  再往上：' + nameOf(p.parentElement) + ' → ' + nameOf(p.parentElement.parentElement), 'dim');
+            markHits([el, p]);
+          },
+
+          't-sibling'() {
+            clearHits();
+            const el = document.querySelector('.hot'); // 第 3 个 li
+            const prev = el.previousElementSibling; // 前一个"元素"兄弟
+            const next = el.nextElementSibling; // 后一个，这里是 null（它是最后一个）
+            log('.hot 的前一个兄弟 → ' + nameOf(prev) + '（文本：' + (prev ? prev.textContent : '') + '）');
+            log('.hot 的后一个兄弟 → ' + next + '（它是最后一个，所以是 null）', 'dim');
+            log('  第一个子元素 list.firstElementChild → ' + nameOf(document.querySelector('#list').firstElementChild), 'dim');
+            markHits([el, prev]);
+          },
+
+          't-closest'() {
+            clearHits();
+            const el = document.querySelector('.hot');
+            // closest 从自身开始向上找，返回最近的匹配祖先（含自身）
+            const app = el.closest('#app');
+            log(".hot.closest('#app') → " + nameOf(app));
+            log('  closest 是事件委托里最常用的定位工具：不管点中多深的子元素，都能找到目标容器。', 'dim');
+            markHits([el, app]);
+          },
+
+          't-contains'() {
+            clearHits();
+            const app = document.querySelector('#app');
+            const el = document.querySelector('.hot');
+            const h1 = document.querySelector('h1');
+            log('#app.contains(.hot) → ' + app.contains(el) + '（.hot 确实是 #app 的后代）');
+            log('h1.contains(.hot) → ' + h1.contains(el) + '（.hot 不在 h1 里面）', 'dim');
+            markHits([app]);
+          },
+
+          't-matches'() {
+            clearHits();
+            const el = document.querySelector('.hot');
+            log(".hot.matches('li.hot') → " + el.matches('li.hot'));
+            log(".hot.matches('li.done') → " + el.matches('li.done'), 'dim');
+            log('matches 只判断"自己"是否符合选择器，不查找祖先或后代。', 'dim');
+            markHits([el]);
+          },
+
+          // ----------------------------------------------------------------
+          // 3. 增删改类按钮
+          // ----------------------------------------------------------------
+          'm-create'() {
+            clearHits();
+            const list = document.querySelector('#list');
+
+            // createElement 创建的新节点是"游离"的：不在页面上，看不见
+            const li = document.createElement('li');
+            li.className = 'item';
+            li.textContent = '新增：createElement + appendChild';
+            log('createElement 之后、appendChild 之前，list.children.length = ' + list.children.length + '（新节点还没进树）');
+
+            list.appendChild(li); // 挂到末尾，页面立刻多出一行
+            log('appendChild 之后，list.children.length = ' + list.children.length + '（页面同步更新）', 'ok');
+            li.classList.add('hit');
+
+            // 顺带更新末尾那句描述
+            document.querySelector('.desc').textContent = '共 ' + list.children.length + ' 条记录';
+          },
+
+          'm-insert'() {
+            clearHits();
+            const list = document.querySelector('#list');
+            const li = document.createElement('li');
+            li.className = 'item hot';
+            li.textContent = '【加急】插到第一位';
+            // insertBefore(新节点, 参照节点)：插到参照节点之前
+            list.insertBefore(li, list.firstElementChild);
+            log('insertBefore(li, list.firstElementChild) 完成，第一项变成：' + list.firstElementChild.textContent, 'ok');
+            log('  现代写法也可以用 li.before(参照节点)，语义一致。', 'dim');
+            li.classList.add('hit');
+            document.querySelector('.desc').textContent = '共 ' + list.children.length + ' 条记录';
+          },
+
+          'm-remove'() {
+            clearHits();
+            const li = document.querySelector('li.done');
+            if (!li) {
+              log('已经没有 li.done 了，先点「重置为初始结构」再试。', 'warn');
+              return;
+            }
+            // remove() 把节点从父节点上摘下来；此后再访问它的 parentElement 就是 null
+            li.remove();
+            log('已删除「' + '学习 DOM 查询' + '」这一项', 'ok');
+            log('  被删节点的 parentElement 现在是 ' + li.parentElement + '（已脱离文档树，但它对象本身还在）', 'dim');
+            document.querySelector('.desc').textContent = '共 ' + document.querySelector('#list').children.length + ' 条记录';
+          },
+
+          'm-reset'() {
+            clearHits();
+            // outerHTML 读：把节点序列化成 HTML 字符串；写：用新 HTML 替换掉原节点及其子树
+            const old = document.getElementById('app');
+            old.outerHTML = initialHTML; // 整块替换，等价于"重新渲染"
+            log('已重置为初始结构。（注意：整块替换后，之前保存的元素引用都会失效）', 'ok');
+            // 重置后原来的 id 指向的元素是新对象，需要重新查询
+            document.querySelector('#app').classList.add('hit');
+          },
+        };
+
+        // ------------------------------------------------------------------
+        // 2. 用"事件委托"给所有按钮统一绑定点击（按钮很多，一个个绑太啰嗦）
+        // ------------------------------------------------------------------
+
+        // 监听 document 上的 click，再判断事件源是不是我们的按钮
+        document.addEventListener('click', function (event) {
+          // event.target 是实际被点击的元素；closest 向上找最近的匹配祖先
+          const btn = event.target.closest('button[data-act]');
+          if (!btn) return; // 点的不是我们的按钮，直接忽略
+          const act = btn.getAttribute('data-act'); // 读取 data-* 自定义属性
+          const fn = actions[act];
+          log('▸ 点击了按钮：' + btn.textContent);
+          if (typeof fn === 'function') fn();
+          else log('未实现的动作：' + act, 'warn');
+        });
+
+        log('已用事件委托在 document 上注册 1 个 click 监听器，覆盖全部按钮。', 'dim');
+        log('准备就绪，请点击左侧任意按钮。', 'ok');
+      })();
+    </script>
+  </body>
+</html>

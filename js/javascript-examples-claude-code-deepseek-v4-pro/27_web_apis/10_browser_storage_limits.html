@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  知识点：浏览器存储的容量限制（配额探测 / 体积压缩 / LRU 淘汰）
+  ============================================================================
+
+  【所属分类】27_web_apis —— 浏览器 Web API
+  【难度等级】高级
+  【前置知识】27_web_apis/10_browser_storage_limits.js、27_web_apis/05_web_storage.js
+
+  【知识点说明】
+
+  1. 是什么
+     浏览器给每个源分配的存储空间是有限的，而且不同存储的配额与计量方式不同：
+       - Cookie        ：单条约 4KB，每域名约 50 条，会随每个请求发给服务器。
+       - localStorage  ：约 5MB（按 UTF-16 计，约 250 万字符），同步 API。
+       - sessionStorage：约 5MB，仅当前标签页有效。
+       - IndexedDB     ：按磁盘剩余空间的百分比分配，可达数百 MB 以上，异步 API。
+       - Cache Storage ：Service Worker 的请求/响应缓存，与 IndexedDB 共用大配额池。
+
+  2. 为什么需要
+     "写不进去"是线上常见故障：localStorage 写满会抛 QuotaExceededError，
+     无痕模式下配额甚至可能为 0。会做容量估算、会压缩、会淘汰，
+     才能写出不会因为存储爆掉而白屏的代码。
+
+  3. 核心语法要点
+     - 容量查询：navigator.storage.estimate() → Promise<{quota, usage, usageDetails?}>
+     - 持久化：navigator.storage.persist() / persisted()
+     - 超限：setItem 抛 DOMException，err.name === 'QuotaExceededError'，err.code === 22
+     - 计量口径：localStorage 按 UTF-16 计，每字符 2 字节。
+       所以字符串的 .length × 2 就是它占用的字节数（键名也要算！）。
+     - 体积压缩的两种实用手段：
+         a) 去掉冗余的键名（列式存储 / 数组化），通常能省 30%~60%；
+         b) 真正的压缩算法（gzip / LZ 系），对结构化数据能到 5~10 倍。
+     - 淘汰策略：LRU（最近最少使用）、TTL（过期时间）。
+
+  4. 常见陷阱
+     - 用 storage.length 判断"占了多少空间"是错的：它返回的是键的数量。
+     - 超限抛出的异常会中断后续逻辑，必须 try/catch 并准备降级方案。
+     - 键名也占空间，写一堆超长的 key 是隐形浪费。
+     - 无痕模式下配额可能是 0，任何写入都会失败。
+     - 同一个源下所有页面共享配额，别的标签页可能已经把空间吃掉了。
+     - 关键数据不能只存本地：浏览器可能在磁盘紧张时整源清除。
+
+  【运行方法】
+     直接双击本文件用浏览器打开即可（无任何外链，可离线运行）。
+     注意：本文件不需要、也不能用 node 命令运行。
+
+  【预期输出】
+     五个面板：体积换算、真实配额探测（会真的写满 localStorage 再清理）、
+     navigator.storage.estimate() 结果、压缩前后体积对比、LRU 淘汰模拟。
+  ============================================================================
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>浏览器存储的容量限制</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, 'Microsoft YaHei', sans-serif;
+        background: #f6f8fa;
+        color: #1f2328;
+        line-height: 1.7;
+      }
+
+      h1 {
+        color: #2f6feb;
+        border-bottom: 3px solid #2f6feb;
+        padding-bottom: 8px;
+      }
+
+      h2 {
+        font-size: 16px;
+        margin: 0 0 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin: 12px 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      button {
+        margin: 0 8px 8px 0;
+        padding: 7px 13px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid #2f6feb;
+        border-radius: 6px;
+        background: #fff;
+        color: #2f6feb;
+      }
+
+      button:hover {
+        background: #2f6feb;
+        color: #fff;
+      }
+
+      button.danger {
+        border-color: #d1242f;
+        color: #d1242f;
+      }
+
+      button.danger:hover {
+        background: #d1242f;
+        color: #fff;
+      }
+
+      code {
+        background: #eaeef2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+      }
+
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        height: 90px;
+        padding: 8px 10px;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        resize: vertical;
+      }
+
+      input[type='text'] {
+        padding: 6px 10px;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        font-size: 13.5px;
+        font-family: Consolas, Monaco, monospace;
+        margin-right: 8px;
+        margin-bottom: 8px;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13px;
+        margin-top: 8px;
+      }
+
+      th,
+      td {
+        border: 1px solid #d0d7de;
+        padding: 5px 10px;
+        text-align: left;
+        word-break: break-all;
+      }
+
+      th {
+        background: #f0f3f6;
+      }
+
+      td.num {
+        font-family: Consolas, Monaco, monospace;
+        text-align: right;
+      }
+
+      pre {
+        margin: 0;
+        height: 260px;
+        overflow: auto;
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 12.5px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .log-ok {
+        color: #7ee787;
+      }
+
+      .log-err {
+        color: #ff7b72;
+      }
+
+      .log-warn {
+        color: #ffa657;
+      }
+
+      .log-dim {
+        color: #8b949e;
+      }
+
+      .hint {
+        color: #57606a;
+        font-size: 13px;
+        margin: 4px 0;
+      }
+
+      .bar {
+        height: 14px;
+        border-radius: 7px;
+        background: #e6e9ee;
+        overflow: hidden;
+        margin: 6px 0;
+      }
+
+      .bar > i {
+        display: block;
+        height: 100%;
+        background: #2f6feb;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>浏览器存储的容量限制</h1>
+
+    <p class="hint">
+      本页会真的往 localStorage 里写数据来做容量探测 —— 探测结束后会把测试数据
+      全部清理干净，不会影响你自己的网站数据（本页是 file:// 或独立域名）。
+    </p>
+
+    <div class="card">
+      <h2>1. 体积换算：一段文字到底占多少字节</h2>
+      <textarea id="sample">{"id":10086,"name":"张三","email":"zhangsan@example.com","tags":["vip","active"]}</textarea>
+      <p>
+        <button data-act="measure">测量体积</button>
+        <button data-act="fill-sample">填一段更长的示例数据</button>
+      </p>
+      <div id="measure-host"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. 真实配额探测：把 localStorage 写满为止</h2>
+      <p class="hint">
+        不断写入 1MB 的数据块，直到浏览器抛 QuotaExceededError，从而测出真实的配额。
+        不同浏览器、不同模式（普通/无痕）结果差别很大。
+      </p>
+      <button data-act="probe" class="danger">开始探测（会短暂占用大量空间）</button>
+      <button data-act="cleanup">清理探测残留数据</button>
+      <div id="probe-host"></div>
+    </div>
+
+    <div class="card">
+      <h2>3. navigator.storage.estimate()</h2>
+      <p class="hint">浏览器官方提供的容量查询接口，统计的是整个源。</p>
+      <button data-act="estimate">查询配额与用量</button>
+      <button data-act="persist">申请持久化存储 persist()</button>
+      <div id="estimate-host"></div>
+    </div>
+
+    <div class="card">
+      <h2>4. 压缩对比：同样 5MB 能多存多少</h2>
+      <p class="hint">
+        用 200 条模拟记录对比三种存法：原样 JSON、去掉重复键名、LZ78 压缩。
+        压缩这里用自己实现的极简 LZ78（真实项目里请用 gzip / pako）。
+      </p>
+      <button data-act="compress">跑一次压缩对比</button>
+      <div id="compress-host"></div>
+    </div>
+
+    <div class="card">
+      <h2>5. LRU 淘汰模拟</h2>
+      <p class="hint">
+        一个容量只有 300 字节的模拟存储：写满之后，最久没被"读取"的键会被淘汰。
+        输入键和值，点写入；点读取会把该键标记为最近使用。
+      </p>
+      <p>
+        <input type="text" id="lru-key" value="k1" size="8" placeholder="键" />
+        <input type="text" id="lru-value" value="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" size="40" placeholder="值" />
+      </p>
+      <p>
+        <button data-act="lru-set">写入</button>
+        <button data-act="lru-get">读取该键</button>
+        <button data-act="lru-reset">重置</button>
+      </p>
+      <div id="lru-host"></div>
+    </div>
+
+    <div class="card">
+      <h2>日志</h2>
+      <pre id="out"></pre>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // ------------------------------------------------------------------
+        // 0. 输出工具
+        // ------------------------------------------------------------------
+
+        const outEl = document.getElementById('out');
+
+        function out(text, kind) {
+          const span = document.createElement('span');
+          if (kind) span.className = 'log-' + kind;
+          span.textContent = text;
+          outEl.appendChild(span);
+          outEl.appendChild(document.createTextNode('\n'));
+          outEl.scrollTop = outEl.scrollHeight;
+          console.log(text);
+        }
+
+        /** 渲染一个表格 */
+        function renderTable(hostId, rows, headers, highlightFirst) {
+          const host = document.getElementById(hostId);
+          host.textContent = '';
+          const table = document.createElement('table');
+          const thead = document.createElement('thead');
+          const tr = document.createElement('tr');
+          for (const h of headers) {
+            const th = document.createElement('th');
+            th.textContent = h;
+            tr.appendChild(th);
+          }
+          thead.appendChild(tr);
+          table.appendChild(thead);
+
+          const tbody = document.createElement('tbody');
+          for (const row of rows) {
+            const r = document.createElement('tr');
+            for (const cell of row) {
+              const td = document.createElement('td');
+              if (/^[\d,\.%]+$/.test(cell)) td.className = 'num';
+              td.textContent = cell;
+              r.appendChild(td);
+            }
+            tbody.appendChild(r);
+          }
+          table.appendChild(tbody);
+          host.appendChild(table);
+        }
+
+        // ------------------------------------------------------------------
+        // 1. 安全地拿到 localStorage（不可用时降级为内存版）
+        // ------------------------------------------------------------------
+
+        function createMemoryStorage() {
+          const map = new Map();
+          return {
+            getItem: function (k) { return map.has(String(k)) ? map.get(String(k)) : null; },
+            setItem: function (k, v) { map.set(String(k), String(v)); },
+            removeItem: function (k) { map.delete(String(k)); },
+            clear: function () { map.clear(); },
+            key: function (i) { return Array.from(map.keys())[i] || null; },
+            get length() { return map.size; },
+          };
+        }
+
+        let ls;
+        let lsAvailable = true;
+        try {
+          ls = window.localStorage;
+          ls.setItem('__probe__', '1');
+          ls.removeItem('__probe__');
+        } catch (err) {
+          ls = createMemoryStorage();
+          lsAvailable = false;
+          out('当前环境无法使用 localStorage（' + err.name + '），已降级为内存版。', 'warn');
+        }
+        out('localStorage 可用：' + lsAvailable, lsAvailable ? 'ok' : 'warn');
+
+        // ------------------------------------------------------------------
+        // 2. 体积换算
+        // ------------------------------------------------------------------
+
+        /** localStorage 的计量口径：UTF-16，每字符 2 字节 */
+        const storageBytes = (str) => str.length * 2;
+
+        /** UTF-8 字节数：用 TextEncoder 真实编码后取长度 */
+        function utf8Bytes(str) {
+          return new TextEncoder().encode(str).length;
+        }
+
+        const actions = {
+          measure: function () {
+            const text = document.getElementById('sample').value;
+            const rows = [
+              ['字符串长度（UTF-16 码元）', String(text.length)],
+              ['localStorage 占用', storageBytes(text) + ' 字节（= 长度 × 2）'],
+              ['UTF-8 字节数（网络/磁盘口径）', utf8Bytes(text) + ' 字节'],
+              ['按 5MB 配额能存多少条', Math.floor((5 * 1024 * 1024) / storageBytes(text)).toLocaleString() + ' 条'],
+              ['按 4KB Cookie 能存多少条', Math.floor(4096 / utf8Bytes(text)).toLocaleString() + ' 条'],
+            ];
+            renderTable('measure-host', rows, ['指标', '数值']);
+            out('已测量：长度 ' + text.length + ' 字符，localStorage 占用 ' + storageBytes(text) + ' 字节', 'ok');
+            out('提示：中文在 UTF-16 里占 1 个码元（2 字节），在 UTF-8 里占 3 字节，', 'dim');
+            out('      所以"字符数"和"字节数"一定要说清是哪个口径。', 'dim');
+            out('');
+          },
+
+          'fill-sample': function () {
+            // 造一段更接近真实的数据：200 条记录
+            const records = [];
+            for (let i = 0; i < 200; i++) {
+              records.push({
+                id: i,
+                name: '用户' + i,
+                email: 'user' + i + '@example.com',
+                createdAt: new Date(1700000000000 + i * 1000).toISOString(),
+                tags: ['vip', 'active'],
+                profile: { age: 20 + (i % 30), city: '北京', score: 60 + (i % 40) },
+              });
+            }
+            document.getElementById('sample').value = JSON.stringify(records);
+            out('已填入 200 条模拟记录，点「测量体积」看看它有多大。', 'ok');
+            out('');
+          },
+
+          // ----------------------------------------------------------------
+          // 3. 真实配额探测
+          // ----------------------------------------------------------------
+          probe: function () {
+            out('=== 开始探测 localStorage 真实配额 ===', 'dim');
+            if (!lsAvailable) {
+              out('  localStorage 不可用，无法探测。', 'err');
+              return;
+            }
+            const CHUNK_KB = 512; // 每次写 512KB，写得太碎会很慢
+            const chunk = new Array(CHUNK_KB * 1024 / 2 + 1).join('x'); // 每字符 2 字节 → 512KB
+            const writtenKeys = [];
+            let written = 0;
+
+            try {
+              // 最多写 40 次（约 20MB），正常浏览器会在 5MB 左右就抛错
+              for (let i = 0; i < 40; i++) {
+                const key = '__capacity_test_' + i + '__';
+                ls.setItem(key, chunk);
+                writtenKeys.push(key);
+                written += CHUNK_KB;
+              }
+              out('  写满了 40 次（' + written + ' KB）都没超限，配额比预期大。', 'warn');
+            } catch (err) {
+              out('  写入第 ' + (writtenKeys.length + 1) + ' 块（' + CHUNK_KB + ' KB）时失败', 'err');
+              out('    错误名 = ' + err.name + '（QuotaExceededError 才是配额错误）');
+              out('    错误码 = ' + err.code + '（标准码是 22）');
+              out('    测得的配额约为 ' + written + ' KB ≈ ' + (written / 1024).toFixed(1) + ' MB', 'ok');
+            } finally {
+              // 关键：无论成功失败都要清理，别把用户的存储占满
+              let freed = 0;
+              for (const key of writtenKeys) {
+                ls.removeItem(key);
+                freed += CHUNK_KB;
+              }
+              out('  已清理探测数据 ' + freed + ' KB，当前 localStorage.length = ' + ls.length, 'ok');
+            }
+
+            const rows = [
+              ['成功写入', written + ' KB'],
+              ['是否触发过 QuotaExceededError', written < 40 * CHUNK_KB ? '是' : '否'],
+              ['清理后剩余键数', String(ls.length)],
+              ['常见参考值', 'Chrome/Edge/Firefox 约 5MB；Safari 约 5MB；无痕模式可能为 0'],
+            ];
+            renderTable('probe-host', rows, ['项目', '结果']);
+            out('');
+          },
+
+          cleanup: function () {
+            // 保险起见再清理一遍所有以 __ 开头的测试键
+            let count = 0;
+            const toRemove = [];
+            for (let i = 0; i < ls.length; i++) {
+              const k = ls.key(i);
+              if (k && k.indexOf('__') === 0) toRemove.push(k);
+            }
+            for (const k of toRemove) {
+              ls.removeItem(k);
+              count += 1;
+            }
+            out('已清理 ' + count + ' 个测试键。', count > 0 ? 'ok' : 'dim');
+            out('');
+          },
+
+          // ----------------------------------------------------------------
+          // 4. navigator.storage.estimate()
+          // ----------------------------------------------------------------
+          estimate: async function () {
+            out('=== navigator.storage.estimate() ===', 'dim');
+            if (!navigator.storage || typeof navigator.storage.estimate !== 'function') {
+              out('  当前浏览器/上下文不支持 StorageManager.estimate()。', 'err');
+              out('  注意：file:// 或某些隐私模式下这个 API 可能被禁用。', 'warn');
+              return;
+            }
+            try {
+              const est = await navigator.storage.estimate();
+              const mb = (n) => (n / 1024 / 1024).toFixed(1) + ' MB';
+              out('  quota（本源的配额上限）= ' + mb(est.quota));
+              out('  usage（已使用）         = ' + mb(est.usage));
+              out('  使用比例 = ' + ((est.usage / est.quota) * 100).toFixed(3) + '%');
+              if (est.usageDetails) {
+                out('  usageDetails = ' + JSON.stringify(est.usageDetails));
+                out('    （Chrome 里会细分出 indexedDB / caches / serviceWorkerRegistrations 等）', 'dim');
+              } else {
+                out('  当前浏览器没有提供 usageDetails 明细。', 'dim');
+              }
+              out('  提醒：这个数字涵盖整个源（含 IndexedDB、Cache），不包含 localStorage 的精确明细。', 'warn');
+
+              // 画一个使用率进度条
+              const host = document.getElementById('estimate-host');
+              host.textContent = '';
+              const bar = document.createElement('div');
+              bar.className = 'bar';
+              const inner = document.createElement('i');
+              // 使用率通常极低，这里至少给 1% 的可见宽度
+              inner.style.width = Math.max(1, (est.usage / est.quota) * 100) + '%';
+              bar.appendChild(inner);
+              host.appendChild(bar);
+              const p = document.createElement('p');
+              p.className = 'hint';
+              p.textContent = '用量 ' + mb(est.usage) + ' / 配额 ' + mb(est.quota);
+              host.appendChild(p);
+            } catch (err) {
+              out('  查询失败：' + err.name + ': ' + err.message, 'err');
+            }
+            out('');
+          },
+
+          persist: async function () {
+            out('=== navigator.storage.persist() ===', 'dim');
+            if (!navigator.storage || typeof navigator.storage.persist !== 'function') {
+              out('  当前环境不支持 persist()。', 'err');
+              return;
+            }
+            try {
+              // persisted() 查询当前是否已经是持久化状态
+              const before = await navigator.storage.persisted();
+              out('  申请之前 persisted() = ' + before);
+              if (before) {
+                out('  已经是持久化存储了，浏览器不会在磁盘紧张时清除本页数据。', 'ok');
+                return;
+              }
+              // persist() 是否会弹窗询问，取决于浏览器的策略（通常看用户参与度）
+              const granted = await navigator.storage.persist();
+              out('  persist() 返回 = ' + granted, granted ? 'ok' : 'warn');
+              out(granted ? '  已获得持久化授权。' : '  未获授权（浏览器可能因为"用户参与度不足"直接拒绝）。', granted ? 'ok' : 'warn');
+              out('  提示：授权策略由浏览器决定，不能依赖它；关键数据永远要有服务器端备份。', 'warn');
+            } catch (err) {
+              out('  调用失败：' + err.name + ': ' + err.message, 'err');
+            }
+            out('');
+          },
+        };
+
+        // ------------------------------------------------------------------
+        // 5. 压缩对比（自实现极简 LZ78）
+        // ------------------------------------------------------------------
+
+        /**
+         * 极简 LZ78 压缩。
+         * 思路：一边扫描输入，一边把"出现过的最长前缀"记进字典；
+         * 遇到新组合就把 (前缀编号, 新字符) 输出成一个 token，并把这个新组合加入字典。
+         * 好处是重复出现的片段（比如 JSON 里反复出现的键名）只需要用一个编号表示。
+         * 真实项目里请用 gzip（浏览器有 CompressionStream）或 pako 库。
+         */
+        function lz78Encode(input) {
+          const dict = new Map(); // 字符串 → 编号
+          let nextCode = 1;
+          const tokens = [];
+          let w = '';
+
+          for (const ch of input) {
+            const wc = w + ch;
+            if (dict.has(wc)) {
+              w = wc; // 继续往后找更长的前缀
+              continue;
+            }
+            // 前缀 w 一定在字典里（空串视作 0），后面跟一个新字符
+            tokens.push([w === '' ? 0 : dict.get(w), ch]);
+            dict.set(wc, nextCode);
+            nextCode += 1;
+            w = '';
+          }
+          if (w !== '') tokens.push([w === '' ? 0 : dict.get(w), '']); // 收尾
+          return tokens;
+        }
+
+        /** LZ78 解压（用于验证压缩是无损的） */
+        function lz78Decode(tokens) {
+          const dict = []; // 编号 i 对应 dict[i-1]
+          let result = '';
+          for (const [code, ch] of tokens) {
+            const prefix = code === 0 ? '' : dict[code - 1];
+            const entry = prefix + ch;
+            result += entry;
+            dict.push(entry);
+          }
+          return result;
+        }
+
+        actions.compress = function () {
+          out('=== 压缩对比（200 条记录）===', 'dim');
+
+          // 造 200 条记录
+          const records = [];
+          for (let i = 0; i < 200; i++) {
+            records.push({
+              id: i,
+              name: '用户' + i,
+              email: 'user' + i + '@example.com',
+              createdAt: new Date(1700000000000 + i * 1000).toISOString(),
+              tags: ['vip', 'active'],
+              profile: { age: 20 + (i % 30), city: '北京', score: 60 + (i % 40) },
+            });
+          }
+
+          // 存法一：原样 JSON
+          const plain = JSON.stringify(records);
+
+          // 存法二：去掉重复的键名，改成数组的数组
+          const compact = JSON.stringify(
+            records.map(function (r) {
+              return [r.id, r.name, r.email, r.createdAt, r.profile.age, r.profile.city, r.profile.score];
+            }),
+          );
+
+          // 存法三：LZ78 压缩
+          const tokens = lz78Encode(plain);
+          const compressed = JSON.stringify(tokens);
+          // 验证无损
+          const restored = lz78Decode(tokens);
+          const lossless = restored === plain;
+
+          const rows = [
+            ['原样 JSON.stringify', plain.length.toLocaleString(), storageBytes(plain).toLocaleString(), '100%'],
+            ['去掉重复键名（数组化）', compact.length.toLocaleString(), storageBytes(compact).toLocaleString(), ((compact.length / plain.length) * 100).toFixed(1) + '%'],
+            ['LZ78 压缩 + token 序列化', compressed.length.toLocaleString(), storageBytes(compressed).toLocaleString(), ((compressed.length / plain.length) * 100).toFixed(1) + '%'],
+          ];
+          renderTable('compress-host', rows, ['存法', '字符数', 'localStorage 占用(字节)', '相对原样'], true);
+
+          out('  原样：' + plain.length.toLocaleString() + ' 字符 = ' + (storageBytes(plain) / 1024).toFixed(1) + ' KB');
+          out('  数组化：' + compact.length.toLocaleString() + ' 字符（省了 ' + ((1 - compact.length / plain.length) * 100).toFixed(1) + '%）', 'ok');
+          out('  LZ78：' + compressed.length.toLocaleString() + ' 字符（省了 ' + ((1 - compressed.length / plain.length) * 100).toFixed(1) + '%）', 'ok');
+          out('  解压校验是否无损：' + lossless, lossless ? 'ok' : 'err');
+          out('');
+          out('  同样 5MB 配额下能存的记录条数：');
+          out('    原样   ≈ ' + Math.floor((5 * 1024 * 1024) / storageBytes(plain) * 200).toLocaleString() + ' 条');
+          out('    LZ78 后 ≈ ' + Math.floor((5 * 1024 * 1024) / storageBytes(compressed) * 200).toLocaleString() + ' 条', 'ok');
+          out('');
+          out('  注意压缩的代价：每次读写都要压缩/解压，会消耗 CPU 时间。', 'warn');
+          out('  小数据（几百字节）压缩反而可能变大，要按数据量决定是否值得。', 'warn');
+          out('');
+        };
+
+        // ------------------------------------------------------------------
+        // 6. LRU 淘汰模拟
+        // ------------------------------------------------------------------
+
+        /** 带头容量上限 + LRU 淘汰的模拟存储 */
+        function createQuotaStorage(limitBytes) {
+          return {
+            limit: limitBytes,
+            map: new Map(), // Map 保持插入顺序，第一个键就是"最久没用"的
+            used: 0,
+            evicted: 0,
+            sizeOf: function (k, v) {
+              return (String(k).length + String(v).length) * 2; // localStorage 按 UTF-16 计
+            },
+            get: function (key) {
+              const k = String(key);
+              if (!this.map.has(k)) return null;
+              const v = this.map.get(k);
+              // 删掉再插入 = 移到末尾 = 变成"最近使用"
+              this.map.delete(k);
+              this.map.set(k, v);
+              return v;
+            },
+            set: function (key, value) {
+              const k = String(key);
+              const v = String(value);
+              const need = this.sizeOf(k, v);
+
+              if (need > this.limit) {
+                const err = new Error('单条 ' + need + ' 字节超过总配额 ' + this.limit + ' 字节');
+                err.name = 'QuotaExceededError';
+                throw err;
+              }
+              if (this.map.has(k)) {
+                this.used -= this.sizeOf(k, this.map.get(k));
+                this.map.delete(k);
+              }
+              while (this.used + need > this.limit && this.map.size > 0) {
+                const oldest = this.map.keys().next().value;
+                this.used -= this.sizeOf(oldest, this.map.get(oldest));
+                this.map.delete(oldest);
+                this.evicted += 1;
+                out('    ⚠ 空间不足，淘汰最久未使用的键：' + oldest, 'warn');
+              }
+              this.map.set(k, v);
+              this.used += need;
+            },
+            reset: function () {
+              this.map.clear();
+              this.used = 0;
+              this.evicted = 0;
+            },
+          };
+        }
+
+        let lru = createQuotaStorage(300);
+
+        /** 把 LRU 的当前状态渲染成表格 + 进度条 */
+        function renderLru() {
+          const host = document.getElementById('lru-host');
+          host.textContent = '';
+
+          const bar = document.createElement('div');
+          bar.className = 'bar';
+          const inner = document.createElement('i');
+          inner.style.width = ((lru.used / lru.limit) * 100).toFixed(1) + '%';
+          bar.appendChild(inner);
+          host.appendChild(bar);
+
+          const info = document.createElement('p');
+          info.className = 'hint';
+          info.textContent =
+            '容量 ' + lru.limit + ' 字节，已用 ' + lru.used + ' 字节，淘汰过 ' + lru.evicted + ' 个键。顺序（左边 = 最久未使用）：';
+          host.appendChild(info);
+
+          const rows = [];
+          for (const [k, v] of lru.map) {
+            rows.push([k, v.length > 20 ? v.slice(0, 20) + '…' : v, String(lru.sizeOf(k, v))]);
+          }
+          if (rows.length === 0) {
+            const p = document.createElement('p');
+            p.className = 'hint';
+            p.textContent = '（空）';
+            host.appendChild(p);
+            return;
+          }
+          renderTable('lru-host', rows, ['键', '值（截断显示）', '占用字节'], false);
+          // renderTable 会清空 host，所以进度条要重新加上去
+          host.insertBefore(bar, host.firstChild);
+          host.insertBefore(info, host.firstChild);
+        }
+
+        actions['lru-set'] = function () {
+          const key = document.getElementById('lru-key').value || 'k';
+          const value = document.getElementById('lru-value').value || 'v';
+          try {
+            lru.set(key, value);
+            out('写入 ' + key + '（' + lru.sizeOf(key, value) + ' 字节）：已用 ' + lru.used + ' / ' + lru.limit, 'ok');
+          } catch (err) {
+            out('写入失败：' + err.name + ' - ' + err.message, 'err');
+          }
+          renderLru();
+        };
+
+        actions['lru-get'] = function () {
+          const key = document.getElementById('lru-key').value || 'k';
+          const v = lru.get(key);
+          if (v === null) out('读取 ' + key + '：不存在（可能已被淘汰）', 'warn');
+          else out('读取 ' + key + '：' + v.slice(0, 20) + '…（该键已变成"最近使用"）', 'ok');
+          renderLru();
+        };
+
+        actions['lru-reset'] = function () {
+          lru.reset();
+          out('LRU 存储已重置。', 'ok');
+          renderLru();
+        };
+
+        // ------------------------------------------------------------------
+        // 7. 事件委托绑定按钮
+        // ------------------------------------------------------------------
+
+        document.addEventListener('click', function (e) {
+          const btn = e.target.closest('button[data-act]');
+          if (!btn) return;
+          const fn = actions[btn.getAttribute('data-act')];
+          if (typeof fn !== 'function') return;
+          out('▸ ' + btn.textContent.trim(), 'dim');
+          try {
+            const r = fn();
+            if (r && typeof r.catch === 'function') {
+              r.catch(function (err) {
+                out('  ✗ 出错了：' + err.name + ': ' + err.message, 'err');
+              });
+            }
+          } catch (err) {
+            out('  ✗ 出错了：' + err.name + ': ' + err.message, 'err');
+          }
+        });
+
+        // 初始化
+        renderLru();
+        actions.measure();
+        out('页面已就绪。建议顺序：先看"体积换算"，再玩"配额探测"和"LRU 淘汰"。', 'ok');
+      })();
+    </script>
+  </body>
+</html>
