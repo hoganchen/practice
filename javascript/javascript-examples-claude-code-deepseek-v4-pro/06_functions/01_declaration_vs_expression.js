@@ -29,21 +29,29 @@
  *    (2) 函数表达式只是把函数"当成一个值"，提升的只有变量本身：
  *          - 用 var 声明：变量提升为 undefined，提前调用 → TypeError。
  *          - 用 let/const 声明：变量处于"暂时性死区(TDZ)"，提前调用 → ReferenceError。
- *    (3) 函数声明必须有名字；函数表达式可以匿名，也可以命名（命名函数表达式），
- *        命名函数表达式的名字只在该函数体内部可见。
+ *    (3) 函数声明必须有名字；函数表达式可以匿名，也可以命名（命名函数表达式，NFE），
+ *        命名函数表达式的名字只在该函数体内部可见，而且是个**只读绑定**：
+ *          - 在函数体内给它赋值会抛 TypeError，不是安静忽略；
+ *          - 内外同名时（`var f = function f() {}`），函数体内的名字会**遮蔽**外层变量；
+ *          - 主要价值是让递归能自引用，不依赖外层变量名。
  *    (4) 在 ESM / 严格模式下，函数声明只在它所在的作用域内提升，不会泄漏到全局。
  *
  * 4. 常见陷阱
  *    - 以为 `const f = function () {}` 也能提前调用。
  *    - 在 if 分支里写函数声明（块级函数声明），不同环境下行为不一致，应改用函数表达式。
  *    - 命名函数表达式的名字（如 `const f = function g() {}` 里的 g）在外层拿不到。
+ *    - 以为 `.name` 总能拿到函数名 —— "事后往对象上赋值"的匿名函数推断不出名字，
+ *      `.name` 是空字符串；内联回调同理，栈追踪里也只有文件名和行号。
+ *    - 反过来也别以为匿名函数一定没有名字：`const f = function () {}` 这种
+ *      会从变量名推断出 f，栈追踪里照样显示 f。
  *
  * 【运行方法】
  *   在仓库根目录执行：node 06_functions/01_declaration_vs_expression.js
  *
  * 【预期输出】
  *   依次打印函数声明可提前调用、函数表达式不可提前调用的三类结果，
- *   最后打印命名函数表达式名字可见性的对比。
+ *   再打印命名函数表达式的名字可见性、递归自引用、遮蔽、只读绑定、栈追踪与 .name 的对比，
+ *   最后打印块级函数声明与调用时机对比表。
  * ============================================================================
  */
 
@@ -107,7 +115,8 @@ const factorial = function factorialInner(n) {
 };
 
 console.log('factorial(5) →', factorial(5)); // 120
-console.log('factorial.name →', factorial.name); // 名字被推断为 factorialInner
+// 注意：这里是**显式写的名字**，不是从变量名推断出来的（两者容易混，见 4.4）
+console.log('factorial.name →', factorial.name); // factorialInner
 
 // 外部拿不到 factorialInner 这个名字：
 console.log('外部 typeof factorialInner →', typeof factorialInner, '（名字不外泄，声明不存在）');
@@ -117,6 +126,100 @@ try {
   console.log('外部调用 factorialInner 报错类型：', err.constructor.name);
   console.log('错误信息：', err.message);
 }
+
+// --- 4.1 作用一：递归时自引用，不依赖外层变量 ---
+
+// 这是具名函数表达式最实际的价值。先看匿名写法的隐患：
+// 匿名函数体内的 fibAnon 解析到的是**外层那个变量**，递归完全建立在它身上。
+var fibAnon = function (n) {
+  return n < 2 ? n : fibAnon(n - 1) + fibAnon(n - 2);
+};
+const savedAnon = fibAnon;
+// 外层变量被重新赋值（或置空、被回收）之后……
+fibAnon = null;
+try {
+  console.log('匿名版：外层置 null 后调用 savedAnon(10) →', savedAnon(10));
+} catch (err) {
+  console.log('匿名版：外层置 null 后调用 →', err.constructor.name, '-', err.message);
+}
+
+// 具名写法把递归锚定在**函数自己**身上，外层变量怎么变都不影响。
+var fibNamed = function fibNamed(n) {
+  return n < 2 ? n : fibNamed(n - 1) + fibNamed(n - 2);
+};
+const savedNamed = fibNamed;
+fibNamed = null;
+console.log('具名版：外层置 null 后调用 savedNamed(10) →', savedNamed(10));
+
+// --- 4.2 同名时会遮蔽外层变量 ---
+
+// `var f = function f() {}` 这种内外同名的写法，容易以为"只是给匿名函数加个标签"。
+// 实际上函数体内的那个名字会**遮蔽**同名的外层变量，指向函数自己：
+const label = '我是外层字符串';
+const shadowed = function label() {
+  return typeof label; // 体内看到的 label 是函数名，不是外面那个字符串
+};
+console.log('体内 typeof label →', shadowed(), '| 体外 typeof label →', typeof label);
+
+// --- 4.3 这个名字是只读绑定，赋值会抛错 ---
+
+// 函数表达式的名字绑定是"不可变绑定"：在函数体内给它赋值不是被安静忽略，
+// 而是直接抛错。本仓库的 .js 都是 ES 模块（默认严格模式），所以必然抛。
+const readOnlyName = function readOnlyName() {
+  // 这行是**故意**写的：演示"给函数名赋值会抛错"正是本节的教学内容，
+  // 不是手误，所以针对这一行关掉 no-func-assign（该规则默认拦的正是这种写法）。
+  // eslint-disable-next-line no-func-assign
+  readOnlyName = 1; // 抛 TypeError（错误信息里会把它称作 constant variable）
+  return '没有抛错（不可能走到这里）';
+};
+try {
+  readOnlyName();
+} catch (err) {
+  console.log('体内给函数名赋值 →', err.constructor.name, '-', err.message);
+}
+
+// --- 4.4 作用二：调试与 .name ---
+
+/** 取出"抛出错误的那一帧"，用来观察函数在栈追踪里显示成什么名字 */
+function throwFrame(fn) {
+  try {
+    fn();
+    return '（没有抛错）';
+  } catch (err) {
+    return err.stack.split('\n')[1].trim();
+  }
+}
+
+const runThrow = (cb) => cb();
+const boomAnon = function () {
+  throw new Error('x');
+};
+
+// 有变量名可供推断时，匿名写法在栈里也能显示出名字 —— 所以别盲目相信
+// "匿名函数一定没有名字"，要看具体场合。
+console.log('匿名 + 变量赋值   →', throwFrame(() => boomAnon()));
+// 真正吃亏的是**内联回调**：没有变量名可推断，栈里就只剩文件名和行号
+console.log(
+  '匿名内联回调       →',
+  throwFrame(() => runThrow(function () {
+    throw new Error('x');
+  })),
+);
+console.log(
+  '具名内联回调       →',
+  throwFrame(() => runThrow(function onTick() {
+    throw new Error('x');
+  })),
+);
+
+// .name 上同理：名字推断**不是万能的**，事后往对象上赋值的匿名函数推断不出来。
+const registry = {};
+registry.handler = function () {}; // 事后赋值，没有名字可推断
+registry.named = function onMessage() {}; // 显式命名
+console.log('registry.handler.name →', JSON.stringify(registry.handler.name), '（推断不出来）');
+console.log('registry.named.name   →', JSON.stringify(registry.named.name), '（用自己写的名字）');
+// 把函数注册进注册表、传给别的模块之后，名字仍然是个能用的标识符 ——
+// 做插件注册、日志埋点、按 fn.name 调度时，这一点很有用。
 
 console.log('--- 5. 块级作用域中的函数声明 ---');
 
