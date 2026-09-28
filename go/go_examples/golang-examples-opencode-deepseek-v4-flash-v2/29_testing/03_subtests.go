@@ -23,7 +23,7 @@ var (
 
 type Calculator struct{}
 
-func (c Calculator) Add(a, b int) int { return a + b }
+func (c Calculator) Add(a, b int) int      { return a + b }
 func (c Calculator) Subtract(a, b int) int { return a - b }
 func (c Calculator) Multiply(a, b int) int { return a * b }
 func (c Calculator) Divide(a, b int) (int, error) {
@@ -31,9 +31,4 @@ func (c Calculator) Divide(a, b int) (int, error) {
 		return 0, ErrDivideByZero
 	}
 	return a / b, nil
-}
-
-func main() {
-	// 仅供编译通过, 实际运行请使用 go test
-	_ = Calculator{}
 }
