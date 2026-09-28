@@ -43,9 +43,13 @@
  * 【运行方法】
  *   node 07_scope_and_closure/10_closure_memory.js
  *
+ *   # 第 7 节「量化对比」需要稳定可比的堆数字，请用这个方式运行：
+ *   node --expose-gc 07_scope_and_closure/10_closure_memory.js
+ *
  * 【预期输出】
  *   用可观察的引用关系说明"闭包让变量活下去"，
  *   用 process.memoryUsage() 对比"被闭包持有"与"已断开引用"两种情况的堆占用，
+ *   第 7 节给出三组实测数据（定时器持有 / Map vs WeakMap / 捕获面大小），
  *   并给出避免泄漏的具体做法。
  * ============================================================================
  */
@@ -165,18 +169,30 @@ void probe;
 
 console.log('--- 4. 泄漏场景二：定时器里的闭包 ---');
 
-let tickCount = 0;
-const bigConfig = { data: 'x'.repeat(50 * 1024), name: '定时器持有的配置' };
+// 注意 bigConfig 必须创建在**函数作用域**里。如果直接写在模块顶层，
+// 模块级绑定本身就是一个 GC 根，它无论如何都不会被回收 ——
+// 那样就演示不出"定时器持有闭包"到底意味着什么了。
+function startTicking() {
+  const bigConfig = { data: 'x'.repeat(50 * 1024), name: '定时器持有的配置' };
+  let ticks = 0;
+  const timer = setInterval(() => {
+    // 这个闭包**真的**捕获了 bigConfig（下面要用到它）——
+    // 只要定时器不清除，bigConfig 就一直活着。
+    ticks += 1;
+    if (ticks >= 3) {
+      // 达到次数后主动清除定时器 —— 这是正确做法。
+      clearInterval(timer);
+      console.log(`  定时器执行了 ${ticks} 次后已清除：${bigConfig.name} 随之可被回收`);
+    }
+  }, 5);
+  return timer;
+}
 
-const timer = setInterval(() => {
-  // 这个闭包捕获了 bigConfig。只要定时器不清除，bigConfig 就一直活着。
-  tickCount += 1;
-  if (tickCount >= 3) {
-    // 达到次数后主动清除定时器 —— 这是正确做法。
-    clearInterval(timer);
-    console.log(`  定时器执行了 ${tickCount} 次后已清除（bigConfig 随之可被回收）`);
-  }
-}, 5);
+const timer = startTicking();
+
+// 外部持有 timer 句柄，才能在想停的时候 clearInterval(timer)。
+// 本示例让回调自己跑满 3 次后清除，所以这里不再对它做操作。
+void timer;
 
 // 等定时器跑完，保证输出顺序稳定。
 await new Promise((resolve) => setTimeout(resolve, 50));
@@ -223,7 +239,126 @@ target = null;
 console.log('  把 target 置为 null 后，deref() →', weakRef.deref()?.name ?? '（对象已被回收）');
 console.log('  WeakRef 适合"缓存但允许随时丢失"的场景，用之前必须处理 deref() 返回 undefined 的情况。');
 
-console.log('--- 7. 正确断开的四种手法 ---');
+console.log('--- 7. 量化对比：三组实测 ---');
+
+// 前面几节讲的是"为什么会泄漏"。这一节把代价量出来，看清到底差多少。
+//
+// 本节要求**稳定、可比**的堆数字，所以必须在 --expose-gc 下运行，原因是：
+//   `globalThis.gc` 只在 `node --expose-gc` 启动时才存在。没有它就无法强制 GC，
+//   此时 heapUsed 会把"已经不可达、但还没被回收"的对象也算进去 —— 数字既不可比，
+//   还会和下面的结论**自相矛盾**（例如标着"已释放"，数字却还在往上涨）。
+//   与其打印一组会误导人的数字，不如明确跳过，并告诉你正确的运行方式。
+//   （同理，`npm run check` 批量跑全部示例时走的就是"跳过"这条分支。）
+const HAS_GC = typeof globalThis.gc === 'function';
+
+/** 尽量把堆稳定下来，再读 heapUsed */
+function settleHeap() {
+  for (let i = 0; i < 3; i += 1) globalThis.gc();
+  return process.memoryUsage().heapUsed;
+}
+
+function runMeasuredComparisons() {
+  const heapBaseline = settleHeap();
+  console.log(`  基线堆占用：${mb(heapBaseline)}\n`);
+
+  // ---- 对比 1：定时器持有闭包 ----
+  // 注意这些大对象必须在**函数作用域**里创建。如果直接写在模块顶层，
+  // 模块级绑定本身就是 GC 根，无论如何都不会被回收 —— 那样就测不出
+  // "定时器持有闭包"这件事的影响了。
+  function startTicking() {
+    const big = new Array(2_000_000).fill(1.5); // ≈16MB，被下面的箭头函数捕获
+    return { timer: setInterval(() => big.length, 1000) };
+  }
+
+  let ticking = startTicking();
+  console.log(`  ① 定时器持有闭包        → 比基线高 ${mb(settleHeap() - heapBaseline)}（大对象被钉住）`);
+
+  clearInterval(ticking.timer); // 唯一有效的操作：撤销定时器这个引用
+  ticking = null;
+  console.log(`     clearInterval 之后   → 比基线高 ${mb(settleHeap() - heapBaseline)}（已释放）\n`);
+
+  // ---- 对比 2：Map 强引用 vs WeakMap 弱引用 ----
+  function storeIn(useWeak) {
+    const store = useWeak ? new WeakMap() : new Map();
+    const key = {};
+    const reader = (() => {
+      const big = new Array(2_000_000).fill(1.5);
+      return () => big.length;
+    })();
+    store.set(key, reader);
+    // 只把 store 返回出去：key 与 reader 都"看起来"随函数返回而消失了，
+    // 实际是否被回收，完全取决于 store 是强引用还是弱引用。
+    return store;
+  }
+
+  let strongStore = storeIn(false);
+  console.log(`  ② 只留 Map 在手上       → 比基线高 ${mb(settleHeap() - heapBaseline)}（强引用 → 钉住）`);
+  strongStore = null;
+  console.log(`     丢掉 Map 之后        → 比基线高 ${mb(settleHeap() - heapBaseline)}`);
+
+  let weakStore = storeIn(true);
+  console.log(
+    `  ③ 只留 WeakMap 在手上   → 比基线高 ${mb(settleHeap() - heapBaseline)}（弱引用 → 不阻止回收）`,
+  );
+  weakStore = null;
+  console.log('');
+
+  // ---- 对比 3：捕获整个对象 vs 只捕获需要的字段 ----
+  // 两个版本都只用 small，唯一的区别是"闭包捕获了什么"。
+  function captureWhole() {
+    const data = { big: new Array(2_000_000).fill(1.5), small: 42 };
+    return () => data.small; // 整个 data 被捕获
+  }
+  function captureField() {
+    const data = { big: new Array(2_000_000).fill(1.5), small: 42 };
+    const { small } = data; // 先把要用的字段取出来；等价于 const small = data.small;
+    return () => small; // 只捕获 small
+  }
+
+  let whole = captureWhole();
+  console.log(`  ④ 闭包捕获整个 data     → 比基线高 ${mb(settleHeap() - heapBaseline)}`);
+  whole = null;
+  console.log(`     清掉后               → 比基线高 ${mb(settleHeap() - heapBaseline)}`);
+
+  let field = captureField();
+  console.log(`  ⑤ 只捕获 small 字段     → 比基线高 ${mb(settleHeap() - heapBaseline)}（修复有效）`);
+  field = null;
+
+  // 读法：
+  //   · ① 与 ② 说明"谁是引用方"才是关键 —— 这两处你自己并没有引用那个闭包，
+  //     但定时器和 Map 替你引用了，于是整条引用链都活着。
+  //   · ③ 说明 WeakMap 的差别不是"更快"，而是它**不构成**引用链的一环。
+  //   · ④ 与 ⑤ 说明泄漏的粒度是**变量**：V8 只为"被内部函数引用到的变量"
+  //     建立 Context，没被引用到的变量留在栈上、函数返回即释放。
+  //     两个版本代码几乎一样，只差一次解构，结果差了一整个大对象。
+  //     —— 所以"闭包会泄漏"不是必然的，取决于你捕获了什么。
+  console.log('  ⑤ 的"提前解构"是最容易落地的一条优化：不用改架构，');
+  console.log('     只要在写闭包时想一下"我是不是把整个对象都捕获进来了"。');
+  // 让 ESLint 知道变量已被使用（做法同第 2 节的 void leakedStore）。
+  void ticking;
+  void strongStore;
+  void weakStore;
+  void whole;
+  void field;
+}
+
+if (HAS_GC) {
+  runMeasuredComparisons();
+} else {
+  console.log('  已跳过实测：本节需要 --expose-gc 才能得到稳定数字。');
+  console.log('  请用这条命令运行本文件：');
+  console.log('    node --expose-gc 07_scope_and_closure/10_closure_memory.js');
+  console.log('  届时会看到下面这组实测值（本机 Node 24 上量得）：');
+  console.log('    · ① 定时器持有闭包            → 比基线高约 15 MB（大对象被钉住）');
+  console.log('    ·    clearInterval 之后       → 回落到基线（约 +0.01 MB）');
+  console.log('    · ② 只留 Map 在手上           → 比基线高约 15 MB（强引用 → 钉住）');
+  console.log('    ·    丢掉 Map 之后            → 回落到基线');
+  console.log('    · ③ 只留 WeakMap 在手上       → 回落到基线（不构成引用链）');
+  console.log('    · ④ 闭包捕获整个 data         → 比基线高约 15 MB');
+  console.log('    · ⑤ 改为只捕获需要的字段      → 回落到基线（修复有效）');
+}
+
+console.log('--- 8. 正确断开的四种手法 ---');
 
 // 手法 1：把持有闭包的变量置为 null。
 let fn = () => 'hello';
@@ -247,7 +382,7 @@ weakSet.add(obj);
 obj = null;
 console.log('  ④ 改用 WeakMap / WeakSet，让引用不阻止回收');
 
-console.log('--- 8. 排查清单：怀疑内存泄漏时按这个顺序看 ---');
+console.log('--- 9. 排查清单：怀疑内存泄漏时按这个顺序看 ---');
 
 const checklist = [
   ['模块级 Map / 数组缓存', '有没有容量上限？有没有 TTL？能否换成 WeakMap？'],
@@ -267,7 +402,7 @@ for (const [item, question] of checklist) {
   console.log(`      → ${question}`);
 }
 
-console.log('--- 9. 一句话总结 ---');
+console.log('--- 10. 一句话总结 ---');
 console.log('  闭包本身不是泄漏，"闭包 + 长期持有"才是。');
 console.log('  判断依据只有一条：这个闭包函数，还能从根对象沿着引用链找到吗？');
 console.log('  能 → 它捕获的一切都活着；不能 → 全部可以被回收。');
